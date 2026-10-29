@@ -1,0 +1,16 @@
+{
+  "name": "Polling Without People",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "rstudio",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["REditorSupport.r"]
+    }
+  }
+}
