@@ -1,0 +1,9 @@
+
+# Downloaded and generated data
+**/data/input/*
+**/data/intermediate/*
+**/data/output/*
+!**/data/**/README.md
+!**/data/**/.gitkeep
+/frame/Development_Script_Original/
+/frame/Final_Data_Original/

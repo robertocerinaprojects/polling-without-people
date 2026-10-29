@@ -1,3 +1,6 @@
+> **Review status:** Only `scripts/01_prepare_pums.R` has been reviewed and run in the new layout. See [its documentation](docs/01_prepare_pums.md).
+> The instructions below describe the original repository. `run_all.R` and `runner.R` have not been migrated. Use the command in the reviewed step's documentation.
+
 # Stratification Frame — US 2026 House Elections
  
 This repository builds a demographic **stratification frame** and the associated
