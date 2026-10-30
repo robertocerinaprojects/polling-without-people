@@ -1,4 +1,5 @@
 # Build a PUMA-to-congressional-district crosswalk for the 2026 election.
+# Plain-language summary: frame/docs/02_build_puma_cd_crosswalk.md
 # Run from repository root: Rscript frame/scripts/02_build_puma_cd_crosswalk.R
 # Section 1: import and audit the national block-to-district assignments.
 # Source documentation:
@@ -477,6 +478,77 @@ read_pl_population <- function(path, abbreviation, state_fips, sha256) {
     "Population counts must be finite, nonnegative integers."
   )
 
+
+  # Segment 2 schema: Census official R import archive cited above,
+  # member R Versions/pl_part2_2020_dar.r, lines 168-170.
+  # Five linking fields, 71 P3 cells, 73 P4 cells and 3 H1 cells.
+  adult_names <- c(
+    "FILEID", "STUSAB", "CHARITER", "CIFSN", "LOGRECNO",
+    paste0("P00", c(30001:30071, 40001:40073)),
+    paste0("H00", 10001:10003)
+  )
+  adult_fields <- c(
+    "FILEID", "STUSAB", "CHARITER", "CIFSN", "LOGRECNO", "P0030001"
+  )
+  adult_member <- paste0(tolower(abbreviation), "000022020.pl")
+  check(
+    sum(unzip(path, list = TRUE)$Name == adult_member) == 1L,
+    paste("Missing or duplicated segment-2 member:", adult_member)
+  )
+  adult_file <- unzip(path, files = adult_member, exdir = temporary_dir)
+
+  adult <- readr::read_delim(
+    adult_file,
+    delim = "|",
+    quote = "",
+    col_names = adult_names,
+    col_select = all_of(adult_fields),
+    col_types = readr::cols(.default = readr::col_character()),
+    trim_ws = FALSE,
+    skip_empty_rows = FALSE,
+    show_col_types = FALSE,
+    lazy = FALSE
+  )
+  check(
+    nrow(readr::problems(adult)) == 0L && !anyNA(adult),
+    paste(abbreviation, "segment 2 has parsing problems or missing fields.")
+  )
+
+  # Linking fields and segment code: PL technical documentation, p. 6-32.
+  check(
+    all(adult$FILEID == "PLST" &
+        adult$STUSAB == toupper(abbreviation) &
+        adult$CHARITER == "000" &
+        adult$CIFSN == "02"),
+    paste(abbreviation, "has unexpected segment-2 identification fields.")
+  )
+  check(
+    all(grepl("^[0-9]{7}$", adult$LOGRECNO)) &&
+      anyDuplicated(adult$LOGRECNO) == 0L,
+    paste(abbreviation, "has invalid or duplicated segment-2 record IDs.")
+  )
+  check(
+    all(grepl("^[0-9]+$", adult$P0030001)),
+    paste(abbreviation, "has missing or invalid adult counts.")
+  )
+
+  # P0030001 = total population aged 18+, including noncitizens.
+  # Definition: https://api.census.gov/data/2020/dec/pl/groups/P3.html
+  # Match by record identifier within this state, never by row order.
+  adult_index <- match(geo$LOGRECNO, adult$LOGRECNO)
+  check(
+    !anyNA(adult_index),
+    paste(abbreviation, "has state or block records without adult counts.")
+  )
+  geo$vap20 <- as.numeric(adult$P0030001[adult_index])
+  check(
+    all(is.finite(geo$vap20) &
+        geo$vap20 >= 0 &
+        geo$vap20 == floor(geo$vap20) &
+        geo$vap20 <= geo$POP100),
+    paste(abbreviation, "has adult counts outside 0 to total population.")
+  )
+
   state_record <- filter(geo, SUMLEV == "040")
   blocks <- filter(geo, SUMLEV == "750")
   check(nrow(state_record) == 1L, "Expected exactly one state-total record.")
@@ -497,7 +569,8 @@ read_pl_population <- function(path, abbreviation, state_fips, sha256) {
     transmute(
       GEOID = paste0(STATE, COUNTY, TRACT, BLOCK),
       LOGRECNO,
-      pop20 = POP100
+      pop20 = POP100,
+      vap20
     )
 
   check(anyDuplicated(blocks$GEOID) == 0L, "Duplicate population block IDs.")
@@ -506,7 +579,16 @@ read_pl_population <- function(path, abbreviation, state_fips, sha256) {
     "Block populations do not sum to the state total."
   )
 
-  list(blocks = blocks, state_total = state_record$POP100[[1]])
+  check(
+    sum(blocks$vap20) == state_record$vap20[[1]],
+    "Block adult populations do not sum to the state adult total."
+  )
+
+  list(
+    blocks = blocks,
+    state_total = state_record$POP100[[1]],
+    state_vap = state_record$vap20[[1]]
+  )
 }
 
 # Section 5: match population records for every jurisdiction in the manifest.
@@ -555,6 +637,7 @@ population_sources <- arrange(population_sources, STATEFP)
 state_audits <- vector("list", nrow(population_sources))
 unassigned_audits <- vector("list", nrow(population_sources))
 block_cd$pop20 <- rep(NA_real_, nrow(block_cd))
+block_cd$vap20 <- rep(NA_real_, nrow(block_cd))
 
 for (i in seq_len(nrow(population_sources))) {
   entry <- population_sources[i, ]
@@ -596,6 +679,13 @@ for (i in seq_len(nrow(population_sources))) {
   index <- match(district_ids, population_ids)
   check(!anyNA(index), paste(abbreviation, "has unmatched population records."))
   values <- population$blocks$pop20[index]
+  adult_values <- population$blocks$vap20[index]
+
+  check(
+    !anyNA(adult_values) &&
+      sum(adult_values) == population$state_vap,
+    paste(abbreviation, "adult population changed during matching.")
+  )
 
   check(
     !anyNA(values) && sum(values) == population$state_total,
@@ -604,6 +694,7 @@ for (i in seq_len(nrow(population_sources))) {
 
   # Assign by row position, preserving the national block order.
   block_cd$pop20[positions] <- values
+  block_cd$vap20[positions] <- adult_values
   unassigned_positions <- positions[block_cd$CDFP[positions] == "ZZ"]
 
   state_audits[[i]] <- tibble(
@@ -612,17 +703,20 @@ for (i in seq_len(nrow(population_sources))) {
     blocks = length(positions),
     state_population = population$state_total,
     matched_population = sum(values),
+    state_vap = population$state_vap,
+    matched_vap = sum(adult_values),
     unassigned_blocks = length(unassigned_positions),
-    unassigned_population = sum(block_cd$pop20[unassigned_positions])
+    unassigned_population = sum(block_cd$pop20[unassigned_positions]),
+    unassigned_vap = sum(block_cd$vap20[unassigned_positions])
   )
 
   # Retain all unassigned blocks for review, including any populated blocks.
   unassigned_audits[[i]] <- block_cd[
     unassigned_positions,
-    c("GEOID", "STATEFP", "CDFP", "PUMA5CE", "pop20")
+    c("GEOID", "STATEFP", "CDFP", "PUMA5CE", "pop20", "vap20")
   ]
 
-  rm(population, values, index)
+  rm(population, values, adult_values, index)
 }
 
 population_audit <- bind_rows(state_audits)
@@ -639,6 +733,16 @@ check(
     sum(population_audit$state_population) == sum(block_cd$pop20) &&
     nrow(unassigned_population) == sum(block_cd$CDFP == "ZZ"),
   "National population audit does not reconcile."
+)
+
+check(
+  !anyNA(block_cd$vap20) &&
+    all(is.finite(block_cd$vap20) &
+        block_cd$vap20 >= 0 &
+        block_cd$vap20 == floor(block_cd$vap20) &
+        block_cd$vap20 <= block_cd$pop20) &&
+    sum(population_audit$state_vap) == sum(block_cd$vap20),
+  "National adult-population audit does not reconcile."
 )
 
 readr::write_csv(
@@ -669,6 +773,10 @@ cat("Matched blocks:", nrow(block_cd), "\n")
 cat("Total population:", sum(block_cd$pop20), "\n")
 cat("Unassigned blocks retained:", nrow(unassigned_population), "\n")
 cat("National population matching passed.\n")
+cat("Total adult population:", sum(block_cd$vap20), "\n")
+cat("Unassigned adult population:",
+    sum(block_cd$vap20[block_cd$CDFP == "ZZ"]), "\n")
+cat("National adult-population matching passed.\n")
 
 # Section 6: compare missing New York CVAP geography with Census Errata 148.
 # Source: https://www.census.gov/programs-surveys/acs/technical-documentation/errata/148.html
@@ -989,3 +1097,344 @@ writeLines(c(readLines(note_path, warn = FALSE), impact_notes), note_path)
 
 cat("Impact audit saved:", impact_path, "\n")
 cat("Documentation updated:", note_path, "\n")
+
+# Section 8: audit Connecticut identifier reconciliation candidates.
+# Official relationship file:
+# https://www2.census.gov/geo/docs/maps-data/data/rel2022/acs22_cousub22_blkgrp20_st09.txt
+
+ct_lookup_path <- here::here(
+  "frame", "data", "input", "acs22_cousub22_blkgrp20_st09.txt"
+)
+
+# SHA-256 recorded from our downloaded lookup.
+ct_lookup_sha256 <- "06957a5e777dc96da4c678a79d27dce6617cfbd510c9611dbf7720c3cd16c5bd"
+
+check(file.exists(ct_lookup_path), "Missing Connecticut relationship file.")
+check(
+  digest::digest(file = ct_lookup_path, algo = "sha256") == ct_lookup_sha256,
+  "Connecticut relationship-file fingerprint differs."
+)
+
+ct_rel <- readr::read_delim(
+  ct_lookup_path,
+  delim = "|",
+  col_types = readr::cols_only(
+    GEOID_BLKGRP_20 = readr::col_character(),
+    GEOID_COUSUB_22 = readr::col_character(),
+    AREALAND_PART = readr::col_double(),
+    AREAWATER_PART = readr::col_double()
+  ),
+  progress = FALSE
+)
+
+# Identifier widths and overlap-area definitions:
+# https://www.census.gov/programs-surveys/geography/technical-documentation/records-layout/2022-connecticut-record-layout.html
+check(
+  nrow(readr::problems(ct_rel)) == 0L &&
+    !anyNA(ct_rel) &&
+    all(grepl("^09[0-9]{10}$", ct_rel$GEOID_BLKGRP_20)) &&
+    all(grepl("^09[0-9]{8}$", ct_rel$GEOID_COUSUB_22)) &&
+    all(is.finite(ct_rel$AREALAND_PART)) &&
+    all(is.finite(ct_rel$AREAWATER_PART)) &&
+    all(ct_rel$AREALAND_PART >= 0) &&
+    all(ct_rel$AREAWATER_PART >= 0),
+  "Invalid Connecticut identifiers or overlap areas."
+)
+
+# First five subdivision-ID characters identify state plus county-equivalent.
+# Collapse multiple town relationships within the same planning region.
+ct_pairs <- ct_rel |>
+  mutate(
+    bg_2020 = GEOID_BLKGRP_20,
+    planning_region = substr(GEOID_COUSUB_22, 1L, 5L)
+  ) |>
+  group_by(bg_2020, planning_region) |>
+  summarise(
+    source_rows = n(),
+    land_m2 = sum(AREALAND_PART),
+    water_m2 = sum(AREAWATER_PART),
+    .groups = "drop"
+  )
+
+ct_bg_population <- block_cd |>
+  filter(STATEFP == "09") |>
+  mutate(bg_2020 = substr(GEOID, 1L, 12L)) |>
+  group_by(bg_2020) |>
+  summarise(population_2020 = sum(pop20), .groups = "drop")
+
+check(
+  setequal(ct_pairs$bg_2020, ct_bg_population$bg_2020),
+  "Lookup and district file contain different Connecticut block-group IDs."
+)
+
+ct_cvap_source <- readr::read_csv(
+  unz(cvap_path, "BlockGr.csv"),
+  col_types = readr::cols_only(
+    geoid = readr::col_character(),
+    lnnumber = readr::col_integer(),
+    cvap_est = readr::col_double()
+  ),
+  progress = FALSE
+)
+check(
+  nrow(readr::problems(ct_cvap_source)) == 0L,
+  "CVAP parsing problems."
+)
+
+ct_cvap <- ct_cvap_source |>
+  filter(lnnumber == 1L, startsWith(geoid, "1500000US09")) |>
+  transmute(
+    bg_cvap = sub("^1500000US", "", geoid),
+    cvap_est
+  )
+
+check(
+  nrow(ct_cvap) > 0L &&
+    anyDuplicated(ct_cvap$bg_cvap) == 0L &&
+    all(is.finite(ct_cvap$cvap_est)),
+  "Invalid Connecticut CVAP Total records."
+)
+check(
+  setequal(
+    ct_pairs$planning_region,
+    substr(ct_cvap$bg_cvap, 1L, 5L)
+  ),
+  "Lookup and CVAP file contain different planning-region codes."
+)
+
+ct_cardinality <- ct_pairs |>
+  group_by(bg_2020) |>
+  summarise(
+    regions = n(),
+    regions_with_overlap = sum(land_m2 + water_m2 > 0),
+    regions_with_land = sum(land_m2 > 0),
+    .groups = "drop"
+  )
+
+# Candidate construction, not yet an adopted conversion:
+# replace the county prefix while retaining the tract and block-group suffix.
+ct_candidate_audit <- ct_pairs |>
+  mutate(
+    bg_cvap = paste0(planning_region, substr(bg_2020, 6L, 12L))
+  ) |>
+  left_join(
+    ct_bg_population, by = "bg_2020",
+    relationship = "many-to-one"
+  ) |>
+  left_join(
+    ct_cvap, by = "bg_cvap",
+    relationship = "many-to-one"
+  ) |>
+  mutate(present_in_cvap = bg_cvap %in% ct_cvap$bg_cvap) |>
+  arrange(bg_2020, bg_cvap)
+
+ct_collisions <- ct_candidate_audit |>
+  group_by(bg_cvap) |>
+  summarise(old_block_groups = n_distinct(bg_2020), .groups = "drop") |>
+  filter(old_block_groups > 1L)
+
+ct_missing_candidates <- filter(ct_candidate_audit, !present_in_cvap)
+ct_unmatched_cvap <- anti_join(
+  ct_cvap, ct_candidate_audit, by = "bg_cvap"
+)
+
+cat("\nConnecticut identifier audit\n")
+cat("Original block groups:", nrow(ct_bg_population), "\n")
+cat("Distinct old-block-group / planning-region pairs:", nrow(ct_pairs), "\n")
+cat("CVAP block groups:", nrow(ct_cvap), "\n")
+
+cat("\nRelationship counts per original block group:\n")
+ct_cardinality |>
+  count(regions, regions_with_overlap, regions_with_land) |>
+  print(n = Inf, width = Inf)
+
+cat("\nBlock groups without exactly one region with positive overlap:\n")
+ct_candidate_audit |>
+  semi_join(
+    filter(ct_cardinality, regions != 1L | regions_with_overlap != 1L),
+    by = "bg_2020"
+  ) |>
+  print(n = Inf, width = Inf)
+
+cat("\nPairs with zero land and water overlap:\n")
+ct_candidate_audit |>
+  filter(land_m2 + water_m2 == 0) |>
+  print(n = Inf, width = Inf)
+
+cat("\nCandidate IDs absent from CVAP:\n")
+print(ct_missing_candidates, n = Inf, width = Inf)
+
+cat("\nCVAP IDs absent from the candidates:\n")
+print(ct_unmatched_cvap, n = Inf, width = Inf)
+
+cat("\nCandidate IDs shared by multiple original block groups:\n")
+print(ct_collisions, n = Inf, width = Inf)
+
+ct_audit_path <- here::here(
+  "frame", "data", "output", "02_ct_cvap_identifier_audit.csv"
+)
+readr::write_csv(ct_candidate_audit, ct_audit_path)
+
+ct_note_path <- here::here(
+  "frame", "docs", "02_ct_cvap_identifier_audit.md"
+)
+writeLines(c(
+  "# Connecticut CVAP identifier audit",
+  "",
+  "Generated by Section 8 of `02_build_puma_cd_crosswalk.R`.",
+  "",
+  "## Source and method",
+  "",
+  "Official lookup:",
+  "https://www2.census.gov/geo/docs/maps-data/data/rel2022/acs22_cousub22_blkgrp20_st09.txt",
+  paste0("SHA-256: `", ct_lookup_sha256, "`."),
+  "",
+  "The lookup connects original block groups to newer county subdivisions.",
+  "It is not itself a direct old-to-new block-group crosswalk.",
+  "",
+  "Repeated old-block-group/planning-region pairs are collapsed.",
+  "Candidate IDs combine the planning-region prefix with the original",
+  "tract and block-group suffix. Candidates are compared with the actual",
+  "2020–2024 CVAP identifiers in both directions.",
+  "",
+  "Land and water overlaps are both retained. Exceptional relationships",
+  "are reported alongside 2020 total population and published CVAP estimates.",
+  "",
+  "## Results",
+  "",
+  paste0("- Original block groups: ", nrow(ct_bg_population), "."),
+  paste0("- Relationship pairs: ", nrow(ct_pairs), "."),
+  paste0("- CVAP block groups: ", nrow(ct_cvap), "."),
+  paste0("- Candidates absent from CVAP: ", nrow(ct_missing_candidates), "."),
+  paste0("- CVAP IDs absent from candidates: ", nrow(ct_unmatched_cvap), "."),
+  paste0("- Target-ID collisions: ", nrow(ct_collisions), "."),
+  "",
+  "Detailed audit: `../data/output/02_ct_cvap_identifier_audit.csv`.",
+  "Selected treatments: [CVAP allocation decisions](02_cvap_allocation_decisions.md).",
+  "",
+  "Conversion choices are documented in the decision record.",
+  "Applying the mapping and constructing allocation weights remain pending."
+), ct_note_path)
+
+cat("Identifier audit saved:", ct_audit_path, "\n")
+cat("Source note saved:", ct_note_path, "\n")
+
+# Reviewed Connecticut exceptions; see docs/02_cvap_allocation_decisions.md.
+# Fingerprint of the saved official 2024 catalogue response.
+ct_catalog_path <- here::here(
+  "frame", "data", "input", "ct_bg_2024_identifier_check.json"
+)
+ct_catalog_sha256 <- "a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87"
+ct_catalog_query_url <- "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json"
+
+check(file.exists(ct_catalog_path), "Missing 2024 Connecticut catalogue response.")
+check(
+  digest::digest(file = ct_catalog_path, algo = "sha256") == ct_catalog_sha256,
+  "2024 Connecticut catalogue response fingerprint differs."
+)
+
+ct_catalog <- jsonlite::fromJSON(
+  ct_catalog_path, simplifyVector = FALSE
+)
+check(
+  is.null(ct_catalog$error) &&
+    !isTRUE(ct_catalog$exceededTransferLimit) &&
+    length(ct_catalog$features) == 1L,
+  "Invalid or incomplete 2024 catalogue response."
+)
+
+# Expected identifier and areas come from the reviewed catalogue response.
+ct_catalog_attributes <- ct_catalog$features[[1]]$attributes
+check(
+  identical(ct_catalog_attributes$GEOID, "091403431011") &&
+    isTRUE(ct_catalog_attributes$AREALAND == 3606413) &&
+    isTRUE(ct_catalog_attributes$AREAWATER == 0),
+  "2024 catalogue geography differs from the reviewed case."
+)
+
+check(
+  nrow(ct_unmatched_cvap) == 0L,
+  "Some Connecticut CVAP identifiers have no candidate source geography."
+)
+
+# Exact exception identities are from the saved relationship/CVAP audits.
+ct_pair_keys <- function(x) paste(x$bg_2020, x$bg_cvap, sep = "->")
+
+check(
+  identical(
+    sort(ct_pair_keys(ct_missing_candidates)),
+    "090093431011->091703431011"
+  ),
+  "An unreviewed Connecticut candidate is absent from CVAP."
+)
+
+ct_main_candidate <- ct_candidate_audit |>
+  filter(bg_2020 == "090093431011", bg_cvap == "091403431011")
+
+check(
+  nrow(ct_main_candidate) == 1L &&
+    isTRUE(ct_main_candidate$present_in_cvap[[1]]) &&
+    ct_main_candidate$land_m2[[1]] == ct_catalog_attributes$AREALAND &&
+    ct_missing_candidates$land_m2[[1]] == 160 &&
+    ct_missing_candidates$water_m2[[1]] == 0,
+  "The reviewed small-overlap case has changed."
+)
+
+ct_multiple_region_rows <- ct_candidate_audit |>
+  semi_join(
+    filter(ct_cardinality, regions > 1L),
+    by = "bg_2020"
+  )
+
+ct_expected_multiple_pairs <- c(
+  "090019900000->091209900000",
+  "090019900000->091909900000",
+  "090093431011->091403431011",
+  "090093431011->091703431011",
+  "090119901000->091309901000",
+  "090119901000->091809901000"
+)
+
+check(
+  identical(
+    sort(ct_pair_keys(ct_multiple_region_rows)),
+    sort(ct_expected_multiple_pairs)
+  ),
+  "An unreviewed multi-region Connecticut relationship was found."
+)
+
+ct_collision_rows <- ct_candidate_audit |>
+  semi_join(ct_collisions, by = "bg_cvap")
+
+check(
+  identical(
+    sort(ct_pair_keys(ct_collision_rows)),
+    c(
+      "090079901000->091309901000",
+      "090119901000->091309901000"
+    )
+  ) &&
+    all(ct_collision_rows$land_m2 == 0) &&
+    all(ct_collision_rows$population_2020 == 0),
+  "An unreviewed Connecticut target-ID collision was found."
+)
+
+writeLines(c(
+  readLines(ct_note_path, warn = FALSE),
+  "",
+  "## Reviewed exception checks",
+  "",
+  "The raw absent-candidate and collision counts are retained above.",
+  "The script verified that their identities match the documented cases,",
+  "and that no additional multi-region relationships were introduced.",
+  "",
+  paste0("2024 catalogue response SHA-256: `", ct_catalog_sha256, "`."),
+  paste0("Exact source query: ", ct_catalog_query_url),
+  "",
+  "Known candidate exceptions are classified under documented rules.",
+  "Applying the conversion and constructing allocation weights remain pending."
+), ct_note_path)
+
+cat("\nReviewed Connecticut identifier exception checks passed.\n")
+cat("Catalogue SHA256:", ct_catalog_sha256, "\n")
+cat("Crosswalk construction remains pending.\n")

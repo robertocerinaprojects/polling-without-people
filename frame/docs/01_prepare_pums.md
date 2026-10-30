@@ -1,5 +1,28 @@
 # 01 — Prepare PUMS
 
+## Plain-language summary
+
+We start with individual records from the IPUMS 2020–2024 ACS five-year
+extract. Our aim is to prepare the citizen-adult population that will
+underlie the stratification frame. We retain citizens aged 18 and over,
+including people living in institutions and other group quarters, and
+keep the District of Columbia.
+
+We preserve the original person weights and source columns. We add
+readable demographic labels and handle special codes explicitly, so that
+an unknown value is not accidentally treated as a substantive category.
+Unavailable household income remains missing; zero and negative incomes
+are retained. We do not project people's ages or the population to 2026.
+
+We check how many records and how much weighted population remain after
+each filtering step. We also check person identifiers and demographic
+recoding. The script saves the cleaned person file and audit tables
+showing what happened.
+
+The geographic location available for each person is their recorded
+PUMA, not their block group or block. Assigning these records to
+congressional districts is a later step.
+
 ## Purpose and population
 
 Prepare the IPUMS 2020–2024 ACS five-year person records.

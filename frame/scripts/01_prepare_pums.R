@@ -1,4 +1,5 @@
 # Prepare IPUMS 2020–2024 ACS five-year person records.
+# Plain-language summary: frame/docs/01_prepare_pums.md
 # Target: citizen voting-age population, including institutional residents.
 # DC is retained at this stage.
 # Run from repository root: Rscript frame/scripts/01_prepare_pums.R
@@ -39,6 +40,7 @@ required <- c(
 )
 stopifnot(all(required %in% names(pums)))
 
+# SAMPLE label: usa_00003.xml; YEAR/MULTYEAR: verified input audit.
 # Stop on unexpected sample definitions, weights or filter codes.
 stopifnot(
   all(pums$SAMPLE == 202403),
@@ -63,14 +65,18 @@ stage_totals <- function(data, stage) {
 audit <- stage_totals(pums, "Raw extract")
 
 # Retain households and all institutional/non-institutional group quarters.
+# GQ codes 1-5: household/group-quarters categories in usa_00003.xml.
 pums <- filter(pums, GQ %in% 1:5)
 audit <- bind_rows(audit, stage_totals(pums, "Valid person records"))
 
 # Retain native-born citizens, citizens born abroad, and naturalized citizens.
+# Codes: usa_00003.xml. ACS universe explains retaining code 0:
+# https://usa.ipums.org/usa-action/variables/CITIZEN
 pums <- filter(pums, CITIZEN %in% 0:2)
 audit <- bind_rows(audit, stage_totals(pums, "Citizens"))
 
 # Age is measured in the source survey; no projection to 2026 is applied.
+# Age 18 is our chosen CVAP threshold.
 pums <- filter(pums, AGE >= 18)
 audit <- bind_rows(audit, stage_totals(pums, "Citizens aged 18+"))
 
@@ -100,6 +106,7 @@ if (length(unexpected_codes) > 0L) {
   )
 }
 
+# HISPAND 0 = Not Hispanic; 900 = Not Reported (usa_00003.xml).
 recode_hispanic <- function(x) {
   case_when(
     is.na(x) | x == 900 ~ NA_integer_,
@@ -163,6 +170,7 @@ ddi_label <- function(x, variable) {
 
 # SEX records sex; retain the legacy name 'gender' for downstream compatibility.
 pums$gender <- ddi_label(pums$SEX, "SEX")
+# SEX 1 = Male, 2 = Female (usa_00003.xml).
 pums$gender[!pums$SEX %in% c(1, 2)] <- NA_character_
 
 pums <- mutate(
@@ -170,6 +178,7 @@ pums <- mutate(
   hispanic_detailed = ddi_label(HISPAND, "HISPAND"),
   race_detailed = ddi_label(RACED, "RACED"),
   educ_detailed = ddi_label(EDUCD, "EDUCD"),
+  # 9999999 = N/A: https://usa.ipums.org/usa-action/variables/HHINCOME
   hhincome_clean = if_else(
     HHINCOME == 9999999,
     NA_real_,
@@ -246,13 +255,16 @@ unique_people <- n_distinct(
 )
 stopifnot(unique_people == nrow(pums))
 
+# Code source: STATEFIP labels in usa_00003.xml.
 # Expected state FIPS codes: all 50 states plus DC.
 expected_states <- c(1, 2, 4, 5, 6, 8:13, 15:42, 44:51, 53:56)
 
 stopifnot(
   all(c("STATEFIP", "PUMA", "CPUMA1020") %in% names(pums)),
   setequal(unique(pums$STATEFIP), expected_states),
+  # Broad five-digit guard; actual area membership checked later.
   all(pums$PUMA %in% 1:99999),
+  # Range source: https://usa.ipums.org/usa-action/variables/CPUMA1020
   all(pums$CPUMA1020 %in% 1:1722)
 )
 
