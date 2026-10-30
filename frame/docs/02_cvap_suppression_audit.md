@@ -27,7 +27,7 @@ Compare identifiers in both directions, not merely their counts.
 
 ## Allocation decision
 
-**New York treatment: structural allocation. Crosswalk implementation pending.** See [decision record](02_cvap_allocation_decisions.md). This audit does not replace missing estimates with zero,
+**New York treatment: structural allocation. Section 11 constructs and checks the weights.** See [decision record](02_cvap_allocation_decisions.md). This audit does not replace missing estimates with zero,
 impute values, remove PUMS records, or calculate allocation weights.
 
 Errata 148 states that PUMS files are unaffected. It also cautions
@@ -35,8 +35,8 @@ against affected 2016-2020, 2017-2021 and 2018-2022 ACS estimates;
 an older-period replacement therefore requires separate justification.
 
 The selected treatment, alternatives considered, affected population,
-validation and limitations must be recorded in the main Script 02
-documentation before the allocation method is finalized.
+validation and limitations are recorded in the Script 02
+allocation decision record linked above.
 
 ## Geographic extent of suppression
 
@@ -58,4 +58,4 @@ Its CVAP total would nevertheless remain unknown.
 
 Detailed audit: `../data/output/02_cvap_ny_puma_district_impact.csv`.
 
-**New York decision resolved; crosswalk implementation pending.** See [decision record](02_cvap_allocation_decisions.md).
+**New York decision: apply the general containment rule in Section 11.** See [decision record](02_cvap_allocation_decisions.md).

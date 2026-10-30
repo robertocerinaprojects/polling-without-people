@@ -8,7 +8,7 @@ probability of allocation to each congressional district equal to the
 estimated share of citizen adults in their PUMA who live in that district.
 
 To calculate this, we start with the ACS estimate of citizen adults in
-each block group. The proposed method distributes that estimate among
+each block group. The method distributes that estimate among
 its constituent blocks in proportion to their 2020 adult populations.
 This assumes that, within each block group, citizen adults follow the
 same spatial distribution as those adult counts. Differences in
@@ -34,11 +34,11 @@ separately documented rules in
 [CVAP allocation decisions](02_cvap_allocation_decisions.md).
 Missing estimates are not silently treated as zero.
 
-**Implementation status, 2026-10-30:** National block population and
-adult-population matching passed, as did the reviewed New York and
-Connecticut geographic checks. Constructing and validating the final
-allocation weights remains pending. The summary above describes the
-intended completed method.
+**Implementation status, 2026-10-30:** Crosswalk construction and its
+implemented checks passed, including population matching, the reviewed
+geographic exceptions, CVAP accounting and within-PUMA weight sums.
+The crosswalk has been saved. Coverage of the retained PUMS records and
+application of these weights will be checked in the next stage.
 
 ## Connecticut development check
 
@@ -75,14 +75,14 @@ unique segment record identifiers, complete matches for state and block
 records, integer counts between zero and total population, and block
 adult counts summing to the state adult total.
 
-These are 2020 adult counts, including noncitizens. The planned use is to
+These are 2020 adult counts, including noncitizens. They are used to
 distribute 2020-2024 ACS block-group CVAP estimates among geographic
 pieces. This requires an approximation about the distribution within
 each block group. Zero adult-population denominators require explicit
 handling before allocation.
 
-This addition reads and validates adult counts; it does not yet
-construct the CVAP allocation weights.
+Adult counts are validated before Sections 10-11 calculate the
+CVAP contributions and allocation weights.
 
 
 ## Preparing national allocation inputs
@@ -112,8 +112,8 @@ The national sum of `source_block_links` is not a unique-block count:
 reviewed zero-population water coverage can appear under multiple
 target groups. Population totals must nevertheless remain conserved.
 
-This stage prepares allocation inputs. Final crosswalk weights remain
-to be calculated and validated.
+This stage prepares inputs for the contribution and weight calculations
+in Sections 10-11.
 
 ## Structural-zero allocation overrides
 
@@ -132,4 +132,118 @@ for the exact cases, rationale, sources and accounting identity.
 
 Section 9 execution validation passed on 2026-10-30, including the
 five structural-zero overrides and the CVAP accounting checks.
-Final crosswalk weights remain pending.
+Sections 10-11 construct the final crosswalk and passed their internal
+checks on 2026-10-30.
+
+## Calculating block-group CVAP contributions
+
+Section 10 divides each block group's adjusted CVAP among its
+PUMA-district portions. We first add up the 2020 adult counts in each
+portion, then use that portion's share of all adults in the block group
+to divide the CVAP estimate. This is algebraically equivalent to
+allocating CVAP to individual blocks and then adding their contributions.
+
+For directly contained block groups, the full adjusted estimate goes
+to the single PUMA-district intersection. Published zero estimates,
+reviewed structural zeros and the excluded Connecticut water estimate
+contribute zero. Suppressed New York estimates remain unknown.
+
+These contributions are estimates and can be fractional. They are not
+rounded, and this stage does not assign individual PUMS records.
+
+The script checks that:
+- Direct allocation has exactly one destination.
+- Proportional allocation uses a positive adult denominator.
+- Missing contributions occur exactly for the reviewed New York cases.
+- Each block group's contributions preserve its adjusted CVAP.
+- Adult counts and geographic intersections remain conserved.
+- Unassigned district rows receive no positive CVAP.
+- The Connecticut land estimate of 5 is allocated exactly once.
+- Contributions from observed estimates reconcile nationally.
+
+Floating-point comparisons allow an absolute error of
+`1e-8 + 1e-12 * abs(expected)`. This is a numerical tolerance, not a
+statistical uncertainty interval.
+
+Outputs in `data/output`:
+- `02_bg_cvap_contributions.csv`: one row per block-group/PUMA/district
+  intersection, containing its estimated CVAP contribution.
+- `02_bg_cvap_conservation.csv`: one row per block group, containing
+  published and adjusted estimates, contributions and validation results.
+
+The intersection table omits repeated block-group CVAP totals to reduce
+the risk of double counting. The conservation audit retains those totals
+once per block group.
+
+Section 10 execution validation passed on 2026-10-30.
+Contributions from observed adjusted estimates total 240,785,100.
+All 39 missing block-group estimates remain unknown.
+The largest absolute block-group conservation error was zero.
+
+## Constructing PUMA-to-district weights
+
+Section 11 adds up the estimated citizen-adult contributions for each
+PUMA-district intersection. For a PUMA spanning districts, it divides
+each district's contribution by the complete adjusted CVAP total in
+that PUMA.
+
+If every original block of a PUMA belongs to one assigned district,
+geography determines the allocation: that district receives weight 1.
+This check includes zero-population blocks. Any unassigned block
+prevents this structural-containment classification.
+
+The two reviewed New York PUMAs therefore receive weight 1 for NY-02,
+while their complete CVAP totals remain unknown. No missing population
+estimate is filled in.
+
+A PUMA requiring proportional allocation must have a complete, finite,
+positive denominator. Otherwise the script stops for review.
+
+The output retains valid geographic intersections with weight zero.
+It excludes district code ZZ. Geographic identifiers remain character
+strings, preserving leading zeros.
+
+Validation checks:
+- Exact agreement with original assigned PUMA-district intersections.
+- Conservation of known CVAP contributions during aggregation.
+- Complete PUMA coverage.
+- Finite weights between zero and one.
+- Weights summing to one within each PUMA.
+- Positive allocation coverage for every assigned district.
+- NY-02 weight 1 for PUMAs 36/03310 and 36/03313, with unknown
+  complete CVAP totals preserved.
+
+The weight-sum tolerance is 1e-12, a numerical allowance rather than
+a statistical uncertainty interval.
+
+Outputs:
+- `data/intermediate/puma_cd_crosswalk.rds`: crosswalk for the next stage.
+- `data/output/02_puma_cd_weights.csv`: readable copy of the crosswalk.
+- `data/output/02_puma_cd_cvap.csv`: complete district contributions and
+  separately labelled known subtotals.
+- `data/output/02_puma_allocation_audit.csv`: PUMA coverage, complete
+  CVAP totals, known subtotals, missingness, methods and weight sums.
+
+The crosswalk columns are STATEFP, PUMA5CE, CDFP, allocation_weight and
+weight_method. These weights have not yet been applied to PUMS records.
+
+Section 11 execution passed on 2026-10-30.
+
+| Check or output | Result |
+|---|---:|
+| PUMAs in the crosswalk | 2,462 |
+| Assigned districts, including DC | 436 |
+| PUMA-district rows | 4,183 |
+| PUMAs using structural containment | 1,110 |
+| PUMAs using CVAP shares | 1,352 |
+| Retained zero-weight rows | 109 |
+| Largest absolute within-PUMA weight-sum error | 2.220446e-16 |
+
+Both reviewed New York PUMAs receive weight 1 for NY-02. Their complete
+CVAP totals remain unknown; the missing estimates were not replaced by zero.
+
+These checks establish internal consistency for the pinned inputs.
+They do not independently validate the spatial allocation assumptions.
+The weight-sum discrepancy is floating-point rounding.
+The subsequent application stage must check that every retained PUMS
+PUMA has a matching crosswalk entry before allocating records.

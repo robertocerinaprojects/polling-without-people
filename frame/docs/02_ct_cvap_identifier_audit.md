@@ -44,4 +44,4 @@ and that no additional multi-region relationships were introduced.
 Exact source query: https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json
 
 Known candidate exceptions are classified under documented rules.
-Input preparation follows these checks; final allocation weights remain pending.
+This note records identifier checks; Sections 9-11 prepare and validate the final allocation.

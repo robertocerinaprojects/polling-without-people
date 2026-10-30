@@ -1,6 +1,8 @@
 # Build a PUMA-to-congressional-district crosswalk for the 2026 election.
 # Plain-language summary: frame/docs/02_build_puma_cd_crosswalk.md
 # Run from repository root: Rscript frame/scripts/02_build_puma_cd_crosswalk.R
+
+
 # Section 1: import and audit the national block-to-district assignments.
 # Source documentation:
 # https://www.census.gov/geographies/mapping-files/2027/dec/rdo/120-congressional-district-bef.html
@@ -938,7 +940,7 @@ writeLines(c(
   "",
   "## Allocation decision",
   "",
-  "**New York treatment: structural allocation. Crosswalk implementation pending.** See [decision record](02_cvap_allocation_decisions.md). This audit does not replace missing estimates with zero,",
+  "**New York treatment: structural allocation. Section 11 constructs and checks the weights.** See [decision record](02_cvap_allocation_decisions.md). This audit does not replace missing estimates with zero,",
   "impute values, remove PUMS records, or calculate allocation weights.",
   "",
   "Errata 148 states that PUMS files are unaffected. It also cautions",
@@ -946,8 +948,8 @@ writeLines(c(
   "an older-period replacement therefore requires separate justification.",
   "",
   "The selected treatment, alternatives considered, affected population,",
-  "validation and limitations must be recorded in the main Script 02",
-  "documentation before the allocation method is finalized."
+  "validation and limitations are recorded in the Script 02",
+  "allocation decision record linked above."
 ), note_path)
 
 cat("Audit saved:", audit_path, "\n")
@@ -1057,7 +1059,7 @@ impact_path <- here::here(
 readr::write_csv(ny_intersection_impact, impact_path)
 
 # Section 6 regenerates this source note on each full run.
-# Add the verified geographic extent while keeping treatment pending.
+# Add the verified geographic extent supporting the allocation decision.
 impact_notes <- c(
   "",
   "## Geographic extent of suppression",
@@ -1090,7 +1092,7 @@ impact_notes <- c(
   "",
   "Detailed audit: `../data/output/02_cvap_ny_puma_district_impact.csv`.",
   "",
-  "**New York decision resolved; crosswalk implementation pending.** See [decision record](02_cvap_allocation_decisions.md)."
+  "**New York decision: apply the general containment rule in Section 11.** See [decision record](02_cvap_allocation_decisions.md)."
 )
 
 writeLines(c(readLines(note_path, warn = FALSE), impact_notes), note_path)
@@ -1211,7 +1213,7 @@ ct_cardinality <- ct_pairs |>
     .groups = "drop"
   )
 
-# Candidate construction, not yet an adopted conversion:
+# Construct candidate identifiers for the reviewed checks below:
 # replace the county prefix while retaining the tract and block-group suffix.
 ct_candidate_audit <- ct_pairs |>
   mutate(
@@ -1432,12 +1434,12 @@ writeLines(c(
   paste0("Exact source query: ", ct_catalog_query_url),
   "",
   "Known candidate exceptions are classified under documented rules.",
-  "Input preparation follows these checks; final allocation weights remain pending."
+  "This note records identifier checks; Sections 9-11 prepare and validate the final allocation."
 ), ct_note_path)
 
 cat("\nReviewed Connecticut identifier exception checks passed.\n")
 cat("Catalogue SHA256:", ct_catalog_sha256, "\n")
-cat("Crosswalk construction remains pending.\n")
+cat("Continuing with national allocation inputs.\n")
 
 # Section 9: prepare national CVAP allocation inputs.
 # First preserve exact totals on the original 2020 block geography.
@@ -1865,4 +1867,457 @@ check(
 )
 
 cat("\nNational allocation-input checks passed.\n")
-cat("Final PUMA-to-district weights have not yet been calculated.\n")
+cat("Continuing with block-group CVAP contributions.\n")
+
+# Section 10: calculate block-group CVAP contributions.
+# Method and assumptions: frame/docs/02_build_puma_cd_crosswalk.md.
+# Sum block adult counts within each PUMA-district portion before splitting
+# CVAP. This gives the same contributions as allocating to blocks first.
+
+# Numerical tolerance for floating-point arithmetic, not statistical error.
+cvap_close <- function(actual, expected) {
+  is.finite(actual) & is.finite(expected) &
+    abs(actual - expected) <= 1e-8 + 1e-12 * abs(expected)
+}
+
+# A total containing unknown contributions must remain unknown.
+sum_cvap_or_na <- function(x) {
+  if (anyNA(x)) NA_real_ else sum(x)
+}
+
+contribution_methods <- c(
+  "adult_proportions", "direct_containment",
+  "exclude_unassigned", "missing_cvap",
+  "structural_zero_reviewed", "zero_cvap"
+)
+
+contribution_work <- bg_target_cells |>
+  left_join(
+    allocation_readiness |>
+      select(
+        STATEFP, bg_cvap, allocation_case,
+        bg_allocation_cvap = cvap_for_allocation,
+        bg_adults_2020 = vap20
+      ),
+    by = c("STATEFP", "bg_cvap"),
+    relationship = "many-to-one"
+  )
+
+check(
+  nrow(contribution_work) == nrow(bg_target_cells) &&
+    anyDuplicated(select(
+      contribution_work, STATEFP, bg_cvap, PUMA5CE, CDFP
+    )) == 0L &&
+    !anyNA(contribution_work$allocation_case) &&
+    all(contribution_work$allocation_case %in% contribution_methods) &&
+    !anyNA(contribution_work$bg_adults_2020),
+  "Contribution inputs have missing methods, duplicated cells or unmatched rows."
+)
+
+zero_case <- contribution_work$allocation_case %in% c(
+  "zero_cvap", "structural_zero_reviewed", "exclude_unassigned"
+)
+direct_case <- contribution_work$allocation_case == "direct_containment"
+adult_case <- contribution_work$allocation_case == "adult_proportions"
+missing_case <- contribution_work$allocation_case == "missing_cvap"
+
+direct_counts <- contribution_work |>
+  filter(allocation_case == "direct_containment") |>
+  count(STATEFP, bg_cvap, name = "target_cells")
+
+check(
+  all(direct_counts$target_cells == 1L) &&
+    all(contribution_work$CDFP[direct_case] != "ZZ") &&
+    all(contribution_work$bg_allocation_cvap[zero_case] == 0) &&
+    all(contribution_work$bg_adults_2020[adult_case] > 0),
+  "Direct allocation, zero allocation or adult denominators are inconsistent."
+)
+
+# Use indexed assignments so division is evaluated only for valid denominators.
+contribution_work$cvap_contribution <- NA_real_
+contribution_work$cvap_contribution[zero_case] <- 0
+
+contribution_work$cvap_contribution[direct_case] <-
+  contribution_work$bg_allocation_cvap[direct_case]
+
+contribution_work$cvap_contribution[adult_case] <-
+  contribution_work$bg_allocation_cvap[adult_case] *
+  contribution_work$vap20[adult_case] /
+  contribution_work$bg_adults_2020[adult_case]
+
+# Missing CVAP remains NA, including when the geographic destination is known.
+# Do not export repeated block-group CVAP totals in the intersection table.
+bg_cvap_contributions <- contribution_work |>
+  select(
+    STATEFP, bg_cvap, PUMA5CE, CDFP,
+    source_block_links, pop20, vap20, coverage_only,
+    allocation_case, cvap_contribution
+  )
+
+known_cell <- !is.na(bg_cvap_contributions$cvap_contribution)
+
+check(
+  identical(
+    is.na(bg_cvap_contributions$cvap_contribution),
+    missing_case
+  ) &&
+    setequal(
+      bg_cvap_contributions$bg_cvap[missing_case],
+      ny_missing$bg_geoid
+    ) &&
+    all(
+      is.finite(bg_cvap_contributions$cvap_contribution[known_cell]) &
+        bg_cvap_contributions$cvap_contribution[known_cell] >= 0
+    ) &&
+    all(
+      bg_cvap_contributions$cvap_contribution[
+        bg_cvap_contributions$CDFP == "ZZ"
+      ] == 0
+    ),
+  "Contributions contain unexpected missing, invalid or unassigned amounts."
+)
+
+# Reconcile once per block group, never by summing repeated source estimates.
+bg_contribution_audit <- bg_cvap_contributions |>
+  group_by(STATEFP, bg_cvap) |>
+  summarise(
+    cell_rows = n(),
+    cell_adults = sum(vap20),
+    unknown_cells = sum(is.na(cvap_contribution)),
+    contributed_cvap = sum_cvap_or_na(cvap_contribution),
+    .groups = "drop"
+  ) |>
+  left_join(
+    allocation_readiness,
+    by = c("STATEFP", "bg_cvap"),
+    relationship = "one-to-one"
+  ) |>
+  mutate(
+    cvap_difference = contributed_cvap - cvap_for_allocation,
+    allocation_check_passed = if_else(
+      is.na(cvap_for_allocation),
+      is.na(contributed_cvap) & unknown_cells == cell_rows,
+      unknown_cells == 0L &
+        cvap_close(contributed_cvap, cvap_for_allocation)
+    )
+  )
+
+# Save detailed evidence before checking the reconciliation results.
+readr::write_csv(
+  bg_cvap_contributions,
+  file.path(output_dir, "02_bg_cvap_contributions.csv")
+)
+readr::write_csv(
+  bg_contribution_audit,
+  file.path(output_dir, "02_bg_cvap_conservation.csv")
+)
+
+check(
+  nrow(bg_contribution_audit) == nrow(allocation_readiness) &&
+    setequal(bg_contribution_audit$bg_cvap, allocation_readiness$bg_cvap) &&
+    all(bg_contribution_audit$cell_rows ==
+          bg_contribution_audit$intersections) &&
+    all(bg_contribution_audit$cell_adults ==
+          bg_contribution_audit$vap20) &&
+    all(bg_contribution_audit$allocation_check_passed),
+  "Block-group contribution checks failed; inspect 02_bg_cvap_conservation.csv."
+)
+
+# These sums cover observed estimates only; missing New York CVAP is unknown.
+expected_observed_cvap <- sum(
+  allocation_readiness$cvap_for_allocation, na.rm = TRUE
+)
+contributed_observed_cvap <- sum(
+  bg_cvap_contributions$cvap_contribution, na.rm = TRUE
+)
+
+check(
+  cvap_close(contributed_observed_cvap, expected_observed_cvap),
+  "National contributions do not sum to the observed adjusted CVAP inputs."
+)
+
+ct_land_contribution <- bg_cvap_contributions |>
+  filter(bg_cvap == "091902114003")
+
+check(
+  nrow(ct_land_contribution) == 1L &&
+    ct_land_contribution$PUMA5CE[[1]] == "20904" &&
+    ct_land_contribution$CDFP[[1]] == "05" &&
+    ct_land_contribution$cvap_contribution[[1]] == 5,
+  "The reviewed Connecticut land estimate was not allocated exactly once."
+)
+
+contribution_summary <- bg_contribution_audit |>
+  group_by(allocation_case) |>
+  summarise(
+    block_groups = n(),
+    expected_cvap_total = sum_cvap_or_na(cvap_for_allocation),
+    contributed_cvap_total = sum_cvap_or_na(contributed_cvap),
+    .groups = "drop"
+  )
+
+cat("\nBlock-group CVAP contribution audit:\n")
+print(contribution_summary, n = Inf, width = Inf)
+
+cat("\nContribution checks passed for every block group.\n")
+cat("Contributed CVAP from observed estimates:",
+    format(contributed_observed_cvap, scientific = FALSE, trim = TRUE), "\n")
+cat("Block groups with unknown CVAP:",
+    sum(is.na(bg_contribution_audit$cvap_for_allocation)), "\n")
+cat("Largest absolute block-group balance error:",
+    max(abs(bg_contribution_audit$cvap_difference), na.rm = TRUE), "\n")
+cat("Continuing with PUMA-to-district weight construction.\n")
+
+# Section 11: construct PUMA-to-district allocation weights.
+# Containment uses ALL original blocks, including zero-population blocks.
+# CT candidate correspondence links must not determine PUMA containment.
+puma_geography <- bg_2020_cells |>
+  group_by(STATEFP, PUMA5CE) |>
+  summarise(
+    source_blocks = sum(blocks),
+    unassigned_blocks = sum(blocks[CDFP == "ZZ"]),
+    assigned_districts = n_distinct(CDFP[CDFP != "ZZ"]),
+    .groups = "drop"
+  ) |>
+  mutate(
+    structural_containment =
+      assigned_districts == 1L & unassigned_blocks == 0L
+  )
+
+# Preserve every original assigned PUMA-district intersection.
+puma_cd_backbone <- bg_2020_cells |>
+  filter(CDFP != "ZZ") |>
+  distinct(STATEFP, PUMA5CE, CDFP) |>
+  arrange(STATEFP, PUMA5CE, CDFP)
+
+puma_cd_cvap <- bg_cvap_contributions |>
+  filter(CDFP != "ZZ") |>
+  group_by(STATEFP, PUMA5CE, CDFP) |>
+  summarise(
+    known_cvap_subtotal = sum(cvap_contribution, na.rm = TRUE),
+    district_cvap = sum_cvap_or_na(cvap_contribution),
+    .groups = "drop"
+  )
+
+check(
+  nrow(anti_join(
+    puma_cd_backbone, puma_cd_cvap,
+    by = c("STATEFP", "PUMA5CE", "CDFP")
+  )) == 0L &&
+    nrow(anti_join(
+      puma_cd_cvap, puma_cd_backbone,
+      by = c("STATEFP", "PUMA5CE", "CDFP")
+    )) == 0L &&
+    cvap_close(
+      sum(puma_cd_cvap$known_cvap_subtotal),
+      contributed_observed_cvap
+    ),
+  "PUMA-district aggregation changed geographic coverage or known CVAP."
+)
+
+puma_cvap_totals <- puma_cd_cvap |>
+  group_by(STATEFP, PUMA5CE) |>
+  summarise(
+    known_puma_cvap_subtotal = sum(known_cvap_subtotal),
+    puma_cvap = sum_cvap_or_na(district_cvap),
+    .groups = "drop"
+  )
+
+puma_missing_counts <- bg_cvap_contributions |>
+  filter(CDFP != "ZZ") |>
+  group_by(STATEFP, PUMA5CE) |>
+  summarise(
+    missing_block_groups = n_distinct(
+      bg_cvap[is.na(cvap_contribution)]
+    ),
+    .groups = "drop"
+  )
+
+puma_allocation_audit <- puma_geography |>
+  left_join(
+    puma_cvap_totals,
+    by = c("STATEFP", "PUMA5CE"),
+    relationship = "one-to-one"
+  ) |>
+  left_join(
+    puma_missing_counts,
+    by = c("STATEFP", "PUMA5CE"),
+    relationship = "one-to-one"
+  ) |>
+  mutate(
+    weight_method = case_when(
+      structural_containment ~ "structural_single_district",
+      missing_block_groups == 0L &
+        is.finite(puma_cvap) & puma_cvap > 0 ~ "cvap_share",
+      TRUE ~ "review_required"
+    )
+  )
+
+readr::write_csv(
+  puma_allocation_audit,
+  file.path(output_dir, "02_puma_allocation_audit.csv")
+)
+
+blocked_pumas <- puma_allocation_audit |>
+  filter(weight_method == "review_required" | is.na(missing_block_groups))
+
+if (nrow(blocked_pumas) > 0L) {
+  print(blocked_pumas, n = Inf, width = Inf)
+}
+check(
+  nrow(blocked_pumas) == 0L,
+  "Some PUMAs lack usable allocation inputs; inspect 02_puma_allocation_audit.csv."
+)
+
+weight_work <- puma_cd_backbone |>
+  left_join(
+    puma_cd_cvap,
+    by = c("STATEFP", "PUMA5CE", "CDFP"),
+    relationship = "one-to-one"
+  ) |>
+  left_join(
+    puma_allocation_audit |>
+      select(STATEFP, PUMA5CE, puma_cvap, weight_method),
+    by = c("STATEFP", "PUMA5CE"),
+    relationship = "many-to-one"
+  )
+
+contained_puma <-
+  weight_work$weight_method == "structural_single_district"
+proportional_puma <- weight_work$weight_method == "cvap_share"
+
+# Evaluate division only where the complete denominator is positive.
+weight_work$allocation_weight <- NA_real_
+weight_work$allocation_weight[contained_puma] <- 1
+weight_work$allocation_weight[proportional_puma] <-
+  weight_work$district_cvap[proportional_puma] /
+  weight_work$puma_cvap[proportional_puma]
+
+puma_cd_crosswalk <- weight_work |>
+  select(
+    STATEFP, PUMA5CE, CDFP,
+    allocation_weight, weight_method
+  ) |>
+  arrange(STATEFP, PUMA5CE, CDFP)
+
+check(
+  !anyNA(puma_cd_crosswalk) &&
+    nrow(puma_cd_crosswalk) == nrow(puma_cd_backbone) &&
+    anyDuplicated(select(
+      puma_cd_crosswalk, STATEFP, PUMA5CE, CDFP
+    )) == 0L &&
+    all(is.finite(puma_cd_crosswalk$allocation_weight)) &&
+    all(puma_cd_crosswalk$allocation_weight >= 0 &
+          puma_cd_crosswalk$allocation_weight <= 1) &&
+    all(puma_cd_crosswalk$CDFP != "ZZ") &&
+    setequal(puma_cd_crosswalk$STATEFP, target_states),
+  "Crosswalk identifiers or allocation weights are invalid."
+)
+
+weight_sums <- puma_cd_crosswalk |>
+  group_by(STATEFP, PUMA5CE) |>
+  summarise(
+    weight_rows = n(),
+    weight_sum = sum(allocation_weight),
+    zero_weight_rows = sum(allocation_weight == 0),
+    .groups = "drop"
+  )
+
+puma_allocation_audit <- puma_allocation_audit |>
+  left_join(
+    weight_sums,
+    by = c("STATEFP", "PUMA5CE"),
+    relationship = "one-to-one"
+  )
+
+# Numerical tolerance for dimensionless weights, not statistical uncertainty.
+check(
+  !anyNA(puma_allocation_audit$weight_sum) &&
+    nrow(weight_sums) == nrow(puma_geography) &&
+    all(puma_allocation_audit$weight_rows ==
+          puma_allocation_audit$assigned_districts) &&
+    all(abs(puma_allocation_audit$weight_sum - 1) <= 1e-12),
+  "Crosswalk coverage or within-PUMA weight sums failed."
+)
+
+expected_districts <- puma_cd_backbone |>
+  distinct(STATEFP, CDFP)
+
+positive_districts <- puma_cd_crosswalk |>
+  filter(allocation_weight > 0) |>
+  distinct(STATEFP, CDFP)
+
+check(
+  nrow(anti_join(
+    expected_districts, positive_districts,
+    by = c("STATEFP", "CDFP")
+  )) == 0L,
+  "An assigned district has no positive allocation weight."
+)
+
+# Exact reviewed NY cases: see 02_cvap_allocation_decisions.md.
+ny_weights <- puma_cd_crosswalk |>
+  filter(STATEFP == "36", PUMA5CE %in% c("03310", "03313"))
+
+ny_puma_audit <- puma_allocation_audit |>
+  filter(STATEFP == "36", PUMA5CE %in% c("03310", "03313"))
+
+check(
+  nrow(ny_weights) == 2L &&
+    setequal(ny_weights$PUMA5CE, c("03310", "03313")) &&
+    all(ny_weights$CDFP == "02") &&
+    all(ny_weights$allocation_weight == 1) &&
+    all(ny_weights$weight_method == "structural_single_district") &&
+    nrow(ny_puma_audit) == 2L &&
+    all(is.na(ny_puma_audit$puma_cvap)) &&
+    sum(ny_puma_audit$missing_block_groups) == 39L,
+  "NY containment weights or preservation of unknown CVAP failed."
+)
+
+# Save outputs only after the crosswalk checks pass.
+readr::write_csv(
+  puma_cd_cvap,
+  file.path(output_dir, "02_puma_cd_cvap.csv")
+)
+readr::write_csv(
+  puma_allocation_audit,
+  file.path(output_dir, "02_puma_allocation_audit.csv")
+)
+readr::write_csv(
+  puma_cd_crosswalk,
+  file.path(output_dir, "02_puma_cd_weights.csv")
+)
+
+intermediate_dir <- here::here("frame", "data", "intermediate")
+dir.create(intermediate_dir, recursive = TRUE, showWarnings = FALSE)
+
+crosswalk_path <- file.path(intermediate_dir, "puma_cd_crosswalk.rds")
+temporary_crosswalk <- tempfile(
+  pattern = "puma_cd_crosswalk_",
+  tmpdir = intermediate_dir,
+  fileext = ".rds"
+)
+saveRDS(puma_cd_crosswalk, temporary_crosswalk, compress = "gzip")
+check(
+  file.rename(temporary_crosswalk, crosswalk_path),
+  "Could not move the completed crosswalk to its final filename."
+)
+
+cat("\nPUMA allocation methods:\n")
+puma_allocation_audit |>
+  count(weight_method, name = "pumas") |>
+  print(n = Inf, width = Inf)
+
+cat("\nReviewed New York weights:\n")
+print(ny_weights, n = Inf, width = Inf)
+
+cat("\nCrosswalk validation passed.\n")
+cat("PUMAs:", nrow(puma_allocation_audit), "\n")
+cat("Assigned districts including DC:", nrow(expected_districts), "\n")
+cat("PUMA-district rows:", nrow(puma_cd_crosswalk), "\n")
+cat("Zero-weight rows:",
+    sum(puma_cd_crosswalk$allocation_weight == 0), "\n")
+cat("Largest within-PUMA weight-sum error:",
+    max(abs(puma_allocation_audit$weight_sum - 1)), "\n")
+cat("Saved:", crosswalk_path, "\n")
+cat("PUMS coverage and application will be checked in the next stage.\n")

@@ -17,13 +17,14 @@ ambiguous relationships and positive CVAP estimates in places with no
 recorded 2020 population. Each published estimate is counted once, and
 amounts excluded from district allocation remain visible in the audits.
 
-The cases reviewed so far have documented treatments and supporting
-checks. Implementing these treatments in the final allocation remains
-pending. New exceptions must be reviewed explicitly.
+The reviewed treatments are implemented in Script 02. Crosswalk
+construction and its internal checks passed on 2026-10-30.
+PUMS coverage and application remain to be checked in the next stage.
+New exceptions must be reviewed explicitly.
 
 ## New York suppression — decision recorded 2026-10-30
 
-Status: allocation rule selected; implementation in the final crosswalk pending.
+Status: implemented in Section 11; execution checks passed on 2026-10-30.
 
 ### Decision
 
@@ -70,13 +71,15 @@ The audit checks district coverage using all blocks in each affected PUMA,
 including zero-population blocks, and checks population conservation during
 aggregation.
 
-The final crosswalk must implement the general rule and verify that the
-two affected PUMAs each receive a single NY-02 row with weight 1.
+Section 11 implements the general rule and verified that the two
+affected PUMAs each receive a single NY-02 row with weight 1.
+All 39 suppressed block-group estimates and both complete PUMA CVAP
+totals remain unknown.
 
 This resolves their allocation weights under the pinned block geography.
 It does not recover missing CVAP counts for block groups or PUMAs.
-Connecticut mapping decisions are recorded below. Applying those decisions
-and constructing the final crosswalk remain pending.
+Connecticut mapping decisions are recorded below. These decisions
+have been applied in the completed crosswalk construction.
 
 ### Sources and reproducible evidence
 
@@ -89,7 +92,7 @@ and constructing the final crosswalk remain pending.
 ## Connecticut: positive CVAP with zero 2020 population
 
 Decision recorded 2026-10-30.
-Status: treatments selected; final allocation implementation pending.
+Status: treatments implemented; execution checks passed on 2026-10-30.
 
 ### Land block group 091902114003
 
@@ -133,15 +136,16 @@ This is not a national exclusion total.
 Neither decision relies on a threshold of 5 or assumes that the estimates
 are caused by privacy noise. Published source values remain unchanged.
 
-### Remaining work and evidence
+### Implementation and evidence
 
 The 160-square-metre overlap involving original block group 090093431011
 is addressed by the specific mapping convention recorded below.
-The reviewed identifier exception checks have passed. Applying the
-Connecticut mapping and validating the final allocation remain pending.
+The reviewed identifier exception checks passed. Sections 9-11 apply
+the Connecticut mapping and allocation treatments; their internal
+checks passed on 2026-10-30.
 
-The final pipeline must reproduce the containment checks, implement the
-selected treatments, and stop if new or unclassified exceptions appear.
+The pipeline reproduces the containment checks, implements the selected
+treatments, and stops if new or unclassified exceptions appear.
 
 Evidence:
 - [Connecticut identifier audit](02_ct_cvap_identifier_audit.md).
@@ -151,7 +155,7 @@ Evidence:
 ## Connecticut: small boundary-overlap convention
 
 Decision recorded 2026-10-30.
-Status: mapping convention selected; final allocation implementation pending.
+Status: mapping convention implemented; execution checks passed on 2026-10-30.
 
 Map original block group `090093431011` to `091403431011`.
 Retain all original block records and their 2020 population totals.
@@ -183,7 +187,7 @@ exceptions require review rather than automatic acceptance.
 
 ## Reviewed structural zeros for allocation (2026-10-30)
 
-Status: decision selected and code added to Script 02, Section 9.
+Status: implemented in Script 02, Sections 9-11.
 Execution validation passed on 2026-10-30.
 
 The five reviewed overrides retain their published estimates and set their
@@ -196,7 +200,8 @@ The available published estimates reconcile as:
 + 5 geographic exclusion. These totals exclude the unknown New York
 estimates; they are not a complete national CVAP estimate.
 
-Final crosswalk weights remain pending.
+Sections 10-11 construct the final crosswalk and passed their internal
+checks on 2026-10-30.
 
 ### Plain-language explanation
 
