@@ -83,3 +83,53 @@ handling before allocation.
 
 This addition reads and validates adult counts; it does not yet
 construct the CVAP allocation weights.
+
+
+## Preparing national allocation inputs
+
+Section 9 brings together block-group geography, PUMA and district
+membership, adult counts, and the published CVAP estimates. It identifies
+which block groups can be allocated directly, which require proportional
+allocation, and which need further review.
+
+The original block-group aggregation must preserve all block counts,
+total population and adult population. Reviewed Connecticut identifier
+rules are then applied. Ambiguous water relationships remain labelled
+as conservative source coverage, rather than an exact partition of
+blocks between newer block groups.
+
+CVAP estimates are held once per target block group. They are not summed
+after being repeated across district intersections. Missing New York
+estimates remain unknown.
+
+Outputs in `data/output`:
+- `02_bg_identifier_links.csv`: original-to-CVAP identifier relationships.
+- `02_bg_district_support.csv`: geographic coverage and 2020 population.
+- `02_cvap_allocation_readiness.csv`: one row per target block group,
+  containing its published CVAP estimate and proposed allocation case.
+
+The national sum of `source_block_links` is not a unique-block count:
+reviewed zero-population water coverage can appear under multiple
+target groups. Population totals must nevertheless remain conserved.
+
+This stage prepares allocation inputs. Final crosswalk weights remain
+to be calculated and validated.
+
+## Structural-zero allocation overrides
+
+Section 9 implements the five reviewed structural-zero decisions recorded
+on 2026-10-30. Their published CVAP estimates sum to 24 and remain visible
+in the audits; their allocation inputs are zero.
+
+The earlier Connecticut geographic exclusion of 5 is accounted for
+separately. Missing New York estimates remain missing.
+
+Subsequent weight calculations must use `cvap_for_allocation` and the
+documented allocation cases, including the PUMA containment rule.
+
+See [the allocation decision record](02_cvap_allocation_decisions.md)
+for the exact cases, rationale, sources and accounting identity.
+
+Section 9 execution validation passed on 2026-10-30, including the
+five structural-zero overrides and the CVAP accounting checks.
+Final crosswalk weights remain pending.

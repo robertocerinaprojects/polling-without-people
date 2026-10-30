@@ -180,3 +180,96 @@ population record. Preserve the raw relationship in the audit.
 The script checks the reviewed absent candidate, the known water-group
 collision, and the complete set of multi-region relationships. New
 exceptions require review rather than automatic acceptance.
+
+## Reviewed structural zeros for allocation (2026-10-30)
+
+Status: decision selected and code added to Script 02, Section 9.
+Execution validation passed on 2026-10-30.
+
+The five reviewed overrides retain their published estimates and set their
+allocation inputs to zero. Their adjustment totals 24. The separate
+Connecticut geographic exclusion totals 5. All 39 suppressed New York
+estimates remain missing, and no unresolved allocation cases remain.
+
+The available published estimates reconcile as:
+240,785,129 = 240,785,100 for allocation + 24 structural-zero adjustment
++ 5 geographic exclusion. These totals exclude the unknown New York
+estimates; they are not a complete national CVAP estimate.
+
+Final crosswalk weights remain pending.
+
+### Plain-language explanation
+
+We treat the five reviewed block groups below as having zero citizen-adult
+population for allocation. They cover military land, an airport, coastal
+parkland or open water, and all their source blocks have zero recorded
+population and zero adults in the 2020 Census.
+
+This is an explicit project assumption. Zero population in 2020 does not
+prove zero population throughout 2020-2024. The CVAP release documents
+confidentiality noise, but we cannot establish that noise caused each
+particular positive estimate.
+
+We preserve the published estimates and record their removal from the
+allocation inputs as a separate adjustment. No geographic records or
+PUMS records are removed.
+
+### Reviewed cases
+
+| Block group | Geographic description | State/PUMA | Districts | Published CVAP | Allocation CVAP |
+|---|---|---|---|---:|---:|
+| 060379800031 | Los Angeles County portion of Edwards Air Force Base | 06/03772 | 23, 27 | 5 | 0 |
+| 120219900000 | Offshore waters west of Naples and Marco Island | 12/02102 | 19, 22 | 4 | 0 |
+| 120719800001 | Southwest Florida International Airport area | 12/07105 | 17, 19 | 5 | 0 |
+| 120869806001 | Black Point Park and Marina and surrounding coastal area | 12/08623 | 27, 28 | 5 | 0 |
+| 120999900000 | Atlantic Ocean waters off Palm Beach County | 12/09902 | 21, 23, 25 | 5 | 0 |
+
+The rule applies only to these five identifiers. It is not an automatic
+rule for all small estimates, all special-use areas, or every block group
+with zero 2020 population.
+
+### Implementation and accounting
+
+- `cvap_est` retains the published estimate.
+- `structural_zero_override` identifies these five reviewed cases.
+- `cvap_structural_zero_adjustment` records the removed amount: 24 in total.
+- `cvap_geographic_exclusion` separately records the earlier Connecticut
+  water-area exclusion: 5 in total.
+- `cvap_for_allocation` is the input for subsequent allocation calculations.
+- `allocation_case` is `structural_zero_reviewed` for these five cases.
+
+For each nonmissing published estimate:
+
+`cvap_est = cvap_for_allocation + cvap_structural_zero_adjustment + cvap_geographic_exclusion`
+
+The 39 suppressed New York estimates remain missing. Adjustment amounts
+of zero on those rows mean no numerical override was applied; they do not
+mean the missing population is zero. Their previously selected PUMA
+containment rule remains applicable.
+
+Before applying the overrides, the script checks the exact identifiers,
+published estimates, PUMAs, district sets, and zero 2020 population/adult
+counts. Other unresolved allocation cases still stop the script.
+
+Generated evidence:
+- `../data/output/02_cvap_structural_zero_audit.csv`
+- `../data/output/02_cvap_allocation_readiness.csv`
+- `../data/output/02_cvap_allocation_case_summary.csv`
+
+The previously suggested proportional fallback was not adopted.
+
+### Sources and interpretation
+
+The quantitative checks use the pinned CVAP, district-assignment and
+2020 population inputs already documented for Script 02.
+
+Geographic descriptions were checked against these official sources:
+- [Los Angeles Census tract map, sheet 2](https://www2.census.gov/geo/maps/DC2020/PL20/st06_ca/censustract_maps/c06037_los_angeles/DC20CT_C06037.pdf).
+- [Collier Census tract map](https://www2.census.gov/geo/maps/DC2020/PL20/st12_fl/censustract_maps/c12021_collier/DC20CT_C12021.pdf).
+- [Lee Census tract map](https://www2.census.gov/geo/maps/DC2020/PL20/st12_fl/censustract_maps/c12071_lee/DC20CT_C12071.pdf).
+- [Miami-Dade Census tract map](https://www2.census.gov/geo/maps/DC2020/PL20/st12_fl/censustract_maps/c12086_miami-dade/DC20CT_C12086.pdf).
+- [Palm Beach Census tract map](https://www2.census.gov/geo/maps/DC2020/PL20/st12_fl/censustract_maps/c12099_palm_beach/DC20CT_C12099.pdf).
+- [2020-2024 CVAP technical documentation, page 4](https://www2.census.gov/programs-surveys/decennial/rdo/technical-documentation/special-tabulation/CVAP_2020-2024_ACS_documentation_v1.pdf).
+
+The maps support the geographic descriptions. The decision to use zero
+for allocation is ours, not a Census Bureau correction to the release.

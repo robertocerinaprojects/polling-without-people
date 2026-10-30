@@ -1313,7 +1313,7 @@ writeLines(c(
   "Selected treatments: [CVAP allocation decisions](02_cvap_allocation_decisions.md).",
   "",
   "Conversion choices are documented in the decision record.",
-  "Applying the mapping and constructing allocation weights remain pending."
+  "Later sections use these reviewed relationships to prepare allocation inputs."
 ), ct_note_path)
 
 cat("Identifier audit saved:", ct_audit_path, "\n")
@@ -1432,9 +1432,437 @@ writeLines(c(
   paste0("Exact source query: ", ct_catalog_query_url),
   "",
   "Known candidate exceptions are classified under documented rules.",
-  "Applying the conversion and constructing allocation weights remain pending."
+  "Input preparation follows these checks; final allocation weights remain pending."
 ), ct_note_path)
 
 cat("\nReviewed Connecticut identifier exception checks passed.\n")
 cat("Catalogue SHA256:", ct_catalog_sha256, "\n")
 cat("Crosswalk construction remains pending.\n")
+
+# Section 9: prepare national CVAP allocation inputs.
+# First preserve exact totals on the original 2020 block geography.
+# A block-group ID is the first 12 block-GEOID characters:
+# state 2 + county 3 + tract 6 + block-group digit 1.
+bg_2020_cells <- block_cd |>
+  mutate(bg_2020 = substr(GEOID, 1L, 12L)) |>
+  group_by(STATEFP, bg_2020, PUMA5CE, CDFP) |>
+  summarise(
+    blocks = n(),
+    pop20 = sum(pop20),
+    vap20 = sum(vap20),
+    .groups = "drop"
+  )
+
+check(
+  !anyNA(bg_2020_cells) &&
+    sum(bg_2020_cells$blocks) == nrow(block_cd) &&
+    sum(bg_2020_cells$pop20) == sum(block_cd$pop20) &&
+    sum(bg_2020_cells$vap20) == sum(block_cd$vap20),
+  "Original block-group aggregation changed block or population totals."
+)
+
+bg_2020_totals <- bg_2020_cells |>
+  group_by(STATEFP, bg_2020) |>
+  summarise(
+    pop20 = sum(pop20),
+    vap20 = sum(vap20),
+    .groups = "drop"
+  )
+
+# Apply the reviewed CT identifier rules.
+# Section 8 verifies the exact absent candidate before we exclude its link.
+# No original block or person record is removed.
+ct_links <- ct_candidate_audit |>
+  filter(present_in_cvap) |>
+  transmute(STATEFP = "09", bg_2020, bg_cvap)
+
+ct_source_counts <- count(ct_links, bg_2020, name = "targets")
+ct_target_counts <- count(ct_links, bg_cvap, name = "sources")
+
+ct_multiple_targets <- filter(ct_source_counts, targets > 1L)
+ct_multiple_sources <- filter(ct_target_counts, sources > 1L)
+
+# Ambiguous water relationships describe possible source coverage,
+# not an exact partition of blocks between newer block groups.
+ct_water_support <- ct_candidate_audit |>
+  filter(
+    present_in_cvap,
+    bg_2020 %in% ct_multiple_targets$bg_2020 |
+      bg_cvap %in% ct_multiple_sources$bg_cvap
+  )
+
+check(
+  all(ct_water_support$land_m2 == 0) &&
+    all(ct_water_support$population_2020 == 0),
+  "Ambiguous CT correspondence includes land or recorded population."
+)
+
+ct_population_links <- bg_2020_totals |>
+  filter(STATEFP == "09") |>
+  left_join(
+    ct_source_counts,
+    by = "bg_2020",
+    relationship = "one-to-one"
+  )
+
+check(
+  !anyNA(ct_population_links$targets) &&
+    all(ct_population_links$targets[ct_population_links$pop20 > 0] == 1L),
+  "A populated CT source block group lacks one reviewed destination."
+)
+
+ct_links <- ct_links |>
+  mutate(
+    coverage_only =
+      bg_2020 %in% ct_multiple_targets$bg_2020 |
+      bg_cvap %in% ct_multiple_sources$bg_cvap
+  )
+
+bg_links <- bind_rows(
+  bg_2020_totals |>
+    filter(STATEFP != "09") |>
+    transmute(
+      STATEFP, bg_2020,
+      bg_cvap = bg_2020,
+      coverage_only = FALSE
+    ),
+  ct_links
+)
+
+check(
+  !anyNA(bg_links) &&
+    anyDuplicated(select(bg_links, STATEFP, bg_2020, bg_cvap)) == 0L &&
+    setequal(bg_links$bg_2020, bg_2020_totals$bg_2020),
+  "Block-group correspondence is incomplete or duplicated."
+)
+
+# Multiple coverage links are intentional only for reviewed water cases.
+# CVAP estimates are deliberately absent from this intersection table.
+bg_target_cells <- bg_2020_cells |>
+  left_join(
+    bg_links,
+    by = c("STATEFP", "bg_2020"),
+    relationship = "many-to-many"
+  ) |>
+  group_by(STATEFP, bg_cvap, PUMA5CE, CDFP) |>
+  summarise(
+    source_block_links = sum(blocks),
+    pop20 = sum(pop20),
+    vap20 = sum(vap20),
+    coverage_only = any(coverage_only),
+    .groups = "drop"
+  )
+
+check(
+  !anyNA(bg_target_cells) &&
+    sum(bg_target_cells$pop20) == sum(block_cd$pop20) &&
+    sum(bg_target_cells$vap20) == sum(block_cd$vap20),
+  "Identifier reconciliation changed recorded population totals."
+)
+
+# source_block_links can repeat zero-population water blocks across targets.
+# Do not interpret their national sum as a unique-block count.
+
+# Reuse the national CVAP table already read in Section 8.
+# Keep exactly one published Total estimate per target block group.
+cvap_totals <- ct_cvap_source |>
+  filter(lnnumber == 1L) |>
+  transmute(
+    bg_cvap = sub("^1500000US", "", geoid),
+    STATEFP = substr(bg_cvap, 1L, 2L),
+    cvap_est
+  ) |>
+  filter(STATEFP %in% target_states)
+
+check(
+  !anyNA(cvap_totals) &&
+    anyDuplicated(cvap_totals$bg_cvap) == 0L &&
+    setequal(cvap_totals$STATEFP, target_states) &&
+    all(is.finite(cvap_totals$cvap_est) & cvap_totals$cvap_est >= 0),
+  "Invalid national CVAP Total estimates."
+)
+
+# Keep summary names distinct from input columns until all sums are computed.
+bg_coverage <- bg_target_cells |>
+  group_by(STATEFP, bg_cvap) |>
+  summarise(
+    intersections = n(),
+    pumas = n_distinct(PUMA5CE),
+    has_unassigned = any(CDFP == "ZZ"),
+    wholly_unassigned = all(CDFP == "ZZ"),
+    pop20_total = sum(pop20),
+    vap20_total = sum(vap20),
+    unassigned_vap20 = sum(vap20[CDFP == "ZZ"]),
+    coverage_only = any(coverage_only),
+    .groups = "drop"
+  ) |>
+  rename(
+    pop20 = pop20_total,
+    vap20 = vap20_total
+  )
+
+check(
+  !anyNA(bg_coverage) &&
+    all(is.finite(bg_coverage$vap20)) &&
+    all(is.finite(bg_coverage$unassigned_vap20)) &&
+    all(bg_coverage$vap20 >= 0 &
+        bg_coverage$vap20 <= bg_coverage$pop20) &&
+    all(bg_coverage$unassigned_vap20 >= 0 &
+        bg_coverage$unassigned_vap20 <= bg_coverage$vap20) &&
+    sum(bg_coverage$vap20) == sum(bg_target_cells$vap20) &&
+    sum(bg_coverage$unassigned_vap20) ==
+      sum(bg_target_cells$vap20[bg_target_cells$CDFP == "ZZ"]),
+  "Block-group adult totals or unassigned subtotals do not reconcile."
+)
+
+allocation_readiness <- full_join(
+  bg_coverage,
+  cvap_totals,
+  by = c("STATEFP", "bg_cvap"),
+  relationship = "one-to-one"
+) |>
+  mutate(
+    allocation_case = case_when(
+      is.na(intersections) ~ "missing_geography",
+      is.na(cvap_est) ~ "missing_cvap",
+      cvap_est == 0 ~ "zero_cvap",
+      wholly_unassigned ~ "exclude_unassigned",
+      intersections == 1L & !has_unassigned ~ "direct_containment",
+      vap20 > 0 & unassigned_vap20 == 0 ~ "adult_proportions",
+      TRUE ~ "review_required"
+    )
+  ) |>
+  arrange(STATEFP, bg_cvap)
+
+# Reviewed structural-zero overrides: decision 2026-10-30.
+# Project assumption, restricted to the five cases documented in:
+# frame/docs/02_cvap_allocation_decisions.md
+# Expected estimates and locations come from the reviewed source audits.
+structural_zero_rules <- tibble::tribble(
+  ~bg_cvap,       ~expected_cvap, ~expected_puma, ~expected_districts,
+  "060379800031", 5,              "03772",        "23,27",
+  "120219900000", 4,              "02102",        "19,22",
+  "120719800001", 5,              "07105",        "17,19",
+  "120869806001", 5,              "08623",        "27,28",
+  "120999900000", 5,              "09902",        "21,23,25"
+)
+
+zero_locations <- bg_target_cells |>
+  semi_join(structural_zero_rules, by = "bg_cvap") |>
+  group_by(bg_cvap) |>
+  summarise(
+    observed_pumas = paste(sort(unique(PUMA5CE)), collapse = ","),
+    observed_districts = paste(sort(unique(CDFP)), collapse = ","),
+    .groups = "drop"
+  )
+
+reviewed_zero_inputs <- structural_zero_rules |>
+  left_join(
+    allocation_readiness,
+    by = "bg_cvap",
+    relationship = "one-to-one"
+  ) |>
+  left_join(
+    zero_locations,
+    by = "bg_cvap",
+    relationship = "one-to-one"
+  )
+
+check(
+  nrow(reviewed_zero_inputs) == 5L &&
+    !anyNA(reviewed_zero_inputs) &&
+    all(reviewed_zero_inputs$cvap_est ==
+          reviewed_zero_inputs$expected_cvap) &&
+    all(reviewed_zero_inputs$observed_pumas ==
+          reviewed_zero_inputs$expected_puma) &&
+    all(reviewed_zero_inputs$observed_districts ==
+          reviewed_zero_inputs$expected_districts) &&
+    all(reviewed_zero_inputs$pop20 == 0 &
+          reviewed_zero_inputs$vap20 == 0 &
+          reviewed_zero_inputs$pumas == 1L &
+          reviewed_zero_inputs$intersections > 1L &
+          !reviewed_zero_inputs$has_unassigned &
+          !reviewed_zero_inputs$coverage_only) &&
+    all(reviewed_zero_inputs$allocation_case == "review_required"),
+  "The five structural-zero cases no longer match their reviewed evidence."
+)
+
+published_before_override <- allocation_readiness$cvap_est
+cases_before_override <- allocation_readiness$allocation_case
+
+allocation_readiness <- allocation_readiness |>
+  mutate(
+    structural_zero_override = bg_cvap %in% structural_zero_rules$bg_cvap,
+    cvap_structural_zero_adjustment = if_else(
+      structural_zero_override, cvap_est, 0
+    ),
+    # Keep the previously selected CT geographic exclusion separate.
+    cvap_geographic_exclusion = if_else(
+      allocation_case == "exclude_unassigned", cvap_est, 0
+    ),
+    cvap_for_allocation =
+      cvap_est -
+      cvap_structural_zero_adjustment -
+      cvap_geographic_exclusion,
+    allocation_case = if_else(
+      structural_zero_override,
+      "structural_zero_reviewed",
+      allocation_case
+    )
+  )
+
+observed_cvap <- allocation_readiness |>
+  filter(!is.na(cvap_est))
+
+check(
+  identical(allocation_readiness$cvap_est, published_before_override) &&
+    identical(
+      is.na(allocation_readiness$cvap_for_allocation),
+      is.na(allocation_readiness$cvap_est)
+    ) &&
+    all(
+      allocation_readiness$allocation_case[
+        !allocation_readiness$structural_zero_override
+      ] ==
+        cases_before_override[
+          !allocation_readiness$structural_zero_override
+        ]
+    ) &&
+    all(is.finite(observed_cvap$cvap_for_allocation) &
+          observed_cvap$cvap_for_allocation >= 0) &&
+    all(
+      observed_cvap$cvap_est ==
+        observed_cvap$cvap_for_allocation +
+        observed_cvap$cvap_structural_zero_adjustment +
+        observed_cvap$cvap_geographic_exclusion
+    ) &&
+    sum(observed_cvap$cvap_structural_zero_adjustment) == 24 &&
+    sum(observed_cvap$cvap_geographic_exclusion) == 5 &&
+    setequal(
+      observed_cvap$bg_cvap[
+        observed_cvap$cvap_geographic_exclusion > 0
+      ],
+      "091309901000"
+    ),
+  "Published CVAP, allocation inputs and adjustment amounts do not reconcile."
+)
+
+structural_zero_audit <- allocation_readiness |>
+  filter(structural_zero_override) |>
+  left_join(
+    zero_locations,
+    by = "bg_cvap",
+    relationship = "one-to-one"
+  )
+
+readr::write_csv(
+  structural_zero_audit,
+  file.path(output_dir, "02_cvap_structural_zero_audit.csv")
+)
+
+cat("\nStructural-zero override audit:\n")
+structural_zero_audit |>
+  select(
+    bg_cvap, observed_pumas, observed_districts,
+    cvap_est, cvap_for_allocation, cvap_structural_zero_adjustment
+  ) |>
+  print(n = Inf, width = Inf)
+
+# Subsequent allocation calculations must use cvap_for_allocation.
+# cvap_est remains the published source value, including missing values.
+
+# Write the evidence before stopping on any newly discovered problem.
+readr::write_csv(
+  bg_links,
+  file.path(output_dir, "02_bg_identifier_links.csv")
+)
+readr::write_csv(
+  bg_target_cells,
+  file.path(output_dir, "02_bg_district_support.csv")
+)
+readr::write_csv(
+  allocation_readiness,
+  file.path(output_dir, "02_cvap_allocation_readiness.csv")
+)
+
+case_summary <- allocation_readiness |>
+  group_by(allocation_case) |>
+  summarise(
+    block_groups = n(),
+    missing_estimates = sum(is.na(cvap_est)),
+    published_cvap = if (all(is.na(cvap_est))) {
+      NA_real_
+    } else {
+      sum(cvap_est, na.rm = TRUE)
+    },
+    allocation_cvap = if (all(is.na(cvap_for_allocation))) {
+      NA_real_
+    } else {
+      sum(cvap_for_allocation, na.rm = TRUE)
+    },
+    structural_zero_adjustment = sum(cvap_structural_zero_adjustment),
+    geographic_exclusion = sum(cvap_geographic_exclusion),
+    .groups = "drop"
+  )
+
+readr::write_csv(
+  case_summary,
+  file.path(output_dir, "02_cvap_allocation_case_summary.csv")
+)
+
+cat("\nNational CVAP allocation cases:\n")
+print(case_summary, n = Inf, width = Inf)
+
+cat("\nPositive CVAP with zero recorded adult population (first 20):\n")
+allocation_readiness |>
+  filter(cvap_est > 0, vap20 == 0) |>
+  head(20L) |>
+  print(n = 20, width = Inf)
+
+review_cases <- allocation_readiness |>
+  filter(allocation_case %in% c("missing_geography", "review_required"))
+
+cat("\nCases requiring further review (first 20):\n")
+print(head(review_cases, 20L), n = 20, width = Inf)
+
+# Missing values must remain exactly the previously verified NY omissions.
+missing_cvap_ids <- allocation_readiness$bg_cvap[
+  allocation_readiness$allocation_case == "missing_cvap"
+]
+check(
+  setequal(missing_cvap_ids, ny_missing$bg_geoid),
+  "Missing CVAP does not match the reviewed New York suppression list."
+)
+
+# Reproduce the location conclusions previously checked separately for CT.
+# These identifiers and expected locations come from the decision record.
+ct_land_support <- filter(
+  bg_target_cells, bg_cvap == "091902114003"
+)
+ct_water_locations <- filter(
+  bg_target_cells, bg_cvap == "091309901000"
+)
+
+check(
+  nrow(ct_land_support) == 1L &&
+    ct_land_support$PUMA5CE[[1]] == "20904" &&
+    ct_land_support$CDFP[[1]] == "05",
+  "The reviewed CT land case is no longer contained in PUMA 20904 / CT-05."
+)
+check(
+  nrow(ct_water_locations) > 0L &&
+    all(ct_water_locations$CDFP == "ZZ") &&
+    setequal(ct_water_locations$PUMA5CE, c("20401", "20500")),
+  "The reviewed CT water case has unexpected district or PUMA coverage."
+)
+
+check(
+  nrow(review_cases) == 0L,
+  paste(
+    "Further allocation decisions are needed.",
+    "See frame/data/output/02_cvap_allocation_readiness.csv."
+  )
+)
+
+cat("\nNational allocation-input checks passed.\n")
+cat("Final PUMA-to-district weights have not yet been calculated.\n")

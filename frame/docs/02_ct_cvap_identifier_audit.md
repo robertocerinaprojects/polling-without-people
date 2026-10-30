@@ -32,7 +32,7 @@ Detailed audit: `../data/output/02_ct_cvap_identifier_audit.csv`.
 Selected treatments: [CVAP allocation decisions](02_cvap_allocation_decisions.md).
 
 Conversion choices are documented in the decision record.
-Applying the mapping and constructing allocation weights remain pending.
+Later sections use these reviewed relationships to prepare allocation inputs.
 
 ## Reviewed exception checks
 
@@ -44,4 +44,4 @@ and that no additional multi-region relationships were introduced.
 Exact source query: https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json
 
 Known candidate exceptions are classified under documented rules.
-Applying the conversion and constructing allocation weights remain pending.
+Input preparation follows these checks; final allocation weights remain pending.
