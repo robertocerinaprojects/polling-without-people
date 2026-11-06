@@ -1,9 +1,7 @@
 # Frame scripts
 
-Run reviewed scripts from the repository root.
+See the [frame overview](../README.md#script-status) for the authoritative
+execution order, implementation status and companion documentation.
 
-1. `01_prepare_pums.R` — prepare and validate PUMS person records.
-   See [the documentation](../docs/01_prepare_pums.md).
-
-Files named `Script*.R` are original scripts awaiting individual review,
-revision and execution.
+Run individual steps from the repository root.
+Historical scripts are quarantined under `legacy/frame/scripts/`.

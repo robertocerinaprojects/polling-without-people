@@ -5,13 +5,9 @@ Starting checkpoint: `0045a396aa1ce5455a98105a899f5bfdb5b2624f`.
 Quarantine preserves files for review; it does not imply that every old
 analysis step has already been replaced.
 
-## Current scripts
+## Current script status
 
-| Script | Status |
-|---|---|
-| `frame/scripts/01_prepare_pums.R` | Reviewed checks passed |
-| `frame/scripts/02_build_puma_cd_crosswalk.R` | Reviewed checks passed |
-| `frame/scripts/03_apply_puma_cd_crosswalk.R` | Coverage-audit draft; execution validation and allocation implementation pending |
+See the [frame overview](../frame/README.md#script-status).
 
 The original PUMS preparation script and its companion document were removed
 earlier when Script 01 replaced them. They remain available in Git history.
@@ -59,7 +55,6 @@ Old companion documents follow the status of their associated script.
 
 ## Remaining repository cleanup
 
-- Update active README files and establish the shared component structure.
 - Document input sources, producing scripts, outputs and downstream consumers.
 - Resolve all outstanding legacy decisions before deleting `legacy/`.
 - Verify that active execution and dependency discovery exclude legacy files.
@@ -73,7 +68,7 @@ Old companion documents follow the status of their associated script.
 | `frame/Data_Final` | `legacy/frame/Data_Final` | Retired layout; current results use frame/data/output/ |
 | `frame/Development_Script_Original` | `legacy/frame/Development_Script_Original` | Historical development reference; ignored/local-only |
 | `frame/Final_Data_Original` | `legacy/frame/Final_Data_Original` | Historical output documentation; ignored/local-only; no datasets present |
-| `frame/README.md` | `legacy/frame/README.md` | Historical overview; new active overview to be written |
+| `frame/README.md` | `legacy/frame/README.md` | Historical overview; replaced by the new frame/README.md |
 | `frame/data_sources.md` | `legacy/frame/data_sources.md` | Historical source list; current data catalogue to be written |
 | `frame/.gitignore` | `legacy/frame/.gitignore` | Historical ignore rules; general R/editor rules transferred to repository root |
 
@@ -90,8 +85,13 @@ They are present in this Codespace but are not included in Git pushes.
 - `legacy/frame/Final_Data_Original/README_ces_2024_for_mrsp.md`
 - `legacy/frame/Final_Data_Original/README_stratification_frame_preMrsP.md`
 
-### Next documentation step
+### Documentation progress
 
-Create the active component overviews and the shared repository conventions.
-Current execution instructions remain in the numbered documents under
-`frame/docs/`. The old overview and source list are historical references.
+The component overviews and shared repository conventions are established.
+Current execution order and status live in each component's README.
+
+Next: populate the frame data catalogue from the actual script reads and writes,
+including input acquisition, generated audits and downstream dependencies.
+
+Environment housekeeping remains pending: `rpart.plot` is recorded and installed
+but is no longer referenced by the active scripts after quarantine.
