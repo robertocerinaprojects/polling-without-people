@@ -38,17 +38,6 @@ geographic exceptions, CVAP accounting and within-PUMA weight sums.
 The crosswalk has been saved. Coverage of the retained PUMS records and
 application of these weights will be checked in the next stage.
 
-## Connecticut development check
-
-Verified on 2026-10-30 using the pinned Connecticut archive:
-
-- All 49,926 blocks matched the district assignments.
-- Block populations summed to the state total of 3,605,944.
-- All 81 unassigned blocks had zero recorded population.
-- POP100 and P1 totals agreed for every block.
-
-The pilot code was replaced by the nationwide manifest loop.
-
 ## CVAP allocation decisions
 
 See [CVAP allocation decisions](02_cvap_allocation_decisions.md) for the selected rules, evidence and implementation status.
@@ -245,3 +234,8 @@ They do not independently validate the spatial allocation assumptions.
 The weight-sum discrepancy is floating-point rounding.
 The subsequent application stage must check that every retained PUMS
 PUMA has a matching crosswalk entry before allocating records.
+
+## Data catalogue
+
+See the [frame data catalogue](data_catalogue.md) for source acquisition,
+exact input/output paths, columns, producers and downstream consumers.

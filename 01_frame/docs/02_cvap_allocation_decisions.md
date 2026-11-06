@@ -148,7 +148,17 @@ treatments, and stops if new or unclassified exceptions appear.
 Evidence:
 - [Connecticut identifier audit](02_ct_cvap_identifier_audit.md).
 - Candidate relationships: `../data/output/02_ct_cvap_identifier_audit.csv`.
-- Focused location audit: `../data/output/02_ct_cvap_zero_population_locations.csv`.
+- Current geographic intersections: `../data/output/02_bg_district_support.csv`.
+- Current allocation classification: `../data/output/02_cvap_allocation_readiness.csv`.
+- Current contributions: `../data/output/02_bg_cvap_contributions.csv`.
+
+Filter the three current tables to `bg_cvap` values `091902114003` and
+`091309901000` to review these cases. The identifier audit maps those
+targets back to the original block groups. Section 9 reproduces the
+PUMA/district location checks, and Section 10 verifies that the land
+estimate contributes 5 exactly once and unassigned rows contribute zero.
+These checks and outputs are recreated by the current script; no separate
+historical location file is required.
 
 ## Connecticut: small boundary-overlap convention
 

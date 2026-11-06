@@ -55,7 +55,7 @@ Old companion documents follow the status of their associated script.
 
 ## Remaining repository cleanup
 
-- Document input sources, producing scripts, outputs and downstream consumers.
+- Keep active data catalogues current as script interfaces develop.
 - Resolve all outstanding legacy decisions before deleting `legacy/`.
 - Verify that active execution and dependency discovery exclude legacy files.
 
@@ -69,7 +69,7 @@ Old companion documents follow the status of their associated script.
 | `frame/Development_Script_Original` | `legacy/frame/Development_Script_Original` | Historical development reference; ignored/local-only |
 | `frame/Final_Data_Original` | `legacy/frame/Final_Data_Original` | Historical output documentation; ignored/local-only; no datasets present |
 | `frame/README.md` | `legacy/frame/README.md` | Historical overview; replaced by the new 01_frame/README.md |
-| `frame/data_sources.md` | `legacy/frame/data_sources.md` | Historical source list; current data catalogue to be written |
+| `frame/data_sources.md` | `legacy/frame/data_sources.md` | Historical source list; replaced by 01_frame/docs/data_catalogue.md |
 | `frame/.gitignore` | `legacy/frame/.gitignore` | Historical ignore rules; general R/editor rules transferred to repository root |
 
 ### Local-only historical files
@@ -90,8 +90,10 @@ They are present in this Codespace but are not included in Git pushes.
 The component overviews and shared repository conventions are established.
 Current execution order and status live in each component's README.
 
-Next: populate the frame data catalogue from the actual script reads and writes,
-including input acquisition, generated audits and downstream dependencies.
+The [frame data catalogue](../01_frame/docs/data_catalogue.md) now records
+the active script reads and writes, input acquisition, generated audits,
+schemas and downstream dependencies. Current scripts and their companion
+documents do not depend on retired code or historical review CSVs.
 
 Environment housekeeping remains pending: `rpart.plot` is recorded and installed
 but is no longer referenced by the active scripts after quarantine.
@@ -113,3 +115,52 @@ The redundant script-folder README was removed. Each component's root
 README provides navigation and status; companion explanations remain in docs/.
 
 Historical source paths and archived paths under legacy/ retain their names.
+
+## Historical Connecticut review outputs
+
+Cleanup based on code checkpoint `65b0c42` and the 2026-11-06 local inventory.
+The four CSVs below moved from `01_frame/data/output/` to
+`legacy/frame/data/output/`, preserving their filenames and bytes.
+They remain ignored/local-only and are not included in Git pushes.
+
+| Filename | Bytes at review | Historical role | Current evidence or distinction |
+|---|---:|---|---|
+| `02_ct_population_audit.csv` | 159 | Connecticut-only population pilot, grouped by district | Current national population audit includes Connecticut; it is a state summary, not an identical replacement for this district table |
+| `02_ct_population_source_check.csv` | 88 | Pilot comparison of geography POP100 with segment 1/P1 | No current standalone replacement; the active reader uses geography POP100 and segment 2/P3 and does not repeat the P1 comparison |
+| `02_ct_unassigned_blocks.csv` | 2212 | Connecticut-only list of unassigned blocks | Current `02_unassigned_block_population.csv`, restricted to state 09, supplies this type of evidence and also includes adult counts; exact table equivalence was not tested |
+| `02_ct_cvap_zero_population_locations.csv` | 147 | One-off location review for the two positive-CVAP/zero-2020-population cases | Current identifier, intersection, readiness and contribution audits support the decision; Script 02 Sections 9-10 reproduce location and contribution checks |
+
+The first three were produced by the earlier Connecticut development pilot;
+the fourth was produced by a separate review command. None is read or written
+by an active numbered script. Their contents were not rerun or revalidated
+during this cleanup. The cleanup verifies unchanged bytes during relocation.
+
+The active allocation decision note now cites current reproducible outputs.
+The former historical location reference is retained only in this migration
+history; deleting the historical CSV will not remove required decision evidence.
+
+### Preserved historical pilot result
+
+The earlier main document recorded the following Connecticut development
+check on 2026-10-30, using the pinned source archive:
+
+- All 49,926 blocks matched the district assignments.
+- Block populations summed to the state total of 3,605,944.
+- All 81 unassigned blocks had zero recorded population.
+- POP100 and P1 totals agreed for every block.
+
+The pilot code was replaced by the national manifest loop. The final bullet
+is a historical check, not a comparison rerun by the current Script 02.
+This history is not needed to execute or interpret the current pipeline.
+
+### Standalone active workflow
+
+Current runtime inputs are identified in the active catalogue and source
+manifest. Required assumptions and exception evidence are in the current
+docs and generating code. The catalogue and active companion documents no
+longer refer readers to historical review CSVs or legacy instructions.
+
+These four historical CSVs are eligible for deletion with the quarantine once
+the broader legacy review is complete. Other legacy scripts still have the
+replacement/retirement decisions listed above; this cleanup does not resolve
+those scientific development tasks.

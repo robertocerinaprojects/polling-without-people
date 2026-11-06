@@ -28,12 +28,13 @@ Step 03 reads both `data/intermediate/pums_clean.rds` and
 - `data/output/`: generated audits and exports.
 - `docs/`: script explanations, decisions and source manifests.
 
-The unified `docs/data_catalogue.md` is the next documentation task.
-Until it is populated, use the input/output descriptions in the numbered
-companion documents and the source manifests they reference.
+The [data catalogue](docs/data_catalogue.md) records source snapshots,
+acquisition, file schemas, producing scripts and downstream consumers.
+It covers current intermediates, audits and script-generated documentation.
 
-Later frame stages remain under review in the
-[migration record](../docs/migration.md). Historical instructions are in
-[legacy](../legacy/README.md).
+The active scripts and their documentation stand alone: no retired script,
+historical review CSV or legacy document is required to run or interpret them.
+Later frame stages remain under review; retirement history is recorded
+separately in the [migration record](../docs/migration.md).
 
 See the [shared conventions](../docs/repository_structure.md).

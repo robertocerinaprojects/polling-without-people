@@ -122,6 +122,22 @@ maintained in the code that generates it.
 
 We update these explanations as each script is reviewed and refined.
 
+## Independence from historical material
+
+Active scripts and documents must remain usable when `legacy/` is deleted.
+Their runtime inputs must come from documented external snapshots or current
+generated intermediates, never from retired scripts or historical outputs.
+
+Keep the definitions, sources, assumptions and exception evidence needed to
+understand an active step in its current docs and generating code. Cite
+current reproducible audits when supporting an implemented decision. Moving
+an old file is not sufficient if an active document still relies on it.
+
+Historical inventories and pilot-only results belong in `docs/migration.md`.
+Migration history is optional context, not a prerequisite for running or
+understanding the active workflow. Source snapshots remain required even
+when old code and documents are removed.
+
 ## Legacy material
 
 `legacy/` is temporary historical reference material, outside active execution

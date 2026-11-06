@@ -44,3 +44,8 @@ counts, weighted population and crosswalk summaries for each state/PUMA.
 Section 1 has been added; execution validation is pending.
 Person-level allocation and population-conservation checks will follow
 after this coverage audit has been reviewed.
+
+## Data catalogue
+
+See the [frame data catalogue](data_catalogue.md) for source acquisition,
+exact input/output paths, columns, producers and downstream consumers.

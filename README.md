@@ -24,6 +24,7 @@ implementation status and script documentation.
 
 ## Historical material
 
-Old code and documentation are quarantined in [legacy](legacy/README.md).
-The [migration record](docs/migration.md) identifies replacements,
-unresolved work and historical files that remain local-only.
+The [migration record](docs/migration.md) identifies retired material,
+replacements, unresolved work and historical files that remain local-only.
+The active components do not depend on the temporary historical quarantine;
+their required inputs and methods are documented within the active layout.

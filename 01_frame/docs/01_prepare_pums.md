@@ -86,3 +86,8 @@ Downloaded and generated data are excluded from Git.
 
 These results refer to the pinned inputs above.
 Crosswalk coverage and subsequent stages remain to be reviewed.
+
+## Data catalogue
+
+See the [frame data catalogue](data_catalogue.md) for source acquisition,
+exact input/output paths, columns, producers and downstream consumers.
