@@ -59,9 +59,39 @@ Old companion documents follow the status of their associated script.
 
 ## Remaining repository cleanup
 
-- Review and quarantine the remaining historical overview, source list,
-  development folder and old data-directory documentation.
 - Update active README files and establish the shared component structure.
 - Document input sources, producing scripts, outputs and downstream consumers.
 - Resolve all outstanding legacy decisions before deleting `legacy/`.
 - Verify that active execution and dependency discovery exclude legacy files.
+
+## Remaining historical layout quarantined
+
+| Previous path | Quarantined path | Status |
+|---|---|---|
+| `frame/Data_Raw` | `legacy/frame/Data_Raw` | Retired layout; current inputs use frame/data/input/ |
+| `frame/Data_Processed` | `legacy/frame/Data_Processed` | Retired layout; current intermediates use frame/data/intermediate/ |
+| `frame/Data_Final` | `legacy/frame/Data_Final` | Retired layout; current results use frame/data/output/ |
+| `frame/Development_Script_Original` | `legacy/frame/Development_Script_Original` | Historical development reference; ignored/local-only |
+| `frame/Final_Data_Original` | `legacy/frame/Final_Data_Original` | Historical output documentation; ignored/local-only; no datasets present |
+| `frame/README.md` | `legacy/frame/README.md` | Historical overview; new active overview to be written |
+| `frame/data_sources.md` | `legacy/frame/data_sources.md` | Historical source list; current data catalogue to be written |
+| `frame/.gitignore` | `legacy/frame/.gitignore` | Historical ignore rules; general R/editor rules transferred to repository root |
+
+### Local-only historical files
+
+These files were ignored before relocation and remain ignored.
+They are present in this Codespace but are not included in Git pushes.
+
+- `legacy/frame/Data_Processed/README.md`
+- `legacy/frame/Development_Script_Original/README.md`
+- `legacy/frame/Development_Script_Original/Stratification_Building.R`
+- `legacy/frame/Final_Data_Original/README.md`
+- `legacy/frame/Final_Data_Original/README_area_level_vote_shares.md`
+- `legacy/frame/Final_Data_Original/README_ces_2024_for_mrsp.md`
+- `legacy/frame/Final_Data_Original/README_stratification_frame_preMrsP.md`
+
+### Next documentation step
+
+Create the active component overviews and the shared repository conventions.
+Current execution instructions remain in the numbered documents under
+`frame/docs/`. The old overview and source list are historical references.

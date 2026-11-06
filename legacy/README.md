@@ -11,4 +11,6 @@ resolve each outstanding replacement or retirement decision, preserve any
 necessary methodological documentation outside this folder, and verify that
 the active pipeline has no dependency on its contents.
 
-Git history will retain the historical files after deletion.
+Git history will retain tracked historical files after deletion.
+Previously ignored reference files remain local-only; see the list in
+[the migration record](../docs/migration.md).

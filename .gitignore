@@ -5,5 +5,20 @@
 **/data/output/*
 !**/data/**/README.md
 !**/data/**/.gitkeep
-/frame/Development_Script_Original/
-/frame/Final_Data_Original/
+/legacy/frame/Development_Script_Original/
+/legacy/frame/Final_Data_Original/
+/legacy/frame/Data_Processed/README.md
+
+# R session artifacts
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# macOS system files
+.DS_Store
+
+# Various editor / OS
+*.swp
+*~
+Thumbs.db
