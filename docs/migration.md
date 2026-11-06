@@ -7,7 +7,7 @@ analysis step has already been replaced.
 
 ## Current script status
 
-See the [frame overview](../frame/README.md#script-status).
+See the [frame overview](../01_frame/README.md#script-status).
 
 The original PUMS preparation script and its companion document were removed
 earlier when Script 01 replaced them. They remain available in Git history.
@@ -63,12 +63,12 @@ Old companion documents follow the status of their associated script.
 
 | Previous path | Quarantined path | Status |
 |---|---|---|
-| `frame/Data_Raw` | `legacy/frame/Data_Raw` | Retired layout; current inputs use frame/data/input/ |
-| `frame/Data_Processed` | `legacy/frame/Data_Processed` | Retired layout; current intermediates use frame/data/intermediate/ |
-| `frame/Data_Final` | `legacy/frame/Data_Final` | Retired layout; current results use frame/data/output/ |
+| `frame/Data_Raw` | `legacy/frame/Data_Raw` | Retired layout; current inputs use 01_frame/data/input/ |
+| `frame/Data_Processed` | `legacy/frame/Data_Processed` | Retired layout; current intermediates use 01_frame/data/intermediate/ |
+| `frame/Data_Final` | `legacy/frame/Data_Final` | Retired layout; current results use 01_frame/data/output/ |
 | `frame/Development_Script_Original` | `legacy/frame/Development_Script_Original` | Historical development reference; ignored/local-only |
 | `frame/Final_Data_Original` | `legacy/frame/Final_Data_Original` | Historical output documentation; ignored/local-only; no datasets present |
-| `frame/README.md` | `legacy/frame/README.md` | Historical overview; replaced by the new frame/README.md |
+| `frame/README.md` | `legacy/frame/README.md` | Historical overview; replaced by the new 01_frame/README.md |
 | `frame/data_sources.md` | `legacy/frame/data_sources.md` | Historical source list; current data catalogue to be written |
 | `frame/.gitignore` | `legacy/frame/.gitignore` | Historical ignore rules; general R/editor rules transferred to repository root |
 
@@ -95,3 +95,21 @@ including input acquisition, generated audits and downstream dependencies.
 
 Environment housekeeping remains pending: `rpart.plot` is recorded and installed
 but is no longer referenced by the active scripts after quarantine.
+
+## Active component numbering
+
+Starting checkpoint: `0faf7e7`.
+
+| Previous directory | Current directory |
+|---|---|
+| `frame/` | `01_frame/` |
+| `personae/` | `02_personae/` |
+| `mrp/` | `03_mrp/` |
+
+Active scripts, documentation and the population-source manifest use the
+new paths. Existing data moved with their component directories.
+
+The redundant script-folder README was removed. Each component's root
+README provides navigation and status; companion explanations remain in docs/.
+
+Historical source paths and archived paths under legacy/ retain their names.

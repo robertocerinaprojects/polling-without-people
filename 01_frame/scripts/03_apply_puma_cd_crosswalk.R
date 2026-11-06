@@ -1,6 +1,6 @@
 # Apply the PUMA-to-district crosswalk to cleaned PUMS records.
-# Plain-language summary: frame/docs/03_apply_puma_cd_crosswalk.md
-# Run from repository root: Rscript frame/scripts/03_apply_puma_cd_crosswalk.R
+# Plain-language summary: 01_frame/docs/03_apply_puma_cd_crosswalk.md
+# Run from repository root: Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
 # Current scope: validate inputs and PUMA coverage before allocation.
 
 library(dplyr)
@@ -10,7 +10,7 @@ check <- function(condition, message) {
 }
 
 # Section 1: validate inputs and check geographic coverage.
-intermediate_dir <- here::here("frame", "data", "intermediate")
+intermediate_dir <- here::here("01_frame", "data", "intermediate")
 pums_path <- file.path(intermediate_dir, "pums_clean.rds")
 crosswalk_path <- file.path(intermediate_dir, "puma_cd_crosswalk.rds")
 
@@ -128,7 +128,7 @@ coverage <- full_join(
   arrange(STATEFP, PUMA5CE)
 
 # Save evidence before stopping on an unmatched PUMS geography.
-output_dir <- here::here("frame", "data", "output")
+output_dir <- here::here("01_frame", "data", "output")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 audit_path <- file.path(output_dir, "03_pums_crosswalk_coverage.csv")
 readr::write_csv(coverage, audit_path)

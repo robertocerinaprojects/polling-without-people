@@ -1,6 +1,6 @@
 # Build a PUMA-to-congressional-district crosswalk for the 2026 election.
-# Plain-language summary: frame/docs/02_build_puma_cd_crosswalk.md
-# Run from repository root: Rscript frame/scripts/02_build_puma_cd_crosswalk.R
+# Plain-language summary: 01_frame/docs/02_build_puma_cd_crosswalk.md
+# Run from repository root: Rscript 01_frame/scripts/02_build_puma_cd_crosswalk.R
 
 
 # Section 1: import and audit the national block-to-district assignments.
@@ -18,11 +18,11 @@ source_url <- paste0(
   "https://www2.census.gov/programs-surveys/decennial/rdo/",
   "mapping-files/2027/120-congressional-district-befs/cd120.zip"
 )
-zip_path <- here::here("frame", "data", "input", "cd120.zip")
+zip_path <- here::here("01_frame", "data", "input", "cd120.zip")
 # SHA-256 computed from our downloaded source_url archive.
 expected_sha256 <- "bc9a4fc543b8b279ce3663642a5cc4e19e32a8ef84f12371e26f754e5b8cc8a5"
 
-check(file.exists(zip_path), "Missing input: frame/data/input/cd120.zip")
+check(file.exists(zip_path), "Missing input: 01_frame/data/input/cd120.zip")
 check(
   digest::digest(zip_path, algo = "sha256", file = TRUE,
                  serialize = FALSE) == expected_sha256,
@@ -223,7 +223,7 @@ print(excluded_jurisdictions, n = Inf, width = Inf)
 cat("Retained block records:", nrow(block_cd), "\n")
 cat("Retained unassigned blocks:", sum(block_cd$CDFP == "ZZ"), "\n")
 
-output_dir <- here::here("frame", "data", "output")
+output_dir <- here::here("01_frame", "data", "output")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 readr::write_csv(
@@ -245,7 +245,7 @@ puma_source_url <- paste0(
   "2020_Census_Tract_to_2020_PUMA.txt"
 )
 puma_path <- here::here(
-  "frame", "data", "input", "2020_Census_Tract_to_2020_PUMA.txt"
+  "01_frame", "data", "input", "2020_Census_Tract_to_2020_PUMA.txt"
 )
 # SHA-256 computed from our downloaded puma_source_url file.
 puma_sha256 <- "5262f460b2c8dbe86b00549e916317b1791fdc595c9af72ab18f6f6a67040531"
@@ -596,7 +596,7 @@ read_pl_population <- function(path, abbreviation, state_fips, sha256) {
 # Section 5: match population records for every jurisdiction in the manifest.
 # Source URLs, file sizes and SHA-256 fingerprints were recorded on download.
 population_sources <- readr::read_csv(
-  here::here("frame", "docs", "02_pl_2020_sources.csv"),
+  here::here("01_frame", "docs", "02_pl_2020_sources.csv"),
   col_types = readr::cols(.default = readr::col_character()),
   name_repair = "minimal",
   trim_ws = FALSE,
@@ -629,7 +629,7 @@ check(
 )
 check(
   all(population_sources$path == paste0(
-    "frame/data/input/pl_2020/",
+    "01_frame/data/input/pl_2020/",
     tolower(population_sources$STUSAB), "2020.pl.zip"
   )),
   "Unexpected population-file paths."
@@ -782,13 +782,13 @@ cat("National adult-population matching passed.\n")
 
 # Section 6: compare missing New York CVAP geography with Census Errata 148.
 # Source: https://www.census.gov/programs-surveys/acs/technical-documentation/errata/148.html
-# This section audits coverage; treatment is documented in frame/docs/02_cvap_allocation_decisions.md.
+# This section audits coverage; treatment is documented in 01_frame/docs/02_cvap_allocation_decisions.md.
 
 cvap_path <- here::here(
-  "frame", "data", "input", "CVAP_2020-2024_ACS_csv_files.zip"
+  "01_frame", "data", "input", "CVAP_2020-2024_ACS_csv_files.zip"
 )
 errata_path <- here::here(
-  "frame", "data", "input",
+  "01_frame", "data", "input",
   "Errata148_Suppressed_Geographies_for_Wyandanch.xlsx"
 )
 
@@ -900,13 +900,13 @@ suppression_audit |>
   print(n = Inf, width = Inf)
 
 audit_path <- here::here(
-  "frame", "data", "output", "02_cvap_ny_suppression_audit.csv"
+  "01_frame", "data", "output", "02_cvap_ny_suppression_audit.csv"
 )
 dir.create(dirname(audit_path), recursive = TRUE, showWarnings = FALSE)
 readr::write_csv(suppression_audit, audit_path)
 
 note_path <- here::here(
-  "frame", "docs", "02_cvap_suppression_audit.md"
+  "01_frame", "docs", "02_cvap_suppression_audit.md"
 )
 dir.create(dirname(note_path), recursive = TRUE, showWarnings = FALSE)
 
@@ -1054,7 +1054,7 @@ cat("\nSummary by affected PUMA:\n")
 print(ny_puma_impact, n = Inf, width = Inf)
 
 impact_path <- here::here(
-  "frame", "data", "output", "02_cvap_ny_puma_district_impact.csv"
+  "01_frame", "data", "output", "02_cvap_ny_puma_district_impact.csv"
 )
 readr::write_csv(ny_intersection_impact, impact_path)
 
@@ -1105,7 +1105,7 @@ cat("Documentation updated:", note_path, "\n")
 # https://www2.census.gov/geo/docs/maps-data/data/rel2022/acs22_cousub22_blkgrp20_st09.txt
 
 ct_lookup_path <- here::here(
-  "frame", "data", "input", "acs22_cousub22_blkgrp20_st09.txt"
+  "01_frame", "data", "input", "acs22_cousub22_blkgrp20_st09.txt"
 )
 
 # SHA-256 recorded from our downloaded lookup.
@@ -1273,12 +1273,12 @@ cat("\nCandidate IDs shared by multiple original block groups:\n")
 print(ct_collisions, n = Inf, width = Inf)
 
 ct_audit_path <- here::here(
-  "frame", "data", "output", "02_ct_cvap_identifier_audit.csv"
+  "01_frame", "data", "output", "02_ct_cvap_identifier_audit.csv"
 )
 readr::write_csv(ct_candidate_audit, ct_audit_path)
 
 ct_note_path <- here::here(
-  "frame", "docs", "02_ct_cvap_identifier_audit.md"
+  "01_frame", "docs", "02_ct_cvap_identifier_audit.md"
 )
 writeLines(c(
   "# Connecticut CVAP identifier audit",
@@ -1324,7 +1324,7 @@ cat("Source note saved:", ct_note_path, "\n")
 # Reviewed Connecticut exceptions; see docs/02_cvap_allocation_decisions.md.
 # Fingerprint of the saved official 2024 catalogue response.
 ct_catalog_path <- here::here(
-  "frame", "data", "input", "ct_bg_2024_identifier_check.json"
+  "01_frame", "data", "input", "ct_bg_2024_identifier_check.json"
 )
 ct_catalog_sha256 <- "a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87"
 ct_catalog_query_url <- "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json"
@@ -1638,7 +1638,7 @@ allocation_readiness <- full_join(
 
 # Reviewed structural-zero overrides: decision 2026-10-30.
 # Project assumption, restricted to the five cases documented in:
-# frame/docs/02_cvap_allocation_decisions.md
+# 01_frame/docs/02_cvap_allocation_decisions.md
 # Expected estimates and locations come from the reviewed source audits.
 structural_zero_rules <- tibble::tribble(
   ~bg_cvap,       ~expected_cvap, ~expected_puma, ~expected_districts,
@@ -1862,7 +1862,7 @@ check(
   nrow(review_cases) == 0L,
   paste(
     "Further allocation decisions are needed.",
-    "See frame/data/output/02_cvap_allocation_readiness.csv."
+    "See 01_frame/data/output/02_cvap_allocation_readiness.csv."
   )
 )
 
@@ -1870,7 +1870,7 @@ cat("\nNational allocation-input checks passed.\n")
 cat("Continuing with block-group CVAP contributions.\n")
 
 # Section 10: calculate block-group CVAP contributions.
-# Method and assumptions: frame/docs/02_build_puma_cd_crosswalk.md.
+# Method and assumptions: 01_frame/docs/02_build_puma_cd_crosswalk.md.
 # Sum block adult counts within each PUMA-district portion before splitting
 # CVAP. This gives the same contributions as allocating to blocks first.
 
@@ -2288,7 +2288,7 @@ readr::write_csv(
   file.path(output_dir, "02_puma_cd_weights.csv")
 )
 
-intermediate_dir <- here::here("frame", "data", "intermediate")
+intermediate_dir <- here::here("01_frame", "data", "intermediate")
 dir.create(intermediate_dir, recursive = TRUE, showWarnings = FALSE)
 
 crosswalk_path <- file.path(intermediate_dir, "puma_cd_crosswalk.rds")

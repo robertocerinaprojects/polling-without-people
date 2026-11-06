@@ -7,9 +7,9 @@ analysis step before treating its outputs as validated.
 
 | Component | Purpose |
 |---|---|
-| [frame](frame/README.md) | Build the population frame and its geographic allocation inputs |
-| [personae](personae/README.md) | Sampling and persona-generation work |
-| [mrp](mrp/README.md) | MrP analysis |
+| [01_frame](01_frame/README.md) | Build the population frame and its geographic allocation inputs |
+| [02_personae](02_personae/README.md) | Sampling and persona-generation work |
+| [03_mrp](03_mrp/README.md) | MrP analysis |
 
 Each component's README is the authoritative index of its execution order,
 implementation status and script documentation.

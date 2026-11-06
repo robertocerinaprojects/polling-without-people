@@ -34,7 +34,7 @@ Source ages and person weights are retained without projection to 2026.
 
 From the repository root, using its renv environment:
 
-    Rscript frame/scripts/01_prepare_pums.R
+    Rscript 01_frame/scripts/01_prepare_pums.R
 
 On a fresh environment, first restore the recorded packages:
 
@@ -44,7 +44,7 @@ On a fresh environment, first restore the recorded packages:
 
 Source: https://zenodo.org/records/21285306
 
-Both files belong in `frame/data/input/`. Their MD5 checksums are
+Both files belong in `01_frame/data/input/`. Their MD5 checksums are
 verified before loading:
 
 | File | MD5 |
@@ -66,11 +66,11 @@ The output name `gender` is retained for compatibility; it derives from `SEX`.
 
 ## Outputs
 
-- `frame/data/intermediate/pums_clean.rds`
-- `frame/data/output/01_pums_filtering.csv`
-- `frame/data/output/01_pums_recoding.csv`
-- `frame/data/output/01_pums_hispanic.csv`
-- `frame/data/output/01_pums_income_by_gq.csv`
+- `01_frame/data/intermediate/pums_clean.rds`
+- `01_frame/data/output/01_pums_filtering.csv`
+- `01_frame/data/output/01_pums_recoding.csv`
+- `01_frame/data/output/01_pums_hispanic.csv`
+- `01_frame/data/output/01_pums_income_by_gq.csv`
 
 Downloaded and generated data are excluded from Git.
 

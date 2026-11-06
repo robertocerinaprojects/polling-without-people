@@ -1,15 +1,15 @@
 # Prepare IPUMS 2020–2024 ACS five-year person records.
-# Plain-language summary: frame/docs/01_prepare_pums.md
+# Plain-language summary: 01_frame/docs/01_prepare_pums.md
 # Target: citizen voting-age population, including institutional residents.
 # DC is retained at this stage.
-# Run from repository root: Rscript frame/scripts/01_prepare_pums.R
-# Inputs: frame/data/input/usa_00003.xml and usa_00003.csv.gz
-# Output: frame/data/intermediate/pums_clean.rds
-# Audit tables: frame/data/output/01_pums_*.csv
+# Run from repository root: Rscript 01_frame/scripts/01_prepare_pums.R
+# Inputs: 01_frame/data/input/usa_00003.xml and usa_00003.csv.gz
+# Output: 01_frame/data/intermediate/pums_clean.rds
+# Audit tables: 01_frame/data/output/01_pums_*.csv
 
 library(dplyr)
 
-input_dir <- here::here("frame", "data", "input")
+input_dir <- here::here("01_frame", "data", "input")
 
 # Pin the exact source files used in this replication.
 # Source: https://zenodo.org/records/21285306
@@ -286,8 +286,8 @@ income_audit <- pums |>
     .groups = "drop"
   )
 
-intermediate_dir <- here::here("frame", "data", "intermediate")
-output_dir <- here::here("frame", "data", "output")
+intermediate_dir <- here::here("01_frame", "data", "intermediate")
+output_dir <- here::here("01_frame", "data", "output")
 dir.create(intermediate_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
