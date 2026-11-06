@@ -3,7 +3,7 @@
 # Target: citizen voting-age population, including institutional residents.
 # DC is retained at this stage.
 # Run from repository root: Rscript 01_frame/scripts/01_prepare_pums.R
-# Inputs: 01_frame/data/input/usa_00003.xml and usa_00003.csv.gz
+# Inputs: stored Script 00 snapshot and 01_frame/docs/00_pums_source.json
 # Output: 01_frame/data/intermediate/pums_clean.rds
 # Audit tables: 01_frame/data/output/01_pums_*.csv
 
@@ -11,24 +11,97 @@ library(dplyr)
 
 input_dir <- here::here("01_frame", "data", "input")
 
-# Pin the exact source files used in this replication.
-# Source: https://zenodo.org/records/21285306
-expected_md5 <- c(
-  "usa_00003.xml" = "0b2b19b40c0fa4e7a35f6338b85d4b8f",
-  "usa_00003.csv.gz" = "6945d5353a48361713b49c521f5d1f5a"
+# Script 00 selects a stored snapshot; the tracked specification identifies
+# the reviewed data and variable definitions independently of account filenames.
+source_spec <- jsonlite::read_json(
+  here::here("01_frame", "docs", "00_pums_source.json"),
+  simplifyVector = TRUE
 )
-input_files <- file.path(input_dir, names(expected_md5))
-
-stopifnot(all(file.exists(input_files)))
 stopifnot(
-  all(unname(tools::md5sum(input_files)) == unname(expected_md5))
+  source_spec$schema_version == 1L,
+  source_spec$collection == "usa",
+  source_spec$sample == "us2024c",
+  source_spec$data_format == "csv",
+  source_spec$variable_info_encoding == "ipums_var_info_json_v1"
 )
+
+source_dir <- file.path(input_dir, "ipums_pums")
+pointer <- file.path(source_dir, "current_snapshot.txt")
+if (!file.exists(pointer)) {
+  stop("Run 00_download_pums.R first to acquire the PUMS source.")
+}
+snapshot <- readLines(pointer, warn = FALSE)
+stopifnot(
+  length(snapshot) == 1L,
+  grepl("^[0-9]{8}T[0-9]{6}_[0-9]+$", snapshot)
+)
+snapshot_dir <- file.path(source_dir, snapshot)
+receipt_path <- file.path(snapshot_dir, "download_manifest.csv")
+if (!file.exists(receipt_path)) {
+  stop("This download is incomplete. Resume 00_download_pums.R first.")
+}
+receipt <- readr::read_csv(
+  receipt_path,
+  col_types = readr::cols(.default = readr::col_character())
+)
+receipt_fields <- c("role", "file", "bytes", "sha256", "sample", "request_sha256")
+stopifnot(
+  all(receipt_fields %in% names(receipt)),
+  nrow(receipt) == 2L,
+  !anyNA(receipt[receipt_fields]),
+  !anyDuplicated(receipt$role),
+  !anyDuplicated(receipt$file),
+  setequal(receipt$role, c("ddi_codebook", "data")),
+  all(grepl("^[A-Za-z0-9_.-]+$", receipt$file)),
+  all(grepl("^[a-f0-9]{64}$", receipt$sha256)),
+  all(receipt$sample == source_spec$sample)
+)
+source_paths <- file.path(snapshot_dir, "files", receipt$file)
+names(source_paths) <- receipt$role
+sha256 <- function(path) digest::digest(file = path, algo = "sha256")
+stopifnot(
+  all(file.exists(source_paths)),
+  all(file.info(source_paths)$size == as.numeric(receipt$bytes)),
+  all(unname(vapply(source_paths, sha256, character(1))) == receipt$sha256)
+)
+request_path <- file.path(snapshot_dir, "request.json")
+stopifnot(
+  file.exists(request_path),
+  length(unique(receipt$request_sha256)) == 1L,
+  all(grepl("^[a-f0-9]{64}$", receipt$request_sha256)),
+  sha256(request_path) == receipt$request_sha256[[1]]
+)
+
+# A refreshed download may be intact yet differ from the reviewed analysis input.
+# Approved IPUMS CSV fingerprint and byte count: docs/00_pums_source.json.
+data_path <- source_paths[["data"]]
+if (sha256(data_path) != source_spec$data_sha256 ||
+    file.info(data_path)$size != source_spec$data_bytes) {
+  stop("Downloaded PUMS data differ from the reviewed source. Review before updating 00_pums_source.json.")
+}
+
+ddi <- ipumsr::read_ipums_ddi(source_paths[["ddi_codebook"]])
+variable_info <- ipumsr::ipums_var_info(ddi)
+# Canonical metadata encoding v1: all ipums_var_info fields, in source order.
+# Administrative XML fields (extract date, description and filename) are excluded.
+# https://tech.popdata.org/ipumsr/reference/ipums_var_info.html
+variable_info_json <- jsonlite::toJSON(
+  variable_info, dataframe = "rows", auto_unbox = TRUE,
+  na = "null", null = "null", digits = NA, pretty = FALSE
+)
+variable_info_sha256 <- digest::digest(
+  enc2utf8(as.character(variable_info_json)), algo = "sha256", serialize = FALSE
+)
+if (variable_info_sha256 != source_spec$variable_info_sha256) {
+  stop("IPUMS variable definitions differ from the reviewed source. Review before updating 00_pums_source.json.")
+}
+stopifnot(identical(variable_info$var_name, source_spec$required_columns))
+cat("Verified approved IPUMS source:", snapshot, "\n")
 
 # Read all raw columns, preserving identifiers and sample provenance.
-ddi <- ipumsr::read_ipums_ddi(file.path(input_dir, "usa_00003.xml"))
 pums <- ipumsr::read_ipums_micro(
   ddi,
-  data_file = file.path(input_dir, "usa_00003.csv.gz"),
+  data_file = data_path,
   var_attrs = NULL
 )
 
@@ -40,7 +113,7 @@ required <- c(
 )
 stopifnot(all(required %in% names(pums)))
 
-# SAMPLE label: usa_00003.xml; YEAR/MULTYEAR: verified input audit.
+# SAMPLE label: the reviewed IPUMS DDI; YEAR/MULTYEAR: verified input audit.
 # Stop on unexpected sample definitions, weights or filter codes.
 stopifnot(
   all(pums$SAMPLE == 202403),
@@ -65,12 +138,12 @@ stage_totals <- function(data, stage) {
 audit <- stage_totals(pums, "Raw extract")
 
 # Retain households and all institutional/non-institutional group quarters.
-# GQ codes 1-5: household/group-quarters categories in usa_00003.xml.
+# GQ codes 1-5: household/group-quarters categories in the reviewed IPUMS DDI.
 pums <- filter(pums, GQ %in% 1:5)
 audit <- bind_rows(audit, stage_totals(pums, "Valid person records"))
 
 # Retain native-born citizens, citizens born abroad, and naturalized citizens.
-# Codes: usa_00003.xml. ACS universe explains retaining code 0:
+# Codes: the reviewed IPUMS DDI. ACS universe explains retaining code 0:
 # https://usa.ipums.org/usa-action/variables/CITIZEN
 pums <- filter(pums, CITIZEN %in% 0:2)
 audit <- bind_rows(audit, stage_totals(pums, "Citizens"))
@@ -106,7 +179,7 @@ if (length(unexpected_codes) > 0L) {
   )
 }
 
-# HISPAND 0 = Not Hispanic; 900 = Not Reported (usa_00003.xml).
+# HISPAND 0 = Not Hispanic; 900 = Not Reported (the reviewed IPUMS DDI).
 recode_hispanic <- function(x) {
   case_when(
     is.na(x) | x == 900 ~ NA_integer_,
@@ -116,7 +189,7 @@ recode_hispanic <- function(x) {
   )
 }
 
-# Explicitly test the previously problematic case.
+# Check that unknown Hispanic-origin code 900 remains missing.
 stopifnot(identical(
   recode_hispanic(c(0, 100, 498, 900, NA_real_)),
   c(0L, 1L, 1L, NA_integer_, NA_integer_)
@@ -168,9 +241,9 @@ ddi_label <- function(x, variable) {
   lookup$lbl[index]
 }
 
-# SEX records sex; retain the legacy name 'gender' for downstream compatibility.
+# SEX records sex; 'gender' is the downstream compatibility column name.
 pums$gender <- ddi_label(pums$SEX, "SEX")
-# SEX 1 = Male, 2 = Female (usa_00003.xml).
+# SEX 1 = Male, 2 = Female (the reviewed IPUMS DDI).
 pums$gender[!pums$SEX %in% c(1, 2)] <- NA_character_
 
 pums <- mutate(
@@ -255,7 +328,7 @@ unique_people <- n_distinct(
 )
 stopifnot(unique_people == nrow(pums))
 
-# Code source: STATEFIP labels in usa_00003.xml.
+# Code source: STATEFIP labels in the reviewed IPUMS DDI.
 # Expected state FIPS codes: all 50 states plus DC.
 expected_states <- c(1, 2, 4, 5, 6, 8:13, 15:42, 44:51, 53:56)
 

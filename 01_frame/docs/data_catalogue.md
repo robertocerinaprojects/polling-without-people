@@ -2,46 +2,43 @@
 
 ## Plain-language summary
 
-This catalogue explains what each data file is for, where it comes from,
-which script reads or creates it, and what uses it next.
+This catalogue explains each data file's purpose, source, producer and
+consumer. Script 00 downloads the specified IPUMS USA sample and records its
+source files. Script 01 verifies those files against the approved source
+manifest and prepares citizen-adult person records.
 
-There are two separate starting points. Script 01 prepares citizen-adult
-person records from IPUMS microdata. Script 02 combines Census geography,
-population counts and citizen-adult estimates to build district probabilities
-for each PUMA. Script 03 currently checks whether the two resulting datasets
-cover the same PUMAs; it does not yet assign people to districts.
+Script 02 independently combines Census geography, population counts and
+citizen-adult estimates to build district probabilities for each PUMA.
+Script 03 currently checks whether the two resulting datasets cover the
+same PUMAs; person-level district allocation is not yet implemented.
 
-Most CSV outputs are evidence for reviewing those calculations. The two RDS
-files are the working datasets read by Script 03. This catalogue describes
-the active workflow and its reproducible products. It does not require
-retired code, historical review CSVs or old documentation.
+The audit CSVs record the calculations and checks. The two intermediate RDS
+files contain the working datasets read by Script 03.
 
 ## Scope and reading conventions
 
-This inventory was checked against code commit `65b0c42` and the Codespace
-file listing supplied during repository cleanup on 2026-11-06. The listing
-confirmed filenames, file sizes and CSV headers; it was not a rerun or a
-review of every data row.
-
 All paths in backticks are relative to `01_frame/` unless stated otherwise.
-Script links below point to the active implementation:
 
 | Name used here | Script | Companion document |
 |---|---|---|
+| Script 00 | [00_download_pums.R](../scripts/00_download_pums.R) | [IPUMS download](00_download_pums.md) |
 | Script 01 | [01_prepare_pums.R](../scripts/01_prepare_pums.R) | [PUMS preparation](01_prepare_pums.md) |
 | Script 02 | [02_build_puma_cd_crosswalk.R](../scripts/02_build_puma_cd_crosswalk.R) | [Crosswalk construction](02_build_puma_cd_crosswalk.md) |
 | Script 03 | [03_apply_puma_cd_crosswalk.R](../scripts/03_apply_puma_cd_crosswalk.R) | [Coverage and application](03_apply_puma_cd_crosswalk.md) |
 
-See the [component README](../README.md#script-status) for current execution
-status. Scripts 01 and 02 have documented successful runs for their pinned
-inputs. Script 03 remains a draft: its CSV exists locally, but the execution
-result has not been reviewed here. Person-level allocation is not implemented.
+Scripts 00 and 01 passed the complete download-to-preparation run, including
+source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
+Script 02 passed its documented crosswalk checks. Script 03 remains a draft;
+its coverage CSV exists locally, but its execution result remains to be
+reviewed. See the [component status](../README.md#script-status).
 
-The active inventory comprises 59 external input files, two intermediate RDS
-files and 26 output CSVs: four from Script 01, 21 from Script 02 and one from
-Script 03. The tracked population-source manifest and two generated Markdown
-notes are additional files in `docs/`. The four historical review CSVs found
-during cleanup are recorded separately in the repository migration record.
+The source-data requirement is 59 files: one selected two-file IPUMS pair
+and 57 Census files. Script 00 also keeps request/receipt metadata and source
+snapshots; the physical file count depends on the number of downloads.
+
+Analysis products comprise two intermediate RDS files and 26 output CSVs:
+four from Script 01, 21 from Script 02 and one from Script 03. Source manifests
+and two generated Markdown notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
 
@@ -76,42 +73,69 @@ from adjusted allocation inputs.
 
 ## External inputs and acquisition
 
-All 59 files below must already exist locally. **None of the three current
-numbered scripts downloads source data.** Acquisition used separate development
-commands. To reconstruct the inputs, obtain the specified snapshots from the
-URLs below, save them at the exact paths, and verify the recorded fingerprints.
-Keep archives compressed; scripts read the required members themselves.
+Script 00 acquires the PUMS pair from IPUMS USA. Script 01 resolves it through
+the local snapshot pointer and receipt, then applies the tracked source
+approval checks. The Census inputs use the acquisition instructions below.
+Keep source archives compressed; scripts read their required members.
 
-The two IPUMS MD5 values are recorded in Script 01's `expected_md5` and its
-[input table](01_prepare_pums.md#inputs). Script 02 contains the six standalone
-SHA-256 constants. The 51 PL archive sizes and SHA-256 values are maintained in
-the [population manifest](02_pl_2020_sources.csv), not duplicated here.
-These fingerprints identify the reviewed snapshots. A changed download needs
-review rather than an automatic change to the expected fingerprint.
+The PUMS data and variable-metadata fingerprints are maintained in
+[docs/00_pums_source.json](00_pums_source.json). Script 02 contains the six
+standalone Census SHA-256 constants. The 51 PL archive sizes and SHA-256
+values are maintained in the [population manifest](02_pl_2020_sources.csv).
+A changed approved data or metadata fingerprint requires review; downloading
+another snapshot does not update these expectations automatically.
 
-### PUMS source pair
+### IPUMS source pair: Scripts 00 and 01
 
-- **Files:** `data/input/usa_00003.xml` and `data/input/usa_00003.csv.gz`.
-- **Source:** Census ACS microdata harmonized by IPUMS USA, archived in
-  [Zenodo record 21285306](https://zenodo.org/records/21285306).
-- **Exact downloads:** [XML codebook](https://zenodo.org/api/records/21285306/files/usa_00003.xml/content)
-  and [compressed CSV](https://zenodo.org/api/records/21285306/files/usa_00003.csv.gz/content).
-- **Version:** 2020-2024 ACS five-year extract; `SAMPLE = 202403`, `YEAR = 2024`,
-  `MULTYEAR` in 2020-2024. The XML supplies the extract schema and labels.
-- **Reader:** Script 01 input checks and import.
+- **Location:** `data/input/ipums_pums/<snapshot>/files/`, preserving the
+  provider's filenames. `data/input/ipums_pums/current_snapshot.txt` selects
+  the local download attempt; it does not by itself approve its contents.
+- **Source/acquisition:** [IPUMS USA API](https://developer.ipums.org/docs/v2/get-started/),
+  implemented by [Script 00](../scripts/00_download_pums.R). A registered USA
+  account and `IPUMS_API_KEY` are needed for live acquisition, not offline reuse.
+- **Specification:** API sample `us2024c`, full 2020-2024 ACS five-year
+  person-rectangular CSV, the 24 variables below, no case filters.
+  Numeric source fields are `SAMPLE = 202403`, `YEAR = 2024`, and `MULTYEAR`
+  in 2020-2024. The XML supplies variable definitions and labels.
+- **Receipt:** `<snapshot>/download_manifest.csv` records the returned XML
+  and compressed CSV filenames, sizes, hashes and extraction provenance.
+  Script 00 checks it before reuse; Script 01 checks it before import,
+  including the fingerprint of the saved `request.json`.
+- **Approval:** `docs/00_pums_source.json` pins the approved compressed CSV
+  size/hash and the `ipums_var_info_json_v1` variable-metadata hash. The
+  [source approval document](00_download_pums.md#source-approval) specifies
+  the exact JSON serialization and SHA-256 method. The reference XML hash
+  is evidence; each local receipt pins its own full XML file.
+- **Readers:** Script 00 validates acquisition/reuse. Script 01 reads the
+  pointer, receipt, saved request, approved source manifest and selected files.
 - **Contributes to:** `pums_clean.rds` and all four `01_pums_*.csv` audits;
   subsequently the Script 03 coverage audit through `pums_clean.rds`.
 - **Units and geography:** Individual records and person/household weights;
   person geography at the state/PUMA level. Ages and weights are not projected
   to the 2026 election.
+- **Reuse and refresh:** Ordinary runs reuse verified files without API
+  access. `--refresh` requests a new snapshot and retains earlier ones.
+  Script 01 stops if that snapshot changes the approved data or variable
+  metadata. The manifest must be reviewed before accepting such a change.
+- **Validation:** Acquisition, all 24 downloaded columns, offline reuse and
+  the complete preparation run passed. The cleaned RDS and audit outputs
+  were saved successfully.
+- **Preservation:** Source snapshots and account-specific receipts are
+  ignored by Git. The approval manifest and scripts are tracked.
 
-The original CSV has these 24 columns, in order:
+The approved CSV has 249,052,624 bytes and SHA-256
+`adb92df6553053b846773de170852e4d1b7b557d6d6aaf9827e9a37111f70a04`.
+It contains these 24 columns, in order:
 
 ```text
 YEAR, MULTYEAR, SAMPLE, SERIAL, CBSERIAL, HHWT, CLUSTER, STATEFIP,
 PUMA, CPUMA1020, STRATA, GQ, HHINCOME, PERNUM, PERWT, SEX, AGE,
 RACE, RACED, HISPAN, HISPAND, CITIZEN, EDUC, EDUCD
 ```
+
+The [download document](00_download_pums.md#stored-inputs-outputs-and-consumers)
+lists each acquisition-state file and the receipt columns. Returned filenames
+and account-specific extract numbers are resolved from the local receipt.
 
 ### BEF: block-to-district assignments
 
@@ -166,8 +190,6 @@ RACE, RACED, HISPAN, HISPAND, CITIZEN, EDUC, EDUCD
 - **Contributes to:** Population matching/conservation audits, geographic
   exception evidence, adult-proportional CVAP contributions and final weights.
 
-The current reader does not read segment 1/P1. The earlier Connecticut
-POP100-versus-P1 comparison was a development check, identified below.
 Script 02 reads but never rewrites the manifest.
 
 ### CVAP: published citizen-adult estimates
@@ -202,7 +224,7 @@ constructs estimates for the pinned BEF's district geography from block groups.
   and generated note, and the affected-PUMA impact audit. It validates which
   estimates may remain missing in the final calculation.
 
-### CT relationships: older block groups and newer planning regions
+### CT relationships: 2020 block groups and planning regions
 
 - **File:** `data/input/acs22_cousub22_blkgrp20_st09.txt`.
 - **Source/download:** [Census Connecticut relationship file](https://www2.census.gov/geo/docs/maps-data/data/rel2022/acs22_cousub22_blkgrp20_st09.txt).
@@ -210,10 +232,10 @@ constructs estimates for the pinned BEF's district geography from block groups.
 - **Relevant columns:** Pipe-delimited `GEOID_BLKGRP_20, GEOID_COUSUB_22,
   AREALAND_PART, AREAWATER_PART`.
 - **Meaning:** Intersections of 2020 block groups and 2022 county subdivisions.
-  Land/water areas are square metres. This is not a direct old/new block-group
+  Land/water areas are square metres. This is not a direct 2020-to-current block-group
   correspondence table and supplies no population counts.
 - **Use:** Derive candidate planning-region prefixes from subdivision codes,
-  retaining the old tract/block-group suffix; validate candidates against
+  retaining the 2020 tract/block-group suffix; validate candidates against
   the CVAP identifiers and reviewed exceptions.
 - **Contributes to:** CT identifier audit and note, identifier links,
   geographic intersections and subsequent allocation products.
@@ -241,7 +263,7 @@ constructs estimates for the pinned BEF's district geography from block groups.
 
 | File | Producer and upstream inputs | Direct downstream use |
 |---|---|---|
-| `data/intermediate/pums_clean.rds` | Script 01; PUMS source pair | Script 03 reads this RDS. It does not feed Script 02. |
+| `data/intermediate/pums_clean.rds` | Script 01; approved IPUMS pair acquired by Script 00, local pointer/receipt and tracked source approval | Script 03 reads this RDS. It does not feed Script 02. |
 | `data/intermediate/puma_cd_crosswalk.rds` | Script 02 Section 11; BEF + PUMA lookup + PL + CVAP + reviewed CT mapping; NY suppression and CT query validate exceptions | Script 03 reads this RDS. `02_puma_cd_weights.csv` is a readable export of the same table. |
 
 ### Cleaned person schema
@@ -257,9 +279,11 @@ residents and DC. `gender` is a compatibility name for recorded-sex labels.
 Income sentinel `9999999` becomes missing; negative and zero income remain.
 `STATEFIP + PUMA` is the location key; `CPUMA1020` is not used for this join.
 
-The documented preparation run retained 12,263,785 records, 30 columns and
-person-weight total 240,960,972. These are observed results for the pinned
-extract, not requirements for every possible input dataset.
+The validated preparation run read 16,095,728 source records and saved
+12,263,785 retained records with 30 columns and person-weight total
+240,960,972. It covered 51 states including DC, with 816,970 missing cleaned
+incomes. The saved RDS was 221 MiB. These results describe the approved
+source snapshot.
 
 ### Crosswalk schema
 
@@ -289,8 +313,10 @@ also requires all preceding input checks to pass.
 
 ### Script 01: person preparation audits
 
-All four outputs use the PUMS source pair. They are review tables; no active
-script reads these CSVs back as inputs.
+All four outputs use the approved PUMS source pair acquired by Script 00;
+Script 01 validates its local receipt and tracked approval before processing.
+Their schemas are unchanged. They are review tables; no active script reads
+these CSVs back as inputs.
 
 | File | One row represents / purpose | Columns, in file order |
 |---|---|---|
@@ -429,6 +455,7 @@ also writes it earlier without the final three weight-summary columns.
 |---|---|---|
 | `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes it; Section 7 reads it back and appends results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
 | `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes it, then reads it back and appends reviewed-exception results | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
+| `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
 | `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; Script 02 Section 5 reads it | Source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
 
@@ -442,36 +469,19 @@ tables cited in script comments explain hard-coded definitions. They are
 not files fetched at runtime. The script's source URLs likewise document
 provenance rather than initiate downloads.
 
-## Independence from retired files
-
-The active scripts read only the inputs described in this catalogue and
-current generated intermediates. Their calculations and documented exception
-checks do not require historical scripts, pilot CSVs or legacy documentation.
-
-The allocation decision record cites the current identifier, geographic
-intersection, readiness and contribution audits. These are recreated by
-Script 02. Its Section 9 rechecks the reviewed Connecticut locations and
-Section 10 verifies the retained contribution of 5. A separate historical
-location CSV is not required to establish those decisions.
-
-Retirement history is maintained in the repository
-[migration record](../../docs/migration.md). It is not an input or a prerequisite
-for interpreting or running the current pipeline. The active workflow should
-remain usable when the historical quarantine is deleted.
-
 ## Validation, reruns and preservation
 
-- The companion documents record the reviewed checks and results for
-  Scripts 01 and 02. The present inventory confirms their named products
-  exist locally; it does not rerun those checks.
+- The companion documents record successful acquisition, schema and offline
+  reuse checks for Script 00, the completed Script 00 → Script 01 preparation
+  run, and Script 02's crosswalk validation. Script 03 remains a draft.
 - Audits can be written before a script stops. This applies to NY/CT
   exception evidence, allocation-readiness/contribution audits and the
   early PUMA audit. A failed rerun can leave early products from the new
-  attempt alongside older final products.
+  attempt alongside retained final products.
 - Script 02 writes final weights only after their crosswalk checks pass.
   The RDS files are saved through temporary files and renamed on success;
   an interrupted save may leave a temporary file.
-- The current pipeline does not clear old outputs at startup or attach a
+- The current pipeline does not clear existing outputs at startup or attach a
   shared run identifier to every file. Check the run result and its
   recorded inputs rather than relying solely on a filename's existence.
 - Downloaded and generated data are ignored by Git. Commits and pushes
@@ -479,12 +489,13 @@ remain usable when the historical quarantine is deleted.
   data files. The generated Markdown notes and population manifest are
   tracked exceptions because they reside in `docs/`.
 - Numbered scripts recreate current products after their prerequisites
-  are available. Source acquisition remains separate; ignored inputs
-  are not distributed by cloning this repository. Mutable download URLs,
+  are available. Script 00 acquires and verifies IPUMS snapshots; Script 01
+  separately enforces the tracked source approval. Other source acquisition
+  remains separate, and ignored inputs are not distributed by cloning this
+  repository. Mutable download URLs,
   especially the saved feature-query response, do not guarantee recovery
   of the pinned bytes. Exact reconstruction requires access to the reviewed
-  snapshots. This is a source-preservation requirement, not a dependency
-  on historical code or documentation.
+  snapshots.
 
 Update this catalogue whenever a script gains or changes an input, output,
 schema or consumer. Add catalogues for `02_personae` and `03_mrp` when their

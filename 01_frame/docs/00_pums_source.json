@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "collection": "usa",
+  "sample": "us2024c",
+  "sample_description": "2020-2024, ACS 5-year",
+  "data_format": "csv",
+  "data_structure": "person_rectangular",
+  "case_selection": "none",
+  "data_bytes": 249052624,
+  "data_sha256": "adb92df6553053b846773de170852e4d1b7b557d6d6aaf9827e9a37111f70a04",
+  "variable_info_encoding": "ipums_var_info_json_v1",
+  "variable_info_sha256": "c5216653fec547730c0edd2a5381cb10b1bbda82cbe0371a2b594c806223d65a",
+  "required_columns": [
+    "YEAR",
+    "MULTYEAR",
+    "SAMPLE",
+    "SERIAL",
+    "CBSERIAL",
+    "HHWT",
+    "CLUSTER",
+    "STATEFIP",
+    "PUMA",
+    "CPUMA1020",
+    "STRATA",
+    "GQ",
+    "HHINCOME",
+    "PERNUM",
+    "PERWT",
+    "SEX",
+    "AGE",
+    "RACE",
+    "RACED",
+    "HISPAN",
+    "HISPAND",
+    "CITIZEN",
+    "EDUC",
+    "EDUCD"
+  ],
+  "fingerprint_software": {
+    "ipumsr": "0.10.0",
+    "jsonlite": "2.0.0"
+  },
+  "reviewed_on": "2026-11-06",
+  "source": "https://usa.ipums.org/",
+  "reference_codebook": {
+    "bytes": 121139,
+    "sha256": "b2fc88a18873bf3ab85d7930cde8f3d9d452b56e3d62743c1e9019592cc75c2c"
+  },
+  "validation": {
+    "validated_on": "2026-11-06",
+    "evidence": "Completed Script 00 cache check and Script 01 execution",
+    "download_compression_and_schema_checks_passed": true,
+    "offline_cache_reuse_passed": true,
+    "preparation_checks_passed": true,
+    "preparation_outputs_saved": true,
+    "raw_person_records": 16095728,
+    "retained_person_records": 12263785,
+    "retained_columns": 30,
+    "unique_person_identifiers": 12263785,
+    "states_including_dc": 51,
+    "retained_weighted_population": 240960972
+  }
+}
