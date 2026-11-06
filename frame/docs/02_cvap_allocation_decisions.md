@@ -99,8 +99,6 @@ Status: treatments implemented; execution checks passed on 2026-10-30.
 Retain the published CVAP estimate of 5. Its candidate source block group,
 090012114003, contains two blocks, both in PUMA 20904 and district CT-05.
 Allocate the entire estimate once to that PUMA–district intersection.
-
-This is a CVAP contribution of 5, not a final PUMA allocation weight.
 Geographic containment makes a within-block-group population split unnecessary.
 
 ### Water block group 091309901000

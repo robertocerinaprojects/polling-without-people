@@ -18,14 +18,12 @@ make this approximation inaccurate.
 Using the geographic mappings, we identify each block's PUMA and
 assigned district. We then add up the estimated citizen-adult
 contributions for each PUMA–district combination and divide by the
-corresponding PUMA total. The numerator and denominator must use the
-same allocation basis.
+corresponding PUMA total.
 
 Those shares form the PUMA-to-district crosswalk. A subsequent step uses
 them to allocate the PUMS records. Every individual in the same PUMA
 receives the same probability distribution, regardless of their
-demographic characteristics. These are estimated allocation
-probabilities; they do not reveal individuals' actual districts.
+demographic characteristics.
 
 If a PUMA lies entirely within one assigned district, its allocation
 weight is 1 without needing to estimate an internal split. Missing CVAP,
