@@ -95,8 +95,15 @@ the active script reads and writes, input acquisition, generated audits,
 schemas and downstream dependencies. Current scripts and their companion
 documents do not depend on retired code or historical review CSVs.
 
-Environment housekeeping remains pending: `rpart.plot` is recorded and installed
-but is no longer referenced by the active scripts after quarantine.
+Environment housekeeping completed on 2026-11-06.
+
+The implicit renv snapshot now records 49 packages for the active project
+and its dependencies. It removed 77 unused lockfile entries. All retained
+package records and other lockfile metadata are unchanged.
+
+Dependency discovery includes all three active scripts and excludes legacy
+files. `renv::status()` reports a consistent project. Existing package
+installations were left in place.
 
 ## Active component numbering
 
