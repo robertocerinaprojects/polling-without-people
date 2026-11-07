@@ -123,8 +123,8 @@ The completed preparation run using the approved IPUMS source produced:
 | Missing values in the other five derived fields | 0 |
 | Saved cleaned RDS size | 221 MiB |
 
-These are observed results for the approved source snapshot. Script 03's
-coverage review and person-level district allocation remain pending.
+These are observed results for the approved source snapshot. District
+allocation and its validation are documented in the [Script 03 guide](03_apply_puma_cd_crosswalk.md).
 
 ## Data catalogue
 

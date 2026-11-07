@@ -1,7 +1,7 @@
 # Apply the PUMA-to-district crosswalk to cleaned PUMS records.
 # Plain-language summary: 01_frame/docs/03_apply_puma_cd_crosswalk.md
 # Run from repository root: Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
-# Current scope: validate inputs and PUMA coverage before allocation.
+# Distribute each person's survey weight across districts using their PUMA.
 
 library(dplyr)
 
@@ -167,4 +167,170 @@ check(
 )
 
 cat("\nPUMS coverage checks passed.\n")
-cat("No person records have been allocated yet.\n")
+
+# Section 2: apply the district probabilities to each person's survey weight.
+# The stable person key was established in Script 01. Keep demographic fields
+# in pums_clean.rds so they need not be repeated for every district.
+person_key <- c("SAMPLE", "SERIAL", "PERNUM")
+check(all(person_key %in% names(pums)), "Required person identifiers are missing.")
+people <- select(pums, all_of(person_key), STATEFIP, PUMA, PERWT)
+rm(pums)
+check(
+  !anyNA(people[person_key]) &&
+    n_distinct(people$SAMPLE, people$SERIAL, people$PERNUM) == nrow(people),
+  "Expected one input row per SAMPLE, SERIAL and PERNUM."
+)
+
+# A zero probability contributes zero person weight. Keep positive pairs only.
+districts <- crosswalk |>
+  filter(allocation_weight > 0) |>
+  transmute(STATEFIP = as.integer(STATEFP), PUMA = as.integer(PUMA5CE),
+            CDFP, allocation_weight) |>
+  arrange(STATEFIP, PUMA, CDFP) |>
+  mutate(district_row = row_number())
+
+state_plan <- coverage |>
+  filter(coverage_status == "matched") |>
+  group_by(STATEFP) |>
+  summarise(
+    expected_rows = sum(as.double(person_records) * positive_districts),
+    input_weight = sum(weighted_population),
+    person_records = sum(person_records),
+    .groups = "drop"
+  )
+cat("Expected positive-probability person/district rows:",
+    format(sum(state_plan$expected_rows), scientific = FALSE), "\n")
+
+# Print one actual split-PUMA example alongside the national checks.
+example <- coverage |>
+  filter(coverage_status == "matched", positive_districts > 1L) |>
+  arrange(positive_districts, STATEFP, PUMA5CE) |>
+  slice_head(n = 1L)
+
+state_indices <- split(seq_len(nrow(people)), people$STATEFIP)
+allocate_state <- function(i) {
+  plan <- state_plan[i, ]
+  state <- as.integer(plan$STATEFP)
+  source_rows <- state_indices[[as.character(state)]]
+  residents <- people[source_rows, , drop = FALSE]
+  residents$person_row <- seq_len(nrow(residents))
+  weights <- filter(districts, STATEFIP == state)
+  pairs <- inner_join(
+    residents, weights, by = c("STATEFIP", "PUMA"), relationship = "many-to-many"
+  ) |>
+    mutate(allocated_person_weight = PERWT * allocation_weight)
+
+  # Verify the actual expansion for each person using the positive district
+  # count from the independent Section 1 summary.
+  support <- filter(coverage, STATEFP == plan$STATEFP, coverage_status == "matched")
+  district_counts <- support$positive_districts[
+    match(residents$PUMA, as.integer(support$PUMA5CE))
+  ]
+  check(
+    nrow(pairs) == plan$expected_rows && nrow(residents) == plan$person_records &&
+      all(tabulate(pairs$person_row, nbins = nrow(residents)) == district_counts),
+    paste("Unexpected person/district row counts for state", plan$STATEFP)
+  )
+
+  # Section 1 uses 1e-12 for probabilities. Scale that rounding tolerance
+  # by the original survey weight when checking weighted counts.
+  tolerance <- 1e-12
+  totals <- rowsum(cbind(probability = pairs$allocation_weight,
+                         weight = pairs$allocated_person_weight),
+                   group = pairs$person_row, reorder = TRUE)
+  check(identical(as.integer(rownames(totals)), residents$person_row),
+        paste("Missing or misordered person totals for state", plan$STATEFP))
+  error <- abs(totals[, "weight"] - residents$PERWT)
+  allocated_weight <- sum(pairs$allocated_person_weight)
+  check(
+    all(is.finite(pairs$allocated_person_weight) & pairs$allocated_person_weight > 0) &&
+      all(abs(totals[, "probability"] - 1) <= tolerance) &&
+      all(error <= tolerance * pmax(1, residents$PERWT)) &&
+      abs(allocated_weight - plan$input_weight) <= tolerance * max(1, plan$input_weight),
+    paste("District contributions do not reconcile for state", plan$STATEFP)
+  )
+
+  if (nrow(example) == 1L && plan$STATEFP == example$STATEFP) {
+    example_person <- match(as.integer(example$PUMA5CE), residents$PUMA)
+    cat("\nOne person in a split PUMA:\n")
+    pairs |>
+      filter(person_row == example_person) |>
+      select(STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight) |>
+      print(n = Inf, width = Inf)
+  }
+  audit <- transmute(plan, STATEFP, person_records, expected_rows,
+                     allocated_rows = nrow(pairs), input_weight,
+                     allocated_weight = allocated_weight,
+                     max_person_weight_error = max(error))
+  list(
+    person_row = source_rows[pairs$person_row],
+    district_row = pairs$district_row,
+    contribution = pairs$allocated_person_weight,
+    audit = audit
+  )
+}
+
+parts <- lapply(seq_len(nrow(state_plan)), allocate_state)
+state_audit <- bind_rows(lapply(parts, "[[", "audit"))
+# Keep only the checked weights and row indices from each state in memory.
+# Gather the output columns once, after the temporary state joins have finished.
+collect_column <- function(name) unlist(lapply(parts, "[[", name), use.names = FALSE)
+person_rows <- collect_column("person_row")
+district_rows <- collect_column("district_row")
+contributions <- collect_column("contribution")
+rm(parts)
+allocation <- people[person_rows, , drop = FALSE] |>
+  mutate(CDFP = districts$CDFP[district_rows],
+         allocation_weight = districts$allocation_weight[district_rows],
+         allocated_person_weight = contributions) |>
+  relocate(CDFP, .before = PERWT)
+rm(person_rows, district_rows, contributions)
+input_weight <- sum(people$PERWT)
+national_weight <- sum(allocation$allocated_person_weight)
+check(
+  sum(state_audit$person_records) == nrow(people) &&
+    sum(state_audit$allocated_rows) == nrow(allocation) &&
+    nrow(allocation) == sum(state_plan$expected_rows) &&
+    abs(national_weight - input_weight) <= 1e-12 * max(1, input_weight),
+  "National row counts or allocated weights do not reconcile."
+)
+
+allocation_path <- file.path(intermediate_dir, "pums_cd_allocation.rds")
+state_audit_path <- file.path(output_dir, "03_pums_allocation_by_state.csv")
+save_results <- function() {
+  staged_rds <- tempfile("pums_cd_", tmpdir = intermediate_dir)
+  staged_csv <- tempfile("pums_cd_", tmpdir = output_dir)
+  previous_csv <- tempfile("previous_allocation_audit_", tmpdir = output_dir)
+  on.exit(unlink(c(staged_rds, staged_csv)), add = TRUE)
+  saveRDS(allocation, staged_rds)
+  readr::write_csv(state_audit, staged_csv)
+  # Keep a copy of the small previous audit until its matching RDS is replaced.
+  had_audit <- file.exists(state_audit_path)
+  if (had_audit) {
+    check(file.copy(state_audit_path, previous_csv), "Could not back up the state audit.")
+  }
+  if (!file.rename(staged_csv, state_audit_path)) {
+    unlink(previous_csv)
+    stop("Could not save the state audit.", call. = FALSE)
+  }
+  if (!file.rename(staged_rds, allocation_path)) {
+    restored <- if (had_audit) {
+      file.rename(previous_csv, state_audit_path)
+    } else {
+      file.remove(state_audit_path)
+    }
+    check(restored,
+          paste("Could not restore the prior state audit. Review", state_audit_path, "and", previous_csv))
+    stop("Could not save the allocation RDS. Restored the previous audit state.", call. = FALSE)
+  }
+  unlink(previous_csv)
+}
+cat("\nSaving checked person/district allocations...\n")
+save_results()
+cat("Allocation checks passed.\n")
+cat("Person records:", nrow(people), "\n")
+cat("Person/district rows:", nrow(allocation), "\n")
+cat("Input weighted population:", format(input_weight, scientific = FALSE), "\n")
+cat("Allocated weighted population:", format(national_weight, scientific = FALSE), "\n")
+cat("Largest absolute person-weight error:", max(state_audit$max_person_weight_error), "\n")
+cat("Allocation saved:", allocation_path, "\nState audit saved:", state_audit_path, "\n")

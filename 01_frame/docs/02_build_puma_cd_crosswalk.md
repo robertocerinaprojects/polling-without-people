@@ -212,7 +212,7 @@ Outputs:
   CVAP totals, known subtotals, missingness, methods and weight sums.
 
 The crosswalk columns are STATEFP, PUMA5CE, CDFP, allocation_weight and
-weight_method. These weights have not yet been applied to PUMS records.
+weight_method. The [Script 03 guide](03_apply_puma_cd_crosswalk.md) documents how these weights are applied to PUMS records.
 
 Section 11 execution passed on 2026-10-30.
 

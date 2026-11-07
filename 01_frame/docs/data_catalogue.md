@@ -9,11 +9,10 @@ manifest and prepares citizen-adult person records.
 
 Script 02 independently combines Census geography, population counts and
 citizen-adult estimates to build district probabilities for each PUMA.
-Script 03 currently checks whether the two resulting datasets cover the
-same PUMAs; person-level district allocation is not yet implemented.
-
-The audit CSVs record the calculations and checks. The two intermediate RDS
-files contain the working datasets read by Script 03.
+Script 03 matches each person's state/PUMA to the crosswalk and distributes
+that person's survey weight across districts using the PUMA probabilities.
+The person–district RDS stores each positive contribution, and audit CSVs
+record coverage and conservation checks.
 
 ## Scope and reading conventions
 
@@ -28,17 +27,18 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
-Script 02 passed its documented crosswalk checks. Script 03 remains a draft;
-its coverage CSV exists locally, but its execution result remains to be
-reviewed. See the [component status](../README.md#script-status).
+Script 02 passed its documented crosswalk checks. Script 03 passed its
+national coverage and person-level allocation checks on 2026-11-07.
+See the [component status](../README.md#script-status).
 
 The source-data requirement is 59 files: one selected two-file IPUMS pair
 and 57 Census files. Script 00 also keeps request/receipt metadata and source
 snapshots; the physical file count depends on the number of downloads.
 
-Analysis products comprise two intermediate RDS files and 26 output CSVs:
-four from Script 01, 21 from Script 02 and one from Script 03. Source manifests
-and two generated Markdown notes are additional tracked files in `docs/`.
+The scripts define three intermediate RDS files and 27 output CSVs, including
+four CSVs from Script 01, 21 from Script 02 and two from Script 03. Source
+manifests and two generated Markdown notes are additional tracked files in
+`docs/`.
 
 ## Geography, quantities and keys
 
@@ -109,7 +109,7 @@ another snapshot does not update these expectations automatically.
 - **Readers:** Script 00 validates acquisition/reuse. Script 01 reads the
   pointer, receipt, saved request, approved source manifest and selected files.
 - **Contributes to:** `pums_clean.rds` and all four `01_pums_*.csv` audits;
-  subsequently the Script 03 coverage audit through `pums_clean.rds`.
+  subsequently the Script 03 allocation and its two audits through `pums_clean.rds`.
 - **Units and geography:** Individual records and person/household weights;
   person geography at the state/PUMA level. Ages and weights are not projected
   to the 2026 election.
@@ -265,6 +265,7 @@ constructs estimates for the pinned BEF's district geography from block groups.
 |---|---|---|
 | `data/intermediate/pums_clean.rds` | Script 01; approved IPUMS pair acquired by Script 00, local pointer/receipt and tracked source approval | Script 03 reads this RDS. It does not feed Script 02. |
 | `data/intermediate/puma_cd_crosswalk.rds` | Script 02 Section 11; BEF + PUMA lookup + PL + CVAP + reviewed CT mapping; NY suppression and CT query validate exceptions | Script 03 reads this RDS. `02_puma_cd_weights.csv` is a readable export of the same table. |
+| `data/intermediate/pums_cd_allocation.rds` | Script 03 Section 2, using `pums_clean.rds` and `puma_cd_crosswalk.rds` | Person–district contributions for district summaries. Join to `pums_clean.rds` by `SAMPLE + SERIAL + PERNUM` for demographic fields. |
 
 ### Cleaned person schema
 
@@ -301,8 +302,23 @@ Valid zero-weight intersections remain; `ZZ` rows are excluded.
 The documented run produced 2,462 PUMAs, 436 assigned districts including DC,
 4,183 rows and 109 zero-weight rows. The two suppressed-CVAP NY PUMAs have
 weight 1 for NY-02 because each is wholly contained there; their complete
-CVAP totals remain unknown. These probabilities have not yet been applied
-to person records by the current Script 03.
+CVAP totals remain unknown. Script 03 reads this crosswalk to allocate PUMS
+person weights to districts.
+
+### Person–district allocation schema
+
+`pums_cd_allocation.rds` stores one row per retained person and district with
+a positive allocation probability. It saves the columns in this order.
+
+```text
+SAMPLE, SERIAL, PERNUM, STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight
+```
+
+`STATEFIP` and `PUMA` retain the source numeric codes. `CDFP` is a
+two-character district code, interpreted within state. Each person is
+identified by `SAMPLE + SERIAL + PERNUM`. `allocated_person_weight` equals
+`PERWT * allocation_weight` and is the field to sum for district estimates.
+The original `PERWT` is repeated across that person's district rows.
 
 ## Current CSV products: producers and upstream inputs
 
@@ -429,25 +445,33 @@ also writes it earlier without the final three weight-summary columns.
   `exclude_unassigned` and `missing_cvap`. Unhandled cases stop execution
   for review; they are not automatically dropped or assigned zero.
 
-## Script 03 coverage output
+## Script 03 allocation audits
 
-- **File:** `data/output/03_pums_crosswalk_coverage.csv`.
-- **Producer:** Script 03 Section 1, currently a coverage-audit draft.
-- **Direct inputs:** `data/intermediate/pums_clean.rds` from Script 01 and
-  `data/intermediate/puma_cd_crosswalk.rds` from Script 02.
-- **One row/key:** State/PUMA, using character `STATEFP + PUMA5CE`.
-- **Columns:** `STATEFP, PUMA5CE, person_records, weighted_population,
-  district_rows, positive_districts, weight_sum, coverage_status`.
-- **Meaning:** `person_records` counts retained microdata records;
-  `weighted_population` sums their `PERWT`. `district_rows` includes
-  zero-weight intersections; `positive_districts` counts positive weights.
-  `coverage_status` is `matched`, `pums_only` or `crosswalk_only`.
-- **Consumer:** Review of whether every PUMS PUMA has a crosswalk entry.
-  No later person-allocation implementation currently consumes this CSV.
-- **Evidence/status:** Present in the supplied local inventory with the
-  expected header. Its values and execution result remain to be reviewed.
-  It is written before the unmatched-PUMS check, so its presence alone does
-  not establish that the script passed.
+Both audits use `pums_clean.rds` from Script 01 and `puma_cd_crosswalk.rds`
+from Script 02. Script 03 uses its in-memory summaries for the calculations.
+
+| File under `data/output/` | Writer and unit | Columns in saved order |
+|---|---|---|
+| `03_pums_crosswalk_coverage.csv` | Section 1, one row per state/PUMA across both inputs | `STATEFP, PUMA5CE, person_records, weighted_population, district_rows, positive_districts, weight_sum, coverage_status` |
+| `03_pums_allocation_by_state.csv` | Section 2, one row per state or DC | `STATEFP, person_records, expected_rows, allocated_rows, input_weight, allocated_weight, max_person_weight_error` |
+
+In the coverage audit, `person_records` counts retained microdata records
+and `weighted_population` sums their `PERWT`. `district_rows` counts all
+crosswalk intersections and `positive_districts` counts those with positive
+weight. `coverage_status` takes values `matched`, `pums_only` or
+`crosswalk_only`. The reviewed 2026-11-07 run matched all 2,462 PUMAs and
+all 12,263,785 retained people, with total survey weight 240,960,972.
+
+In the state allocation audit, `expected_rows` counts the person–district
+rows implied by PUMA membership and positive district probabilities.
+`allocated_rows` counts the result. `input_weight` and `allocated_weight`
+compare the original weighted population with its district contributions.
+`max_person_weight_error` is the largest absolute difference between a
+person's `PERWT` and the sum of that person's allocated district weights.
+The 2026-11-07 run saved the state audit and 20,333,303 person–district rows.
+Expected and observed row counts agreed. The input and allocated weights
+each totaled 240,960,972 at the precision reported. The largest absolute
+person-weight difference across states was `1.136868e-13`.
 
 ## Generated documentation and other tracked metadata
 
@@ -473,7 +497,8 @@ provenance rather than initiate downloads.
 
 - The companion documents record successful acquisition, schema and offline
   reuse checks for Script 00, the completed Script 00 → Script 01 preparation
-  run, and Script 02's crosswalk validation. Script 03 remains a draft.
+  run, Script 02's crosswalk validation and Script 03's national coverage and
+  person–district allocation checks.
 - Audits can be written before a script stops. This applies to NY/CT
   exception evidence, allocation-readiness/contribution audits and the
   early PUMA audit. A failed rerun can leave early products from the new

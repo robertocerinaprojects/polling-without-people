@@ -31,7 +31,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script21_Area_Level_Vote_Shares_Final.R` | `legacy/frame/scripts/Script21_Area_Level_Vote_Shares_Final.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script22_CES_Final.R` | `legacy/frame/scripts/Script22_CES_Final.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script4_Build_PUMA_CD_Crosswalk.R` | `legacy/frame/scripts/Script4_Build_PUMA_CD_Crosswalk.R` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
-| `frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | `legacy/frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | Replacement incomplete | 03_apply_puma_cd_crosswalk.R; coverage-audit draft only |
+| `frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | `legacy/frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | Superseded | [Script 03](../01_frame/docs/03_apply_puma_cd_crosswalk.md), national allocation validated 2026-11-07 |
 | `frame/scripts/Script6_Exploratory.R` | `legacy/frame/scripts/Script6_Exploratory.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script7_Harmonize_DemVar.R` | `legacy/frame/scripts/Script7_Harmonize_DemVar.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script8_10_ZCTA_Crosswalk.R` | `legacy/frame/scripts/Script8_10_ZCTA_Crosswalk.R` | Awaiting review | Replacement or retirement not yet decided |
@@ -48,7 +48,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | `legacy/frame/docs/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script19ABC_CART_Impute.md` | `legacy/frame/docs/ReadMe_Script19ABC_CART_Impute.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | `legacy/frame/docs/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
-| `frame/scripts/ReadMe_Script5.md` | `legacy/frame/docs/ReadMe_Script5.md` | Replacement incomplete | 03_apply_puma_cd_crosswalk.R; coverage-audit draft only |
+| `frame/scripts/ReadMe_Script5.md` | `legacy/frame/docs/ReadMe_Script5.md` | Superseded | [Script 03 guide and run results](../01_frame/docs/03_apply_puma_cd_crosswalk.md) |
 | `frame/scripts/ReadMe_Script6.md` | `legacy/frame/docs/ReadMe_Script6.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script7_Harmonization_DemVar.md` | `legacy/frame/docs/ReadMe_Script7_Harmonization_DemVar.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script8_10.md` | `legacy/frame/docs/ReadMe_Script8_10.md` | Awaiting review | Replacement or retirement not yet decided |
