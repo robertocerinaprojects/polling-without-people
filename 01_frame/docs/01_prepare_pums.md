@@ -99,7 +99,7 @@ The output column `gender` contains labels derived from recorded `SEX`.
 
 | File | Purpose |
 |---|---|
-| `data/intermediate/pums_clean.rds` | Cleaned person records read by Script 03. |
+| `data/intermediate/pums_clean.rds` | Cleaned person records used for district allocation in Script 03 and demographic harmonization in [Script 04](04_harmonize_pums.md). |
 | `data/output/01_pums_filtering.csv` | Records, weighted population and losses at each filtering stage. |
 | `data/output/01_pums_recoding.csv` | Missing values in the six derived fields. |
 | `data/output/01_pums_hispanic.csv` | Records and weighted population by Hispanic-origin flag. |

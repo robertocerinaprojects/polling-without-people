@@ -14,6 +14,19 @@ that person's survey weight across districts using the PUMA probabilities.
 The person–district RDS stores each positive contribution, and audit CSVs
 record coverage and conservation checks.
 
+Script 04 reads one record per person from the cleaned PUMS. It harmonizes
+demographic categories and estimates five national race shares among Hispanic
+adult citizens. Script 05 selects self-reported U.S. citizens in the CES,
+maps their 119th Congress residence districts onto the 120th Congress map,
+and draws a race for people whose primary response was Hispanic or Latino.
+It uses district allocations from Script 03 and harmonized PUMS demographics
+from Script 04 to estimate the race shares conditional on district, age,
+education and sex/gender. The national race totals check donor conservation.
+
+Script 05 also classifies 2024 House and presidential responses from the same
+CES CSV. Script 06 aggregates the district-allocated PUMS weights by all
+seven shared geography and demographic fields, and checks CES cell coverage.
+
 ## Scope and reading conventions
 
 All paths in backticks are relative to `01_frame/` unless stated otherwise.
@@ -24,6 +37,9 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 01 | [01_prepare_pums.R](../scripts/01_prepare_pums.R) | [PUMS preparation](01_prepare_pums.md) |
 | Script 02 | [02_build_puma_cd_crosswalk.R](../scripts/02_build_puma_cd_crosswalk.R) | [Crosswalk construction](02_build_puma_cd_crosswalk.md) |
 | Script 03 | [03_apply_puma_cd_crosswalk.R](../scripts/03_apply_puma_cd_crosswalk.R) | [Coverage and application](03_apply_puma_cd_crosswalk.md) |
+| Script 04 | [04_harmonize_pums.R](../scripts/04_harmonize_pums.R) | [PUMS demographics](04_harmonize_pums.md) |
+| Script 05 | [05_prepare_ces.R](../scripts/05_prepare_ces.R) | [CES download and harmonization](05_prepare_ces.md) |
+| Script 06 | [06_build_pums_cells.R](../scripts/06_build_pums_cells.R) | [PUMS cell sizes and CES coverage](06_build_pums_cells.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
@@ -31,14 +47,14 @@ Script 02 passed its documented crosswalk checks. Script 03 passed its
 national coverage and person-level allocation checks on 2026-11-07.
 See the [component status](../README.md#script-status).
 
-The source-data requirement is 59 files: one selected two-file IPUMS pair
-and 57 Census files. Script 00 also keeps request/receipt metadata and source
-snapshots; the physical file count depends on the number of downloads.
+The inputs comprise 61 source files across the seven scripts: one selected
+two-file IPUMS pair, 58 Census files and one CES Common Content CSV. Script 00
+also keeps request/receipt metadata and source snapshots.
 
-The scripts define three intermediate RDS files and 27 output CSVs, including
-four CSVs from Script 01, 21 from Script 02 and two from Script 03. Source
-manifests and two generated Markdown notes are additional tracked files in
-`docs/`.
+The scripts define eight intermediate RDS files and 38 output CSVs. Script 01
+produces four CSVs, Script 02 produces 21, Scripts 03 and 04 produce two each,
+Script 05 produces eight and Script 06 produces one. Source manifests and two generated Markdown
+notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
 
@@ -75,8 +91,9 @@ from adjusted allocation inputs.
 
 Script 00 acquires the PUMS pair from IPUMS USA. Script 01 resolves it through
 the local snapshot pointer and receipt, then applies the tracked source
-approval checks. The Census inputs use the acquisition instructions below.
-Keep source archives compressed; scripts read their required members.
+approval checks. Script 05 acquires the 119th Congress Census block archive and
+the CES survey file. The acquisition instructions below cover the other Census
+inputs. Keep source archives compressed; scripts read their required members.
 
 The PUMS data and variable-metadata fingerprints are maintained in
 [docs/00_pums_source.json](00_pums_source.json). Script 02 contains the six
@@ -109,7 +126,10 @@ another snapshot does not update these expectations automatically.
 - **Readers:** Script 00 validates acquisition/reuse. Script 01 reads the
   pointer, receipt, saved request, approved source manifest and selected files.
 - **Contributes to:** `pums_clean.rds` and all four `01_pums_*.csv` audits;
-  subsequently the Script 03 allocation and its two audits through `pums_clean.rds`.
+  the Script 03 district allocation and audits, and the Script 04 demographic
+  table, coverage audit and national race shares. Script 05 combines the
+  district allocation and demographic table and checks the resulting donor
+  weights against the Script 04 national totals.
 - **Units and geography:** Individual records and person/household weights;
   person geography at the state/PUMA level. Ages and weights are not projected
   to the 2026 election.
@@ -143,13 +163,15 @@ and account-specific extract numbers are resolved from the local receipt.
 - **Source/download:** [Census 120th Congress archive](https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2027/120-congressional-district-befs/cd120.zip).
 - **Version:** Pinned archive downloaded during review on 2026-10-30; its
   2020 block identifiers are used with the stored district assignments.
-- **Reader:** Script 02 Sections 1-2; fingerprint `expected_sha256`.
+- **Readers:** Script 02 Sections 1–2 and the Script 05 geography helper verify
+  the same archive fingerprint and read the national member.
 - **Schema:** CSV with `GEOID, STATEFP, COUNTYFP, TRACTCE, BLOCKCE, CDFP`.
   One row per unique block `GEOID`; no population measure.
 - **Scope:** Source includes Puerto Rico; processing retains the 50 states
   and DC and reports the excluded jurisdiction.
 - **Contributes to:** District-code/scope audits, block matching, geographic
   exceptions, CVAP intersections, PUMA containment and final crosswalk weights.
+  Script 05 also uses the block assignments to map 119th to 120th districts.
 
 ### PUMA lookup: tract-to-PUMA membership
 
@@ -177,7 +199,8 @@ and account-specific extract numbers are resolved from the local receipt.
   Download each `url` to its `path`; verify its `bytes` and `sha256`.
 - **Reader:** Script 02 Section 5 uses the Section 4 reader. It reads the
   manifest, verifies each local archive and reads two members:
-  `<abbr>geo2020.pl` and `<abbr>000022020.pl`.
+  `<abbr>geo2020.pl` and `<abbr>000022020.pl`. Script 05 reads the manifest
+  and the same two archived members for states with split old districts.
 - **Geography member:** 97 pipe-delimited fields; the reader selects
   `FILEID, STUSAB, SUMLEV, GEOVAR, GEOCOMP, CHARITER, CIFSN, LOGRECNO,
   STATE, COUNTY, TRACT, BLOCK, POP100`.
@@ -189,6 +212,8 @@ and account-specific extract numbers are resolved from the local receipt.
   supplies adults including noncitizens.
 - **Contributes to:** Population matching/conservation audits, geographic
   exception evidence, adult-proportional CVAP contributions and final weights.
+  Script 05 uses the adult counts to split a block-group/CD120 contribution
+  across its possible CD119 districts.
 
 Script 02 reads but never rewrites the manifest.
 
@@ -259,13 +284,45 @@ constructs estimates for the pinned BEF's district geography from block groups.
 - **Contributes to:** Validation of the CT mapping convention and the generated
   CT note. All later allocation stages require this check to pass.
 
+### 119th Congress block assignments for CES residence geography
+
+Script 05 downloads `data/input/cd119.zip` on first use and verifies its SHA-256
+(`1433feb5178dc7b4188ee30f5f7f715851f4400740b8fe1ce606a876c6294bd6`)
+before reuse. The archived `NationalCD119.txt` has character `GEOID` (2020
+block) and `CDFP` (119th district). Script 05 matches these blocks by identifier
+to `NationalCD120.txt` in the existing `data/input/cd120.zip`. For splits it
+uses `02_bg_cvap_contributions.csv` and block voting-age counts from the affected
+states' PL archives, verified against `docs/02_pl_2020_sources.csv`. The
+resulting lookup and its unknown-origin audit are described below.
+[Census 119th Congress file description](https://www.census.gov/geographies/mapping-files/2025/dec/rdo/119-congressional-district-bef.html) ·
+[Official archive](https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2025/119-congressional-district-befs/cd119.zip)
+
+### 2024 Cooperative Election Study
+
+Script 05 downloads and verifies the 2024 annual Common Content vote-validated CSV.
+One row represents one respondent. It reads `caseid, birthyr, gender4, educ,
+race, hispanic, commonweight, cit1, inputstate, cdid119, countyfips`
+as well as the [pre- and post-election vote items, House candidate party
+fields and post-wave geography](05_vote_rules.md). It preserves the complete CSV at
+`data/input/CCES24_Common_OUTPUT_vv_topost_final.csv` for later linkage by
+`caseid`. Release V9 file 12050325 contains 60,000 rows and 183,679,005 bytes.
+Its MD5 is `b740b9305fee50e1a34656b513f55c57`. The verified file is reused
+on subsequent runs. It supplies eligibility, demographics, the 2024 election
+district and county for the harmonized CES RDS and respondent-level audits. [Release and questionnaires](https://doi.org/10.7910/DVN/X11EP6) ·
+[Official CSV](https://dataverse.harvard.edu/api/access/datafile/12050325)
+
 ## Working datasets and direct dependencies
 
 | File | Producer and upstream inputs | Direct downstream use |
 |---|---|---|
-| `data/intermediate/pums_clean.rds` | Script 01; approved IPUMS pair acquired by Script 00, local pointer/receipt and tracked source approval | Script 03 reads this RDS. It does not feed Script 02. |
+| `data/intermediate/pums_clean.rds` | Script 01; approved IPUMS pair acquired by Script 00, local pointer/receipt and tracked source approval | Script 03 reads person weights and geography. Script 04 reads the person key, demographics, citizenship and original person weights. |
 | `data/intermediate/puma_cd_crosswalk.rds` | Script 02 Section 11; BEF + PUMA lookup + PL + CVAP + reviewed CT mapping; NY suppression and CT query validate exceptions | Script 03 reads this RDS. `02_puma_cd_weights.csv` is a readable export of the same table. |
-| `data/intermediate/pums_cd_allocation.rds` | Script 03 Section 2, using `pums_clean.rds` and `puma_cd_crosswalk.rds` | Person–district contributions for district summaries. Join to `pums_clean.rds` by `SAMPLE + SERIAL + PERNUM` for demographic fields. |
+| `data/intermediate/pums_cd_allocation.rds` | Script 03 Section 2, using `pums_clean.rds` and `puma_cd_crosswalk.rds` | Script 05 uses `allocated_person_weight` once per person/district contribution to estimate the Hispanic donor race distribution. Step 06 joins the demographics by `SAMPLE + SERIAL + PERNUM` to estimate full cell populations. |
+| `data/intermediate/pums_demographics.rds` | Script 04 using `pums_clean.rds` | One row per `SAMPLE + SERIAL + PERNUM` with `age_cat, gender_cat, educ_cat, race_cat, hispanic_cat`. Scripts 05 and 06 use the three identifiers to attach these categories to Script 03 district contributions. |
+| `data/intermediate/hispanic_race_by_district_profile.rds` | Script 05 donor helper using `pums_cd_allocation.rds`, `pums_demographics.rds` and the national totals in `04_pums_hispanic_race_probabilities.csv` | Script 05 reads three tables of race counts, weights, probabilities and effective donor counts by demographic profile, with district, state and national coverage. A donor can contribute to several districts. The broader pools recombine every person's weight before counting support. |
+| `data/intermediate/ces_demographics_harmonized.rds` | Script 05 using the CES CSV, district lookup and conditional donor tables | One row per eligible citizen `caseid` with source fields, harmonized demographics, original and assigned geography, imputation flags, 2024 party outcomes, source of each outcome and House contest type. Script 06 checks the seven matching keys. |
+| `data/intermediate/ces_analysis.rds` | Script 05 export helper, reading `ces_demographics_harmonized.rds` | One row per retained `caseid` in the same order. Provides the survey weight, seven frame keys and two 2024 vote outcomes. See the [11-column schema and export command](05_prepare_ces.md#analysis-file). |
+| `data/intermediate/pums_cd_cells.rds` | Script 06, district-weighted person rows from 03, categories from 04 and the Step 03 state conservation audit | One row per positive population cell. The seven keys are `STATEFP, CDFP120, age_cat, gender_cat, race_cat, hispanic_cat, educ_cat`. Sum `N` to obtain estimated citizen-adult totals. |
 
 ### Cleaned person schema
 
@@ -380,8 +437,9 @@ the PL manifest are required for a completed Script 02 run.
 **Disk versus calculation flow:** Script 02 saves these CSVs for inspection,
 but does not load any generated CSV to perform a later section. It uses the
 corresponding R objects already in memory. Editing an audit CSV does not
-change the next calculation in the script. Script 03 reads the final RDS,
-not the weights CSV. No current `02_personae` or `03_mrp` script consumes
+change the next calculation in Script 02. Script 03 reads the final crosswalk
+RDS. Script 05 later reads `02_bg_cvap_contributions.csv` when estimating
+overlaps between old and new districts. No current `02_personae` or `03_mrp` script consumes
 these products; later interfaces have not yet been implemented.
 
 ## Script 02 CSV column reference
@@ -473,6 +531,30 @@ Expected and observed row counts agreed. The input and allocated weights
 each totaled 240,960,972 at the precision reported. The largest absolute
 person-weight difference across states was `1.136868e-13`.
 
+## Demographic harmonization CSVs
+
+The following tables are saved under `data/output/`. CES audit counts are
+unweighted counts of respondents. District probabilities refer to the 2020-block
+representation of residence on the 120th Congress map.
+
+| File | Producer and direct inputs | Contents and use |
+|---|---|---|
+| `04_pums_hispanic_race_probabilities.csv` | 04, cleaned PUMS | One row per `race_cat` with `donor_records, donor_weight, probability`. Script 05 reconciles the conditional donor tables to these national totals by race. |
+| `04_pums_demographic_coverage.csv` | 04, cleaned PUMS | One row per harmonized `variable` with `records, missing`. |
+| `05_ces_sample.csv` | 05, raw CES | Three stages: all respondents, gender-eligible respondents, and respondents also reporting U.S. citizenship. Includes `citizen_yes, citizen_no, citizenship_missing` and the race/origin counts. |
+| `05_ces_district_lookup.csv` | 05 geography helper, CD119 and CD120 block files, Step 02 CVAP contributions, PL manifest and split states' PL archives | By `STATEFP, CD119, county_fips, CD120`: all supported geographic intersections, including modeled zero-probability ones. The empty county key gives the entire old district. Fields include `district_probability, geography_method, blocks, overlap_cvap, possible_unresolved_cvap, probability_min, probability_max`. Script 05 uses this lookup for each citizen. |
+| `05_ces_unknown_origin_cvap.csv` | 05 geography helper, same inputs as the district lookup | Separate ledger of CVAP with known destination and uncertain prior district. Includes state, county, block group, district candidates, counts of blocks, 2020 adult count and unresolved CVAP. The lookup also records the resulting probability bounds. |
+| `05_ces_district_probabilities.csv` | 05, CES geographic identifiers and the district lookup | One row per citizen and positive-probability 120th district; includes the original state/district, county, location match, method, probability and a `selected` flag. Exactly one row per person is selected. |
+| `05_ces_race_donor_support.csv` | 05, eligible primary-Hispanic CES respondents, district probabilities and PUMS conditional donor tables | One row per race recipient and positive-probability destination, with age/education/sex-gender profile, exact and used donor counts and effective counts, source pool, and five conditional probabilities. The selected district identifies the distribution used for the draw. |
+| `05_ces_race_imputation.csv` | 05, recipient geography distributions, conditional donor probabilities and realized race draws | One row per race with `expected_respondents, expected_share, imputed_respondents, realized_share`. Expectations sum over every possible district; realized counts sum to the number of citizen recipients. |
+| `05_ces_demographic_coverage.csv` | 05, eligible CES and race assignments | One row per harmonized `variable` with `records, missing`. |
+| `05_ces_vote_sources.csv` | 05, linked pre/post CES items and wave-specific candidate rosters | Unweighted counts by office, source and result. Each office accounts for all retained respondents, including unresolved outcomes. |
+| `06_ces_pums_cell_coverage.csv` | 06, harmonized CES records and aggregated PUMS cells | Survey-observed seven-key profiles, respondent count, frame population and match status. Incomplete CES keys are distinguished from complete profiles with no positive PUMS contribution. |
+
+The [Script 05 decisions](05_citizenship_district_decisions.md) specify the
+citizen rule, geography exceptions, donor weighting, fallback and the
+interpretation of estimated individual districts.
+
 ## Generated documentation and other tracked metadata
 
 | File | Producer or reader | Upstream inputs / purpose |
@@ -480,7 +562,7 @@ person-weight difference across states was `1.136868e-13`.
 | `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes it; Section 7 reads it back and appends results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
 | `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes it, then reads it back and appends reviewed-exception results | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
 | `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
-| `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; Script 02 Section 5 reads it | Source URLs, local paths, sizes and fingerprints for all 51 population archives. |
+| `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02 and 05 | Source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
 
 The two generated Markdown notes are tracked, but a full Script 02 run
@@ -515,9 +597,10 @@ provenance rather than initiate downloads.
   tracked exceptions because they reside in `docs/`.
 - Numbered scripts recreate current products after their prerequisites
   are available. Script 00 acquires and verifies IPUMS snapshots; Script 01
-  separately enforces the tracked source approval. Other source acquisition
-  remains separate, and ignored inputs are not distributed by cloning this
-  repository. Mutable download URLs,
+  separately enforces the tracked source approval. Script 05 acquires and
+  verifies the CES file and the 119th Congress block archive. The Script 02
+  Census inputs follow their separate acquisition instructions. Ignored inputs
+  are not distributed by cloning this repository. Mutable download URLs,
   especially the saved feature-query response, do not guarantee recovery
   of the pinned bytes. Exact reconstruction requires access to the reviewed
   snapshots.

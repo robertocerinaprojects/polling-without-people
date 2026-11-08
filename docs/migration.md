@@ -33,7 +33,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script4_Build_PUMA_CD_Crosswalk.R` | `legacy/frame/scripts/Script4_Build_PUMA_CD_Crosswalk.R` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
 | `frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | `legacy/frame/scripts/Script5_ApplyPUMACDCrossWalktoPUMS.R` | Superseded | [Script 03](../01_frame/docs/03_apply_puma_cd_crosswalk.md), national allocation validated 2026-11-07 |
 | `frame/scripts/Script6_Exploratory.R` | `legacy/frame/scripts/Script6_Exploratory.R` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/Script7_Harmonize_DemVar.R` | `legacy/frame/scripts/Script7_Harmonize_DemVar.R` | Awaiting review | Replacement or retirement not yet decided |
+| `frame/scripts/Script7_Harmonize_DemVar.R` | `legacy/frame/scripts/Script7_Harmonize_DemVar.R` | Replacement in development | [PUMS demographics](../01_frame/docs/04_harmonize_pums.md) and [CES harmonization](../01_frame/docs/05_prepare_ces.md) |
 | `frame/scripts/Script8_10_ZCTA_Crosswalk.R` | `legacy/frame/scripts/Script8_10_ZCTA_Crosswalk.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/run_all.R` | `legacy/frame/run_all.R` | Withdrawn from active execution | New runner not yet implemented |
 | `frame/runner.R` | `legacy/frame/runner.R` | Withdrawn from active execution | New runner not yet implemented |
@@ -50,7 +50,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | `legacy/frame/docs/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
 | `frame/scripts/ReadMe_Script5.md` | `legacy/frame/docs/ReadMe_Script5.md` | Superseded | [Script 03 guide and run results](../01_frame/docs/03_apply_puma_cd_crosswalk.md) |
 | `frame/scripts/ReadMe_Script6.md` | `legacy/frame/docs/ReadMe_Script6.md` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/ReadMe_Script7_Harmonization_DemVar.md` | `legacy/frame/docs/ReadMe_Script7_Harmonization_DemVar.md` | Awaiting review | Replacement or retirement not yet decided |
+| `frame/scripts/ReadMe_Script7_Harmonization_DemVar.md` | `legacy/frame/docs/ReadMe_Script7_Harmonization_DemVar.md` | Replacement in development | [PUMS demographics](../01_frame/docs/04_harmonize_pums.md) and [CES harmonization](../01_frame/docs/05_prepare_ces.md) |
 | `frame/scripts/ReadMe_Script8_10.md` | `legacy/frame/docs/ReadMe_Script8_10.md` | Awaiting review | Replacement or retirement not yet decided |
 
 ## Remaining repository cleanup
