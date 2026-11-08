@@ -256,6 +256,7 @@ allocate_state <- function(i) {
     pairs |>
       filter(person_row == example_person) |>
       select(STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight) |>
+      tibble::as_tibble() |>
       print(n = Inf, width = Inf)
   }
   audit <- transmute(plan, STATEFP, person_records, expected_rows,

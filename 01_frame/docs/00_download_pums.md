@@ -119,6 +119,12 @@ accepts for analysis.
 
 ## Checks, reuse and recovery
 
+- Only one IPUMS acquisition or recovery can run in a cache at a time. The
+  writer creates `.download-lock/` under `data/input/ipums_pums/` and records
+  its host and process ID in `owner.txt`. An ordinary exit releases the lock.
+  After a forced shutdown, verify the writer has stopped on that host before
+  removing this lock directory and resuming Script 00. Preserve the snapshot
+  and its submission marker so that a pending request can be recovered.
 - A completed receipt is checked before any API call. Both files must match
   its byte counts and SHA-256 hashes. A mismatch stops for inspection.
 - If a receipted file is absent, the script attempts to recover the same

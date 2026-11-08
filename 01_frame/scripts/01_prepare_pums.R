@@ -364,21 +364,7 @@ output_dir <- here::here("01_frame", "data", "output")
 dir.create(intermediate_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Finish writing before assigning the final filename.
 output_path <- file.path(intermediate_dir, "pums_clean.rds")
-temporary_path <- tempfile(
-  pattern = "pums_clean_",
-  tmpdir = intermediate_dir,
-  fileext = ".rds"
-)
-
-cat("\nSaving cleaned PUMS data...\n")
-saveRDS(pums, temporary_path, compress = "gzip")
-
-if (!file.rename(temporary_path, output_path)) {
-  stop("Could not move the completed RDS file to: ", output_path)
-}
-
 audit_tables <- list(
   filtering = audit,
   recoding = recoding_audit,
@@ -386,13 +372,29 @@ audit_tables <- list(
   income_by_gq = income_audit
 )
 
-for (audit_name in names(audit_tables)) {
-  readr::write_csv(
-    audit_tables[[audit_name]],
-    file.path(output_dir, paste0("01_pums_", audit_name, ".csv"))
-  )
+save_outputs <- function(people, audits, destination, audit_dir) {
+  paths <- file.path(audit_dir, paste0("01_pums_", names(audits), ".csv"))
+  temporary_audits <- tempfile(paste0("01-", names(audits), "-"), tmpdir = audit_dir)
+  temporary_people <- tempfile("01-people-", tmpdir = dirname(destination))
+  on.exit(unlink(c(temporary_audits, temporary_people)), add = TRUE)
+
+  # Write all five products before publishing any. The RDS is published last.
+  saveRDS(people, temporary_people, compress = "gzip")
+  for (i in seq_along(audits)) {
+    readr::write_csv(audits[[i]], temporary_audits[i])
+  }
+  for (i in seq_along(paths)) {
+    if (!file.rename(temporary_audits[i], paths[i])) {
+      stop("Could not publish the completed audit: ", paths[i])
+    }
+  }
+  if (!file.rename(temporary_people, destination)) {
+    stop("Could not publish the completed RDS: ", destination)
+  }
 }
 
+cat("\nSaving cleaned PUMS data...\n")
+save_outputs(pums, audit_tables, output_path, output_dir)
 cat("Saved:", output_path, "\n")
 cat("File size:",
     round(file.info(output_path)$size / 1024^2, 1), "MiB\n")

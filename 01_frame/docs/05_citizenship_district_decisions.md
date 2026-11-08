@@ -77,8 +77,11 @@ used in Step 02. The national file includes the October 2026 Missouri update.
 | One destination from old district alone | 41,553 | 2,347 |
 | One destination after adding county | 6,090 | 512 |
 | Multiple destinations using county and old district | 10,799 | 1,993 |
-| County/old-district mismatch in a split old district; use old district | 185 | 17 |
+| County missing or county/old-district pair absent in a split district; use old district | 185 | 17 |
 | Total | 58,627 | 4,869 |
+
+Of the 185 broad matches in split districts, 184 had a county/old-district
+pair absent from the lookup and one lacked a county code.
 
 In the overlay, 295 of the 436 old districts (including DC) have one
 destination and 141 split. A split can still have just one *positive*
@@ -118,8 +121,14 @@ size. The helper reconciles race totals with the national Step 04 table.
 
 For each of the 4,869 recipients, draw the race conditional on the **same**
 120th district drawn for that respondent, using a separate seed of 2024.
-Keep the original CES answers, the
-imputation flag and the donor level used. The donor audit shows the five
+The draw assumes those CES respondents would have the same distribution
+of harmonized race categories as Hispanic PUMS citizens with the matched
+profile. Choosing Hispanic/Latino as primary race may distinguish recipients
+from others with Hispanic origin even within that profile. A draw represents
+a plausible category, while the original CES answers remain available.
+A single stored district and race realization does not propagate uncertainty
+from the survey estimates or the draws into downstream model intervals.
+The analysis records the imputation flag and donor level used. The donor audit shows the five
 probabilities for **every positive candidate district**, including candidates
 that were not drawn. Expected survey counts average these probabilities over
 each person's possible districts. Realized counts come from the one stored

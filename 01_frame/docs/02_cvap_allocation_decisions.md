@@ -19,7 +19,8 @@ amounts excluded from district allocation remain visible in the audits.
 
 The reviewed treatments are implemented in Script 02. Crosswalk
 construction and its internal checks passed on 2026-10-30.
-PUMS coverage and application remain to be checked in the next stage.
+[Step 03](03_apply_puma_cd_crosswalk.md) subsequently matched the retained
+PUMS records and verified person, state and national weight conservation.
 New exceptions must be reviewed explicitly.
 
 ## New York suppression — decision recorded 2026-10-30

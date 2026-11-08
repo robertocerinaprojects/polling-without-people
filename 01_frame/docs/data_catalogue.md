@@ -44,7 +44,9 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
 Script 02 passed its documented crosswalk checks. Script 03 passed its
-national coverage and person-level allocation checks on 2026-11-07.
+national coverage and person-level allocation checks on 2026-11-07. Steps
+04–06 completed demographic harmonization, CES vote coding and the national
+cell build. See the [survey-to-frame coverage totals](06_build_pums_cells.md#production-results).
 See the [component status](../README.md#script-status).
 
 The inputs comprise 61 source files across the seven scripts: one selected
@@ -53,7 +55,9 @@ also keeps request/receipt metadata and source snapshots.
 
 The scripts define eight intermediate RDS files and 38 output CSVs. Script 01
 produces four CSVs, Script 02 produces 21, Scripts 03 and 04 produce two each,
-Script 05 produces eight and Script 06 produces one. Source manifests and two generated Markdown
+Script 05 produces eight and Script 06 produces one. These counts cover
+the numbered production runs. The [optional election benchmark](05_vote_rules.md#reproduce-the-vote-benchmark)
+has its own inputs and outputs. Source manifests and two generated Markdown
 notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
@@ -272,8 +276,10 @@ constructs estimates for the pinned BEF's district geography from block groups.
   (MapServer layer 10). It is a geographic feature table queried through a
   web service; the file is the saved JSON response, not a CVAP table.
 - **Exact request:** [Saved-query URL](https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json).
-- **Acquisition:** The response was saved during review. A fresh response
-  may have different bytes; preserve and verify the recorded snapshot.
+- **Acquisition:** Save the HTTP response body from the exact query directly
+  at the path above. Parsing and reserializing JSON can change the checksum.
+  Downloading that query on 2026-11-08 reproduced the 951-byte snapshot with
+  SHA-256 `a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87`.
 - **Reader:** Script 02 Section 8; reads local JSON and performs no live query.
 - **Relevant content:** Error/transfer-limit indicators and returned feature
   attributes `GEOID, AREALAND, AREAWATER`.
@@ -564,6 +570,8 @@ interpretation of estimated individual districts.
 | `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
 | `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02 and 05 | Source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
+| [CES eligibility, district and race decisions](05_citizenship_district_decisions.md) | Maintained decision record for Script 05 | Rules for citizenship and gender eligibility, translating residence to 2026 districts, conditional race draws and donor fallback. |
+| [CES vote rules](05_vote_rules.md) | Maintained decision record for Script 05 | Source questions, party coding by wave, priority of answers, DC delegate treatment and comparison with 2024 election returns. |
 
 The two generated Markdown notes are tracked, but a full Script 02 run
 recreates their text. Change their generating code when revising them.
@@ -577,10 +585,16 @@ provenance rather than initiate downloads.
 
 ## Validation, reruns and preservation
 
+The [saved-file check](06_build_pums_cells.md#check-the-saved-analysis-files)
+reads both CES files, the population frame and the Step 03 and 06 audit tables.
+It prints a cross-file validation summary and writes no data products.
+
 - The companion documents record successful acquisition, schema and offline
   reuse checks for Script 00, the completed Script 00 → Script 01 preparation
   run, Script 02's crosswalk validation and Script 03's national coverage and
-  person–district allocation checks.
+  person–district allocation checks. The Step 04 guide records donor totals,
+  Step 05 records the citizen sample, race draws and vote sources, and Step
+  06 records population conservation and the overlap of the two saved files.
 - Audits can be written before a script stops. This applies to NY/CT
   exception evidence, allocation-readiness/contribution audits and the
   early PUMA audit. A failed rerun can leave early products from the new

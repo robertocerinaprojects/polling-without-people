@@ -47,6 +47,21 @@ main <- function() {
   store <- file.path(root, "01_frame", "data", "input", "ipums_pums")
   dir.create(store, recursive = TRUE, showWarnings = FALSE)
   pointer <- file.path(store, "current_snapshot.txt")
+  # Only acquisition and recovery mutate the selected snapshot. A complete
+  # receipt can still be verified from a read-only cache.
+  lock_dir <- file.path(store, ".download-lock")
+  locked <- FALSE
+  acquire_lock <- function() {
+    check(dir.create(lock_dir, showWarnings = FALSE),
+          paste("Cannot acquire the IPUMS download lock:", lock_dir,
+                "If a previous process was interrupted, see 00_download_pums.md."))
+    locked <<- TRUE
+    writeLines(c(as.character(Sys.info()[["nodename"]]), as.character(Sys.getpid())),
+               file.path(lock_dir, "owner.txt"))
+  }
+  on.exit(if (locked) unlink(lock_dir, recursive = TRUE), add = TRUE)
+  if (refresh || !file.exists(pointer)) acquire_lock()
+  # Recheck the pointer after acquiring the lock on an initial download.
   if (refresh || !file.exists(pointer)) {
     check(nzchar(Sys.getenv("IPUMS_API_KEY")), "IPUMS_API_KEY is unavailable.")
     samples <- ipumsr::get_sample_info("usa")
@@ -75,7 +90,6 @@ main <- function() {
         "The requested settings differ from this snapshot. Use --refresh for a new request.")
   manifest_path <- file.path(run_dir, "download_manifest.csv")
   files_dir <- file.path(run_dir, "files")
-  dir.create(files_dir, showWarnings = FALSE)
 
   # A completed local receipt is authoritative for reuse, even after the
   # remote download expires. Never replace its fingerprints automatically.
@@ -117,8 +131,17 @@ main <- function() {
     cat("A stored source file is missing; recovering the same extract.\n")
   }
 
+  if (!locked) {
+    acquire_lock()
+    # A competing run may already have completed between the initial status
+    # check and the lock. Reuse its receipt on the next ordinary invocation.
+    check(identical(snapshot, readLines(pointer, warn = FALSE)) &&
+            identical(!is.null(manifest), file.exists(manifest_path)),
+          "The selected download changed during verification. Rerun Script 00.")
+  }
   check(nzchar(Sys.getenv("IPUMS_API_KEY")), "IPUMS_API_KEY is unavailable.")
   check(nzchar(Sys.which("gzip")), "The gzip command is required to check the download.")
+  dir.create(files_dir, showWarnings = FALSE)
   id_path <- file.path(run_dir, "extract_number.txt")
   started_path <- file.path(run_dir, "submission_started.txt")
   if (!file.exists(id_path)) {

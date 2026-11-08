@@ -1,7 +1,19 @@
 # Frame
 
-This component prepares the citizen-adult population records and geographic
-allocation inputs used to build the stratification frame.
+This component produces the two inputs for modeling the 2024 survey and
+poststratifying on the 2026 congressional map.
+
+| File under `data/intermediate/` | What one row represents | Population or sample |
+|---|---|---|
+| `pums_cd_cells.rds` — mother stratification frame | One state, district and demographic profile with a positive estimated citizen-adult population `N` | 497,550 cells across 435 voting districts and DC. Summing `N` gives 240,960,972. |
+| `ces_analysis.rds` — harmonized CES, 11 columns | One eligible 2024 citizen respondent with their ID, survey weight, seven matching fields and two 2024 vote outcomes | 58,627 unique respondents in the underlying harmonized sample, including DC. |
+
+The frame represents the 2020–2024 ACS citizen-adult population on 2026
+district boundaries. Use `STATEFP` and `CDFP120` for matching. To identify a
+2024 House contest or audit an imputed value, link by `caseid` to the detailed
+CES file, `ces_demographics_harmonized.rds`, and its documented audits. See the
+[population and survey overlap](docs/06_build_pums_cells.md#production-results)
+and [2024 vote benchmark](docs/05_vote_rules.md#comparison-with-2024-election-returns).
 
 ## Script status
 
@@ -14,8 +26,13 @@ Run individual steps from the repository root, following their companion documen
 | 02 | `scripts/02_build_puma_cd_crosswalk.R` | validated | [PUMA-to-district crosswalk](docs/02_build_puma_cd_crosswalk.md) |
 | 03 | `scripts/03_apply_puma_cd_crosswalk.R` | validated | [Crosswalk application](docs/03_apply_puma_cd_crosswalk.md) |
 | 04 | `scripts/04_harmonize_pums.R` | validated | [PUMS demographics and race probabilities](docs/04_harmonize_pums.md) |
-| 05 | `scripts/05_prepare_ces.R` | demographics validated; vote rules checked on the source CSV | [2024 CES preparation](docs/05_prepare_ces.md) |
-| 06 | `scripts/06_build_pums_cells.R` | national cell run pending | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
+| 05 | `scripts/05_prepare_ces.R` | national demographics and vote run passed | [2024 CES preparation](docs/05_prepare_ces.md) |
+| 06 | `scripts/06_build_pums_cells.R` | national cell totals and CES coverage checked | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
+
+On a fresh checkout, restore the R packages at the repository root with
+`Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
+snapshots listed in [external inputs and acquisition](docs/data_catalogue.md#external-inputs-and-acquisition).
+Step 05 uses Python 3 for its Census geography helper.
 
 Step 00 downloads the specified IPUMS USA extract, records its files and
 fingerprints, and reuses verified local files on ordinary reruns. Acquisition,
@@ -45,12 +62,27 @@ Step 05 retained 58,627 CES citizens and assigned a harmonized race to 4,869
 primary-Hispanic respondents using the processed PUMS donors. The [before-and-after
 race table and donor audit](docs/05_prepare_ces.md#production-run) record the results.
 
-Script 05 also adds party-level [2024 House and presidential outcomes](docs/05_vote_rules.md)
-and the question used for each answer. Step 06 sums the PUMS district
-contributions into population cells and checks which CES profiles have positive
-PUMS weight. The two analysis files are `data/intermediate/pums_cd_cells.rds`
-(one row per populated cell) and `data/intermediate/ces_demographics_harmonized.rds`
-(one row per retained citizen respondent).
+Step 06 sums Step 03's district weights within the demographic categories
+from Step 04. The CES enters this step only to check which survey profiles
+have population support. It supplies none of the population counts.
+
+## Review of the November 8 checkpoint
+
+The population and survey totals above come from the completed Codespace run.
+The review used [checkpoint `eaad716`](https://github.com/robertocerinaprojects/polling-without-people/commit/eaad716f25b4bb9ec55d021fa41df3030fc32911).
+It independently reproduced the six block-group allocation case counts from
+the pinned public inputs and checked all 436 congressional geographies.
+The pinned CES release reproduced the 2024 vote outcome counts. The
+[election benchmark](docs/05_vote_rules.md#comparison-with-2024-election-returns)
+compares weighted shares with official returns in the original ballot geography.
+
+The review exercised the PUMS transformations with test records covering
+all documented demographic codes and age boundaries, split districts,
+missing inputs and donor fallback. The tests also covered overlapping IPUMS
+download attempts and a failed audit write. The national PUMS cell counts
+and production race assignments remain those of the recorded Codespace run.
+Run the [saved-file check](docs/06_build_pums_cells.md#check-the-saved-analysis-files)
+to verify the two analysis datasets in the current workspace.
 
 ## Data and documentation
 
@@ -63,9 +95,9 @@ The [data catalogue](docs/data_catalogue.md) records source snapshots,
 acquisition, file schemas, producing scripts and downstream consumers.
 It covers intermediates, audits and script-generated documentation.
 
-For respondent-level analysis, open `data/intermediate/ces_analysis.rds`.
-It holds the seven frame-matching fields, respondent ID, survey weight and
-two 2024 vote outcomes. The [CES guide](docs/05_prepare_ces.md#analysis-file)
-explains the columns and how to export them from a completed run.
+The [CES analysis schema](docs/05_prepare_ces.md#analysis-file) lists the 11
+columns and the command to make the slim export from an existing detailed CES.
+The [vote benchmark](docs/05_vote_rules.md#reproduce-the-vote-benchmark) uses
+the detailed file for vote sources and original ballot geography.
 
 See the [shared conventions](../docs/repository_structure.md).

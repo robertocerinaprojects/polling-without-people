@@ -7,7 +7,7 @@ analysis step before treating its outputs as validated.
 
 | Component | Purpose |
 |---|---|
-| [01_frame](01_frame/README.md) | Build the population frame and its geographic allocation inputs |
+| [01_frame](01_frame/README.md) | Build the district-level citizen-adult population frame and harmonize the 2024 CES for matching to it |
 | [02_personae](02_personae/README.md) | Sampling and persona-generation work |
 | [03_mrp](03_mrp/README.md) | MrP analysis |
 

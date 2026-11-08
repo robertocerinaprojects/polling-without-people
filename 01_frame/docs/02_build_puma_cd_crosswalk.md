@@ -7,13 +7,22 @@ but not the block group or block. We want to assign each individual a
 probability of allocation to each congressional district equal to the
 estimated share of citizen adults in their PUMA who live in that district.
 
-To calculate this, we start with the ACS estimate of citizen adults in
-each block group. The method distributes that estimate among
-its constituent blocks in proportion to their 2020 adult populations.
-This assumes that, within each block group, citizen adults follow the
-same spatial distribution as those adult counts. Differences in
-citizenship rates between blocks and population changes since 2020 can
-make this approximation inaccurate.
+We start with the ACS estimate of citizen adults in each block group.
+When all its blocks fall in one PUMA and one assigned district, we give
+that intersection the entire estimate. When a block group crosses a
+boundary, we normally divide its estimate using the share of the group's
+2020 adult population in each intersection. The adult counts include
+noncitizens. This split assumes that citizen adults follow the same
+distribution within the group. Differences in citizenship rates across
+blocks and population changes since 2020 can affect that approximation.
+
+The Census Block Equivalency File assigns each original 2020 tabulation block
+one district code. Colorado legally splits block `080010096072000` across
+CO-07 and CO-08. Census tabulates the entire block in CO-08, and we use that
+assignment throughout. Code `ZZ` identifies blocks outside a defined district.
+The calculated weights use the published ACS CVAP point estimates. They carry
+no uncertainty intervals for sampling error or for the assumed within-group split.
+[Census whole-block tabulation notes](https://www.census.gov/geographies/mapping-files/2027/dec/rdo/120-congressional-district-bef.html)
 
 Using the geographic mappings, we identify each block's PUMA and
 assigned district. We then add up the estimated citizen-adult
@@ -35,8 +44,14 @@ Missing estimates are not silently treated as zero.
 **Implementation status, 2026-10-30:** Crosswalk construction and its
 implemented checks passed, including population matching, the reviewed
 geographic exceptions, CVAP accounting and within-PUMA weight sums.
-The crosswalk has been saved. Coverage of the retained PUMS records and
-application of these weights will be checked in the next stage.
+On 2026-11-07, [Step 03](03_apply_puma_cd_crosswalk.md) matched all 2,462
+state/PUMA pairs and preserved the weighted total of 240,960,972 citizen adults.
+
+The [illustrated allocation guide](figures/02_district_probability_guide.pdf)
+shows the geographic units, input columns, allocation rules and reviewed
+exceptions. Each worked example identifies its actual or illustrative values.
+To regenerate the PDF, run `python3 01_frame/docs/figures/02_district_probability_guide.py`
+from the repository root in a Python environment with Matplotlib installed.
 
 ## CVAP allocation decisions
 
@@ -229,11 +244,7 @@ Section 11 execution passed on 2026-10-30.
 Both reviewed New York PUMAs receive weight 1 for NY-02. Their complete
 CVAP totals remain unknown; the missing estimates were not replaced by zero.
 
-These checks establish internal consistency for the pinned inputs.
-They do not independently validate the spatial allocation assumptions.
-The weight-sum discrepancy is floating-point rounding.
-The subsequent application stage must check that every retained PUMS
-PUMA has a matching crosswalk entry before allocating records.
+The reported weight-sum discrepancy is floating-point rounding.
 
 ## Data catalogue
 

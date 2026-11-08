@@ -39,9 +39,14 @@ Python 3's standard library. Run after Steps 02, 03 and 04.
 | `data/intermediate/pums_cd_allocation.rds` and `pums_demographics.rds` | Step 03 fractional person–district weights and Step 04 person-level demographics. |
 | `data/output/04_pums_hispanic_race_probabilities.csv` | Reconcile the donor totals by race to the national calculation. |
 
-The earlier national model used a 75.36% national Other/Multi probability.
-The present model uses district- and demographic-specific probabilities.
-The nationally observed share is recorded in the [PUMS guide](04_harmonize_pums.md).
+The draw estimates how race is distributed among comparable Hispanic
+citizen adults. Nationally, 75.36% of these PUMS donors fall into Other/Multi,
+which groups other-race and multiracial responses. Each recipient's draw
+uses their own demographic and geographic donor pool. The assigned value
+is a modeled race category. The original CES race answer and the separate
+ethnicity response remain available. Household income is omitted from the
+donor profile because it is unavailable for PUMS group-quarters residents.
+See the [PUMS categories and donor counts](04_harmonize_pums.md).
 
 ## Respondents and variables
 
@@ -92,7 +97,7 @@ in the detailed file and its audits.
 
 | Columns | Use |
 |---|---|
-| `caseid`, `commonweight` | Unique respondent identifier and CES adult survey weight. |
+| `caseid`, `commonweight` | Unique respondent identifier and original CES adult survey weight. The citizenship and gender restrictions retain each person's published weight. |
 | `STATEFP`, `CDFP120` | State and district for matching to the population frame on the 2026 map. Keep both codes as text. |
 | `age_cat`, `gender_cat`, `race_cat`, `hispanic_cat`, `educ_cat` | The five harmonized demographic fields. Hispanic origin is separate from race. |
 | `house_vote_2024`, `pres_vote_2024` | The cleaned 2024 House and presidential outcomes. Both keep an explicit `No Vote` distinct from a missing answer. |
@@ -102,7 +107,9 @@ retrieve `house_vote_state_2024` and `house_vote_cd119_2024` from the detailed
 file. Together they identify the contest in the survey wave that supplied the
 House outcome, including the DC delegate contest. The detailed file also
 records the source of each office's outcome, so a pre-election preference
-can be distinguished from a post-election report. See the [vote rules](05_vote_rules.md).
+can be distinguished from a post-election report. For analyses that require
+post-wave or validated-voter weights, `caseid` also links back to the pinned
+raw CES. See the [vote rules and weight definitions](05_vote_rules.md).
 
 Step 05 writes this export after saving the detailed file. To make it from
 an existing run and print its first six rows, run from the repository root:

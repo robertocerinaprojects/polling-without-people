@@ -26,6 +26,10 @@ explanations belong in `docs/`; there is no additional README inside `scripts/`.
 ## Naming and execution
 
 - Use lowercase, descriptive names with underscores for project-authored files.
+- Shared implementation for a numbered step belongs in `scripts/helpers/`.
+  The parent script and its companion guide identify its helpers and inputs.
+  Drawing code and the corresponding publication figure can live together in
+  `docs/figures/`.
 - Scripts use two-digit prefixes: `NN_verb_object.R` or `NN_verb_object.py`.
 - Numbering is local to each component and follows the intended execution order.
 - The main companion document has the same basename: `NN_verb_object.md`.

@@ -95,6 +95,17 @@ an explicit update to the tracked source manifest.
 
 The output column `gender` contains labels derived from recorded `SEX`.
 
+The person weights supplied with the five-year extract estimate the average
+population over 2020–2024. Keep `PERWT` as supplied for each retained person.
+[2020–2024 PUMS accuracy guide](https://www2.census.gov/programs-surveys/acs/tech_docs/pums/accuracy/2020_2024AccuracyPUMS.pdf)
+
+The state and PUMA together identify the area used to assign district
+probabilities. All years of this release use 2020 PUMA boundaries. For
+2020–2021 respondents the Census Bureau assigned the published 2020 PUMA
+using the relationship with their earlier PUMA. Our district allocation
+starts with that published area and inherits its geographic uncertainty.
+[IPUMS PUMA definition and comparability](https://usa.ipums.org/usa-action/variables/PUMA)
+
 ## Outputs
 
 | File | Purpose |
@@ -105,8 +116,9 @@ The output column `gender` contains labels derived from recorded `SEX`.
 | `data/output/01_pums_hispanic.csv` | Records and weighted population by Hispanic-origin flag. |
 | `data/output/01_pums_income_by_gq.csv` | Missing household income by group-quarters category. |
 
-Paths are relative to `01_frame/`. The audit CSVs support review; subsequent
-scripts read the RDS. Downloaded and generated data are excluded from Git.
+Paths are relative to `01_frame/`. Script 01 writes all five products to temporary
+files before publishing the audit CSVs and then the person RDS. Rerun the step
+after a publication error. Downloaded and generated data are excluded from Git.
 
 ## Validated results
 

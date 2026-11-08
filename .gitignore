@@ -10,6 +10,7 @@
 /legacy/frame/Data_Processed/README.md
 
 # R session artifacts
+.Renviron
 .Rhistory
 .RData
 .Ruserdata
@@ -17,6 +18,9 @@
 
 # macOS system files
 .DS_Store
+
+# Python helper bytecode
+__pycache__/
 
 # Various editor / OS
 *.swp

@@ -23,8 +23,8 @@ after Steps 03, 04 and 05. All four inputs are existing products.
 |---|---|
 | `intermediate/pums_cd_allocation.rds` | Step 03 supplies each person's state, district and `allocated_person_weight`. This weight already includes the district allocation. |
 | `intermediate/pums_demographics.rds` | Step 04 supplies each person's harmonized demographics. The join uses all of `SAMPLE`, `SERIAL` and `PERNUM`. |
-| `output/03_pums_allocation_by_state.csv` | Independent Step 03 totals for checking person counts, district rows and population weights. |
-| `intermediate/ces_demographics_harmonized.rds` | Step 05 respondent records supply the shared category definitions and the survey keys for the coverage check. |
+| `output/03_pums_allocation_by_state.csv` | Reference totals recorded by Step 03 for checking person counts, district rows and population weights. |
+| `intermediate/ces_demographics_harmonized.rds` | Step 05 detailed respondent records supply the shared categories, case IDs and survey keys for the coverage check. The 11-column `ces_analysis.rds` export contains the same respondents and matching fields. |
 | `intermediate/pums_cd_cells.rds` | Output with one row per positive PUMS cell, the seven shared keys and numeric `N`. |
 | `output/06_ces_pums_cell_coverage.csv` | Output with one row per distinct profile present in the CES, respondent count, matched `N` and coverage status. Read `STATEFP` and `CDFP120` as character to preserve leading zeros. |
 
@@ -69,7 +69,38 @@ total for each cell.
   zero estimated mass in this empirical frame. Real residents could still have
   that profile. `missing_ces_key` means at least one value is missing, so its
   exact-cell `N` stays missing. A coverage flag preserves the respondent.
-- Check the printed counts from the production run before reporting exact CES
-  overlap. A matching category vocabulary alone does not establish cell support.
+
+## Production results
+
+The mother stratification frame contains **497,550 positive cells**. It
+preserves the weighted total of **240,960,972 citizen adults** from
+12,263,785 PUMS records across 435 voting districts and DC. The reference
+period for the population is 2020–2024. The district boundaries are those
+used for the 2026 election. The upstream person–district file retains each
+person's fractional contributions when person-level analysis is needed.
+
+| Result for the CES respondent's seven matching fields | Respondents | Distinct CES profiles |
+|---|---:|---:|
+| All seven fields match a frame cell with positive `N` | 58,162 | 42,289 |
+| All seven fields are present, with no positive `N` in the frame | 464 | 459 |
+| Hispanic origin is missing, so the exact cell is unknown | 1 | 1 |
+| Total | 58,627 | 42,749 |
+
+The first row covers 99.21% of respondents. The other 465 remain in the
+CES with their recorded answers. The frame also has 455,261 positive cells
+with no exact CES respondent. Poststratification uses the full population
+table, including those cells. An inner join of the two files would discard
+both people and population cells.
+
+### Check the saved analysis files
+
+From the repository root, run `Rscript 01_frame/scripts/helpers/06_check_analysis_files.R`.
+The check reads the detailed CES, its 11-column export, the mother frame, the Step 03
+state totals and the Step 06 coverage CSV. It compares every exported CES value and
+respondent ID in order, reconciles each state's population, and verifies the count
+and population of each observed CES profile. It also checks that local Hispanic race
+draws have positive population in the selected district and that broader fallback
+draws have an empty local profile. It prints the totals and coverage summary without
+regenerating any files.
 
 [Step 04 categories](04_harmonize_pums.md) · [Step 05 CES and district method](05_prepare_ces.md)

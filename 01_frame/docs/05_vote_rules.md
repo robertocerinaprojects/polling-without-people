@@ -13,7 +13,8 @@ report from a preference. Neither is an independently verified ballot.
 Democratic, Republican, Other and No Vote. A missing value means that no
 step below supplied an outcome. A person may have an outcome for one office
 and a missing value for the other. All eligible people remain in the CES
-table, with their original survey weights.
+table with their original `commonweight`. Additional weights are available
+by `caseid` in the raw CES release.
 
 ## First usable answer wins, independently for each office
 
@@ -45,10 +46,10 @@ questionnaire and has zero responses in the reviewed CSV. Post presidential
 code 7 appears in neither the questionnaire nor the reviewed CSV.
 
 The previous project had no equivalent respondent-level presidential rule.
-The table above defines the corresponding rule for this office. Hypothetical
-preferences asked of known nonvoters, second choices and validated turnout
-are outside these outcomes. Each office-specific outcome describes the
-2024 election.
+The table above defines the corresponding rule for this office. We skip the
+post-election `CC24_410_nv` and `CC24_412_nv` hypothetical choices for
+nonvoters. Each office uses first choices and the survey responses listed
+above. Validated turnout is used separately in the election benchmark.
 
 ## District and District of Columbia
 
@@ -59,7 +60,8 @@ residence expressed on the 2026 district map. For House votes we also retain
 of the answer used, including turnout-based answers. A respondent can change
 residence between waves. If the outcome is unresolved, these two derived
 fields and `house_contest_2024` remain missing and the original geography
-fields are still available.
+fields are still available. Script 05 checks every resolved ballot state–district
+pair against the reviewed Census list for the 119th Congress.
 
 For DC the House question concerns the delegate and the district code is
 `98`. We retain the responses and mark `house_contest_2024 = "DC delegate"`.
@@ -94,3 +96,78 @@ citizens in the harmonized sample.
 The source questionnaires, data guide and pinned CSV are published together in
 [CES 2024 Common Content, V9](https://doi.org/10.7910/DVN/X11EP6).
 [Original House implementation at the reviewed commit](https://github.com/robertocerinaprojects/polling-without-people/blob/e6373a8/legacy/frame/scripts/Script13_CES_vote2024_waterfall.R).
+
+## Comparison with 2024 election returns
+
+An independent calculation from the pinned CES V9 release reproduced the
+ten unweighted outcome counts above. For a simple national comparison, use
+the eligible respondents' `commonweight`, count each respondent once per
+office and use their cleaned candidate choice. The Democratic two-party
+share is the sum of weights for Democratic choices divided by the sum of
+weights for Democratic and Republican choices. Other, No Vote and unresolved
+responses are outside this denominator.
+
+| Office | Respondents with a major-party choice | Weighted CES Democratic two-party share | Official Democratic two-party share | CES minus official (percentage points) |
+|---|---:|---:|---:|---:|
+| President, 50 states and DC | 50,908 | 48.52% | 49.25% | −0.73 |
+| House, voting-member contests | 47,331 | 48.74% | 48.61% | +0.13 |
+
+For House, use the 2024 contest in the wave that supplied the answer and
+exclude DC delegate choices. The official count combines ballot lines for
+the same candidate and groups major-party affiliates with their party.
+FL-20 and OK-03 returned unopposed members without tabulated candidate votes.
+The national official share uses the published candidate counts.
+[Presidential returns](https://www.fec.gov/resources/cms-content/documents/2024presgeresults.pdf) ·
+[House returns](https://clerk.house.gov/member_info/electionInfo/2024/statistics2024.pdf)
+
+The local errors were larger. Giving each jurisdiction equal weight, the
+root mean squared error in Democratic two-party share was 4.17 percentage
+points across the states and DC for President and 8.07 across the 433 House
+districts with counted candidate votes. These comparisons concern the 2024
+ballots in the original election geography.
+
+Table 3 of the CES guide reports a 2.05-point presidential state-level root
+mean squared error for the authors' validated-voter analysis. The guide
+recommends `commonpostweight` for adult-sample analyses using post-election
+items. A separate check using the full V9 release, direct post-election
+presidential choices, validated voters and `vvweight_post` yielded 2.71
+points. The difference from 2.05 remains unexplained. Table 3 gives no
+House district benchmark. Presidential vote choice also enters CES weighting,
+so national agreement provides limited independent evidence about vote accuracy.
+[CES 2024 guide, pp. 17–21](https://dataverse.harvard.edu/api/access/datafile/12050326)
+
+## Reproduce the vote benchmark
+
+Run these optional commands from the repository root after Step 05. The first
+requires Python with `openpyxl` and Poppler's `pdftotext` executable. It
+fetches the FEC workbook and the Clerk's House report, checks their SHA-256
+fingerprints, and reuses matching files in `01_frame/data/input/05_vote_benchmark/`.
+The two R checks read the detailed harmonized CES. The first also checks its
+vote outcomes, source flags and ballot geography against the pinned raw CES
+one respondent at a time.
+
+```sh
+python3 01_frame/scripts/helpers/05_benchmark_official.py
+Rscript 01_frame/scripts/helpers/05_benchmark_votes.R
+Rscript 01_frame/scripts/helpers/05_benchmark_house_districts.R
+```
+
+Generated tables are under `01_frame/data/output/05_vote_benchmark/`.
+The `reference/` subdirectory holds official counts for presidential states,
+House states and House districts. `national_comparison.csv` and
+`state_comparison.csv` give the weighted shares, denominators and return
+differences. `ces_vote_benchmark_shares.csv` contains the survey-only estimates.
+`state_error_summary.csv` includes the full-sample validated-voter comparison
+and alternative residence definitions. `house_district_accuracy.csv` and
+`house_district_metrics.csv` give the 2024 district results, and
+`house_counted_seat_sensitivity.csv` shows what changes when the two seats
+without a published candidate count are omitted from both inputs.
+
+The national and state tables distinguish the project's combined answers
+with `commonweight`, that same measure with `commonpostweight`, direct
+post-election choices, and the full-release validated-voter calculation.
+For the latter, use a positive `vvweight_post`, turnout codes 1–6 in
+`TS_g2024` and post-election residence. For the combined answers, use
+residence in the wave supplying the outcome. House district comparisons
+use the source-wave 119th Congress contest. The calculations use the
+detailed Step 05 file to preserve those distinctions for every respondent.

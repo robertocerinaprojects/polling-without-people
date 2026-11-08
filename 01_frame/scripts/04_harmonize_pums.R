@@ -1,5 +1,6 @@
 # Harmonize citizen-adult PUMS demographics and estimate national race shares
-# among Hispanic citizens aged 18+. Script 05 uses these shares for CES draws.
+# among Hispanic citizens aged 18+. Script 05 uses the totals to check its
+# conditional CES donor tables by race.
 # Run from the repository root: Rscript 01_frame/scripts/04_harmonize_pums.R
 # Methods and code mappings: 01_frame/docs/04_harmonize_pums.md
 
@@ -79,8 +80,8 @@ coverage <- tibble(
   missing = vapply(pums_demo[categories], function(x) sum(is.na(x)), integer(1))
 )
 
-# Write to temporary files in the destination directories. Publish the table
-# consumed by Step 05 last, after all products have been computed and written.
+# Stage the demographic records and both audits before publishing each file.
+# Script 05 reads the demographic records and the national donor totals.
 save_outputs <- function() {
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(file.path(intermediate_dir, "pums_demographics.rds"),

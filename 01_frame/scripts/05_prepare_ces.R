@@ -156,6 +156,13 @@ stopifnot(
 )
 ces <- derive_ces_votes(ces)
 stopifnot(identical(ces$caseid, before$caseid))
+# The 2024 ballot's state and district must form a valid 119th Congress pair,
+# including when the answer comes from a post-election respondent who moved.
+ballot_places <- ces |>
+  filter(house_vote_2024_source != "unresolved") |>
+  distinct(STATEFP = house_vote_state_2024, CD119 = house_vote_cd119_2024)
+unknown_ballots <- anti_join(ballot_places, lookup, by = c("STATEFP", "CD119"))
+if (nrow(unknown_ballots)) stop("Unknown 2024 House ballot state/district pair.")
 vote_sources <- bind_rows(
   transmute(ces, office = "House", source = house_vote_2024_source, outcome = house_vote_2024),
   transmute(ces, office = "President", source = pres_vote_2024_source, outcome = pres_vote_2024)
@@ -169,8 +176,8 @@ categories <- c("age_cat", "gender_cat", "educ_cat", "race_cat", "hispanic_cat")
 coverage <- tibble(variable = categories, records = nrow(ces),
                    missing = vapply(ces[categories], function(x) sum(is.na(x)), integer(1)))
 
-# Stage each product in its destination directory. Publish the harmonized
-# RDS last, after the validation results are computed and saved.
+# Stage each product in its destination directory. Save the detailed CES
+# after its audits, then build the analysis file from that saved table.
 dir.create(intermediate_dir, recursive = TRUE, showWarnings = FALSE)
 publish <- function(path, writer, object) {
   temporary <- tempfile(".ces-", tmpdir = dirname(path))

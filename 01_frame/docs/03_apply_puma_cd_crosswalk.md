@@ -38,6 +38,12 @@ state/PUMA pair to the crosswalk's two-character `STATEFP` and five-character
 `PUMA5CE`. District `CDFP` is interpreted within state, including `00` for
 at-large districts and `98` for DC.
 
+The Census Bureau assigned a 2020 PUMA to the 2020 and 2021 interviews in
+this five-year release using their earlier PUMAs and the relationship between
+the two definitions. For those two interview years the PUMA itself already
+contains a geographic allocation. Step 03 uses the released code for every
+person. [IPUMS PUMA documentation](https://usa.ipums.org/usa-action/variables/PUMA)
+
 ## Coverage audit
 
 Section 1 counts records and sums `PERWT` by state/PUMA. It checks that
@@ -83,6 +89,13 @@ The input and allocated weights both totaled **240,960,972** at the precision
 reported. The largest absolute difference between any person's input weight
 and the sum of their contributions was `1.136868e-13`, within the rounding
 tolerance. The conservation checks passed for every state and DC.
+
+The two national totals serve different purposes. Step 02 used 240,785,100
+citizen adults from the adjusted block-group estimates with published values
+to build geographic shares. The two PUMAs with suppressed estimates received
+their shares from geographic containment. Step 03 applies the shares to the
+person weights, which represent 240,960,972 citizen adults. Those person
+weights set the national population of the mother frame.
 
 The run printed one person from Alabama PUMA `00100` with `PERWT = 2`.
 The table shows the rounded values printed by R. The allocation uses the

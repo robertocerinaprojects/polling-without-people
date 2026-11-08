@@ -4,7 +4,7 @@ USER root
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       cmake pkg-config libabsl-dev libuv1-dev gdal-bin \ \
+       cmake pkg-config libabsl-dev libuv1-dev gdal-bin git-lfs python3 \
        libcurl4-openssl-dev libssl-dev libxml2-dev \
        libgdal-dev libgeos-dev libproj-dev \
        libsqlite3-dev libudunits2-dev \
