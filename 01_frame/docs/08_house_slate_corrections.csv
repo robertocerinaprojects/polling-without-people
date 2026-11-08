@@ -1,0 +1,18 @@
+year,STATEFP,CDFP,action,candidate,party,reason,source
+2024,08,01,remove,Charles H. “Chuck” Norris,Democrat,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26561
+2024,08,01,remove,John R. Johnson,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26561
+2024,08,02,remove,Mike Watson,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26599
+2024,08,05,remove,Marcus Murphy,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26671
+2024,08,06,remove,Brad Nickle,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26501
+2024,08,07,remove,Patrick Flaherty,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26502
+2024,08,08,remove,James K. Treibert,Unaffiliated,write_in_only,https://historicalelectiondata.coloradosos.gov/contest/26503
+2024,19,01,remove,Nicholas P. Gluba,Libertarian,absent_from_certified_ballot,https://sos.iowa.gov/elections/pdf/candidates/generalcandidatelist.pdf
+2024,19,02,add,Jody Madlom Puffett,No Party,certified_ballot,https://sos.iowa.gov/elections/pdf/candidates/generalcandidatelist.pdf
+2024,19,03,remove,Marco Battaglia,Libertarian,absent_from_certified_ballot,https://sos.iowa.gov/elections/pdf/candidates/generalcandidatelist.pdf
+2024,19,04,remove,Charles Aldrich,Libertarian,absent_from_certified_ballot,https://sos.iowa.gov/elections/pdf/candidates/generalcandidatelist.pdf
+2024,22,01,remove,Margueritte Swanson,Republican,withdrawn,https://www.fec.gov/resources/cms-content/documents/2024congressgecands.pdf
+2024,36,06,add,Joseph J. Chou,Truth,amended_certification,https://elections.ny.gov/system/files/documents/2024/10/amended-certification-with-no-addresses-presidential-litigation-removed-09.30.24-accessible.pdf
+2024,37,06,add,Kevin E. Hayes,Constitution,sample_ballot,https://s3.amazonaws.com/dl.ncsbe.gov/data/SampleBallots/2024-11-05/CABARRUS-20241105-SAMPLE-E-B0005.pdf
+2024,37,10,add,Todd Helm,Constitution,sample_ballot,https://s3.amazonaws.com/dl.ncsbe.gov/data/SampleBallots/2024-11-05/CATAWBA-20241105-SAMPLE-E-B0055-37_VIEWMONT_2_05.pdf
+2024,51,03,remove,Rhoda R. Taylor-Young,Independent,absent_from_certified_ballot,https://townhall.virginia.gov/l/GetFile.cfm?File=meeting%5C151%5C40367%5CAgenda_ELECT_40367_v3.pdf
+2026,12,06,remove,Michael Gist,No Party Affiliation,withdrawn_after_printing_votes_ineligible,https://www.volusiaelections.gov/elections/election-results/november-3-2026-general-election.stml

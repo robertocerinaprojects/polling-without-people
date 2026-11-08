@@ -1,5 +1,12 @@
 # Frame
 
+For the district-level House model, build [the two-map PUMS predictors](docs/08_build_district_predictors.md)
+and [candidate lineups](docs/08_house_slates.md), then follow the
+[holdout validation and full-model predictions](docs/09_model_house_votes.md).
+Step 09 keeps observed 2024 candidate counts on unchanged district footprints.
+It estimates the four House shares directly from the new district's citizen-adult
+demographics, party lineup and state presidential shares wherever a prediction is needed.
+
 This component produces the two inputs for modeling the 2024 survey and
 poststratifying on the 2026 congressional map.
 

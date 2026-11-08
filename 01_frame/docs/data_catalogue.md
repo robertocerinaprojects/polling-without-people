@@ -1,5 +1,7 @@
 # Frame data catalogue
 
+The [district frame inventory](08_build_district_predictors.md#inputs-and-products) lists the original and new map inputs, crosswalks, cells and audits. The [House slate inventory](08_house_slates.md) records candidate sources for both years. The [district model inventory](09_model_house_votes.md#files-and-lineage) lists the held-out districts and scores, the sources of observed and predicted district rows, and the final four-share matrix for the 2026 map.
+
 ## Plain-language summary
 
 This catalogue explains each data file's purpose, source, producer and
