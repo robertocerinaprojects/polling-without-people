@@ -27,9 +27,10 @@ Script 05 also classifies 2024 House and presidential responses from the same
 CES CSV. Script 06 aggregates the district-allocated PUMS weights by all
 seven shared geography and demographic fields, and checks CES cell coverage.
 
-Script 07 prepares presidential state totals and the observed 2024 House
-returns on the election-day district map. A full run uses Step 03's state
-population totals to construct four presidential shares.
+Script 07 combines presidential candidate votes with state turnout. All counted
+ballots outside Harris and Trump go in Other, including ballots without a valid
+presidential choice. Did not vote is the Step 03 citizen-adult population less
+counted turnout. The House table follows the districts that held the 2024 election.
 
 ## Scope and reading conventions
 
@@ -63,7 +64,7 @@ produces four CSVs, Script 02 produces 21, Scripts 03 and 04 produce two each,
 Script 05 produces eight and Script 06 produces one. These counts cover
 the numbered production runs. The [optional election benchmark](05_vote_rules.md#reproduce-the-vote-benchmark)
 shares both its raw files with Step 07. Step 07 writes three intermediate CSVs
-and two audit CSVs, documented below. Source manifests and two generated Markdown
+and three audit CSVs, documented below. Source manifests and two generated Markdown
 notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
@@ -574,7 +575,7 @@ interpretation of estimated individual districts.
 | `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes it; Section 7 reads it back and appends results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
 | `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes it, then reads it back and appends reviewed-exception results | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
 | `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
-| `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02 and 05 | Source URLs, local paths, sizes and fingerprints for all 51 population archives. |
+| `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02, 05 and 07 | State keys, source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
 | [CES eligibility, district and race decisions](05_citizenship_district_decisions.md) | Maintained decision record for Script 05 | Rules for citizenship and gender eligibility, translating residence to 2026 districts, conditional race draws and donor fallback. |
 | [CES vote rules](05_vote_rules.md) | Maintained decision record for Script 05 | Source questions, party coding by wave, priority of answers, DC delegate treatment and comparison with 2024 election returns. |
@@ -601,11 +602,21 @@ table. Keep `STATEFP` and `CDFP119` as character identifiers when importing CSVs
 |---|---|---|
 | `data/input/05_vote_benchmark/fec2024.xlsx` | Federal Election Commission, official 2024 presidential general election workbook. Acquired and verified by Step 07 or the optional Step 05 benchmark. | 2024 state totals for valid presidential votes and the presidential source audit. |
 | `data/input/05_vote_benchmark/clerk2024.pdf` | Office of the Clerk, 2024 general election report. Acquired and verified by Step 07 or the optional Step 05 benchmark. | 119th Congress House contest totals and source lines. |
-| `data/intermediate/07_president_votes_2024.csv` | Step 07, FEC workbook. | State counts for each major nominee and all other valid presidential votes, plus the published contest total. Feeds the presidential covariates. |
-| `data/intermediate/07_state_presidential_covariates_2024.csv` | Step 07, its state presidential counts and `data/output/03_pums_allocation_by_state.csv`. | One state/DC row with CVAP, the three vote groups, estimated Did not vote and four shares. |
+| `data/input/07_turnout/eavs2024_v2.zip` | Step 07 downloads and checks the EAC's 2024 Election Administration and Voting Survey, version 2.0. | Item F1a counts voters whose general-election ballot was counted. The jurisdiction counts provide each state's reported turnout subtotal and coverage audit. |
+| `data/input/07_turnout/Turnout_2024G_v0.4.csv` | Step 07 downloads and checks the University of Florida Election Lab's 2024 general election turnout, version 0.4. | A comparison for all 51 states/DC and the selected source for designated exceptions. |
+| `docs/07_turnout_sources.csv` | Tracked decisions for state turnout exceptions. Each entry records the reviewed source and selection. | Step 07 uses these records when choosing the turnout numerator. Mississippi and Texas are flagged as estimated. Missouri is unresolved. |
+| `data/intermediate/07_president_votes_2024.csv` | Step 07 combines the FEC candidate totals with counted turnout from the inputs above. | 51 state/DC rows. For the 50 with a turnout count, `votes_dem`, `votes_rep` and `voters_other` sum to `counted_turnout`. Also retains `valid_presidential_other`, `valid_presidential_votes`, `turnout_without_valid_presidential_vote`, `turnout_source` and `turnout_is_estimate`. |
+| `data/intermediate/07_state_presidential_covariates_2024.csv` | Step 07 state presidential counts plus `data/output/03_pums_allocation_by_state.csv`. | Adds `cvap`, `did_not_vote_est = cvap - counted_turnout` and the four CVAP-denominated shares to each state/DC row. |
 | `data/intermediate/07_house_votes_cd119.csv` | Step 07, Clerk PDF. | One observed 2024 contest per state/district, with coverage and tabulation flags. Upstream of the planned boundary adjustment. |
-| `data/output/07_president_source_votes_2024.csv` | Step 07, FEC workbook. | The source column, assigned group and published value for each state and vote column; preserves blank source cells. |
+| `data/output/07_president_source_votes_2024.csv` | Step 07, FEC workbook. | One row per state and source selection, including blank entries. Green, Libertarian, other candidates, scattered write-ins and Nevada's “None” option can be identified here within the valid presidential component of Other. |
+| `data/output/07_turnout_audit.csv` | Step 07, EAVS, UF, reviewed state sources and FEC workbook. | One state/DC row with turnout source, estimate status, reported jurisdiction coverage, source comparisons, valid contest total and both components of Other. |
 | `data/output/07_house_source_lines_cd119.csv` | Step 07, Clerk PDF. | Source label, candidate, ballot affiliation, harmonized group, row type and vote count. Supports auditing fusion and ballot accounting. |
+
+Missouri's record has `turnout_source=unresolved`. Its major-party counts and
+CVAP shares and its valid presidential vote fields remain available. Empty
+turnout, turnout gap, Other, estimated Did not vote and corresponding shares
+mean the turnout evidence is insufficient. A sum that skips these missing
+values cannot be used as an all-state participation total.
 
 ## Validation, reruns and preservation
 

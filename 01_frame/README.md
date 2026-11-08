@@ -28,7 +28,7 @@ Run individual steps from the repository root, following their companion documen
 | 04 | `scripts/04_harmonize_pums.R` | validated | [PUMS demographics and race probabilities](docs/04_harmonize_pums.md) |
 | 05 | `scripts/05_prepare_ces.R` | national demographics and vote run passed | [2024 CES preparation](docs/05_prepare_ces.md) |
 | 06 | `scripts/06_build_pums_cells.R` | national cell totals and CES coverage checked | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
-| 07 | `scripts/07_prepare_area_returns.py` | observed returns verified; state shares tested with a 51-state fixture | [2024 area-level returns](docs/07_prepare_area_returns.md) |
+| 07 | `scripts/07_prepare_area_returns.py` | 2024 candidate returns and state turnout, with reviewed source exceptions | [2024 area-level returns](docs/07_prepare_area_returns.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
@@ -67,12 +67,15 @@ Step 06 sums Step 03's district weights within the demographic categories
 from Step 04. The CES enters this step only to check which survey profiles
 have population support. It supplies none of the population counts.
 
-Step 07 prepares the 2024 state presidential and district House returns. Its
-state covariates group valid presidential votes as Democratic, Republican and
-Other. They estimate Did not vote by subtracting these votes from the state
-citizen-adult population in Step 03.
-The House table keeps the observed 119th Congress districts for the subsequent
-boundary adjustment.
+Step 07 combines state presidential votes with general-election turnout.
+A counted ballot goes in Democratic for Harris, Republican for Trump and
+Other for any remaining ballot, including one with no valid presidential
+vote. Did not vote is the Step 03 citizen-adult population less counted
+turnout. The [state covariate guide](docs/07_prepare_area_returns.md)
+explains the source exceptions and how these categories differ from the CES
+answers. Mississippi and Texas use turnout estimates. Missouri retains its candidate counts
+and major-party shares, with the turnout-dependent fields left missing. House returns retain the
+observed 119th Congress districts for the subsequent boundary adjustment.
 
 ## Review of the November 8 checkpoint
 

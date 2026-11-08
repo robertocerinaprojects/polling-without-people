@@ -2,70 +2,152 @@
 
 ## Plain-language summary
 
-For each state and DC, we count the votes reported for Kamala Harris as
-Democrat and the votes reported for Donald Trump as Republican. Other
-contains every remaining **counted presidential selection**, including
-Green, Libertarian, other candidates, reported write-ins, and Nevada's
-official “None of These Candidates” option. A blank or invalid presidential
-vote contributes nothing to these three counts.
+For the presidential covariates, everyone whose general-election ballot was
+counted belongs to one of three groups. Someone with a counted Harris vote goes
+in Democratic. Someone with a counted Trump vote goes in Republican. Everyone
+else with a counted ballot goes in **Other**. This includes someone who voted
+for Jill Stein, someone whose presidential selection was invalid, and someone
+who voted only for House. To estimate **Did not vote**, we subtract the number
+of people whose ballots counted from the state's estimated citizen-adult
+population. One voter contributes only once. The sources support this calculation
+in 50 of the 51 states/DC, including estimates in Mississippi and Texas. Missouri retains
+its observed presidential results and has missing turnout-dependent values.
 
-For Did not vote, we subtract the total counted presidential selections
-from the state's estimated citizen voting-age population (CVAP). The
-residual includes people who voted for another office and left President
-blank, as well as people who cast no ballot. It also reflects differences
-between the 2024 electorate and the 2020–2024 average resident population.
-It is a frame-based estimate of no counted presidential selection.
-The returns cannot identify individual nonvoters.
-
-For the House, we keep each contest in the district that held the election in
-2024. We keep the candidate and ballot lines alongside the district party
-totals. A district that later split has one observed result on the old map.
-Estimating where those votes fall on the new map is a separate analysis.
+For House, we keep the observed candidate returns in the district that held
+each 2024 contest. If that district later split, allocating its votes across
+the 2026 districts requires a separate calculation.
 
 ## Run
 
-From the repository root, run the following command after Step 03.
+From the repository root after Step 03:
 
 ```sh
 python3 01_frame/scripts/07_prepare_area_returns.py
 ```
 
-To download and harmonize just the returns on a fresh checkout, append
-`--returns-only`. That run writes the two returns tables and two source audits.
-The default also writes the population-based state covariates.
-The script uses Python 3 with `openpyxl` and
-Poppler's `pdftotext` for the House report. For an existing Ubuntu Codespace,
-`sudo apt-get update && sudo apt-get install -y poppler-utils python3-openpyxl`
+Use `--returns-only` on a fresh checkout to build the presidential counts
+(including turnout), House counts and three source audits. The default run
+also writes the four state shares using the Step 03 population totals.
+The script requires Python 3 with `openpyxl` and Poppler's `pdftotext`.
+On an existing Ubuntu Codespace, `sudo apt-get update && sudo apt-get install -y poppler-utils python3-openpyxl`
 installs these for the system Python (`/usr/bin/python3`).
 
-### Sources and local files
+## Sources and local files
 
-Paths below are relative to `01_frame/`. The script downloads missing source
-files and verifies the SHA-256 of each download or cached copy before parsing.
+Paths below are relative to `01_frame/`. The script downloads missing
+source files and verifies the fingerprint of each downloaded or cached file.
 
 | Cached file | Source and version | SHA-256 |
 |---|---|---|
 | `data/input/05_vote_benchmark/fec2024.xlsx` | Federal Election Commission (FEC), *Official 2024 Presidential General Election Results*. The FEC compiled state election office returns and dated the release January 16, 2025. We reuse the same workbook as the Step 05 election benchmark. [FEC results index](https://www.fec.gov/introduction-campaign-finance/election-results-and-voting-information/) · [Workbook](https://www.fec.gov/documents/5645/2024presgeresults.xlsx) · [Report and notes](https://www.fec.gov/resources/cms-content/documents/2024presgeresults.pdf) | `68acdee2924d771b92a05cd950dec850b462c633c05563207ac7e206116e7366` |
 | `data/input/05_vote_benchmark/clerk2024.pdf` | Office of the Clerk, U.S. House of Representatives, *Statistics of the Presidential and Congressional Election of November 5, 2024*. The original delegate and representative results come from this report. The optional Step 05 benchmark shares the same cached copy. [Clerk's index](https://clerk.house.gov/Members/ViewElectionInformation) · [Report](https://clerk.house.gov/member_info/electionInfo/2024/statistics2024.pdf) | `d4ba800fc17135b616ae556c92861080ab962d95916ace34b546c5aac824aec4` |
+| `data/input/07_turnout/eavs2024_v2.zip` | U.S. Election Assistance Commission (EAC), 2024 Election Administration and Voting Survey (EAVS), version 2.0, February 12, 2026. Item F1a counts voters who cast a ballot that counted in the general election. [Data release and codebook](https://www.eac.gov/research-and-data/studies-and-reports) · [Question F1](https://www.eac.gov/sites/default/files/2024-04/2024_EAVS_FINAL_508c.pdf) | `4073b9f48e1791d44a78ddc543379f6c040c31ce733dfa47676330b4d7f6d6df` |
+| `data/input/07_turnout/Turnout_2024G_v0.4.csv` | Michael P. McDonald, University of Florida Election Lab, *2024 General Election Turnout Rates*, version 0.4. The `TOTAL_BALLOTS_COUNTED` field provides a comparison for every state and the selected count for designated exceptions. [Source and documentation](https://election.lab.ufl.edu/dataset/2024-general-election-turnout-rates-v0-4/) | `9796cf57eda46924c7e5a4b26c2503dcafc8662d5d14a066dfe25a0fce7e85d9` |
 
-The [state manifest](02_pl_2020_sources.csv) supplies the postal abbreviations
-and two-digit state FIPS codes. The default run also reads `STATEFP`,
-`input_weight`, and `allocated_weight` from
-`data/output/03_pums_allocation_by_state.csv`. The first weight sums each
-citizen adult's survey weight once. Step 07 verifies that the second reconciles
-to it in every state. The [saved-file check](06_build_pums_cells.md#check-the-saved-analysis-files)
-independently reconciles these totals to the mother frame.
+EAVS is a survey of election administrators. We add the reported F1a voters
+across jurisdictions in each state. The audit gives the number of jurisdictions with an unavailable response and the subtotal from those that reported.
+The [turnout exception manifest](07_turnout_sources.csv) records the reviewed
+exceptions and confirmations. It gives the count, source, URL and the location
+of the count within the source. Step 07 uses a state election-office total when
+specified there. Arkansas uses a corroborated UF total. For
+Mississippi we use the UF turnout estimate and flag it with
+`turnout_is_estimate=True`. An error of 100 in the selected turnout raises
+or lowers Other by 100 and moves Did not vote by 100 in the opposite direction.
+Texas uses the Legislative Council's published turnout of 11,460,798.
+Its precinct methodology permits using the vote count in the highest-turnout
+contest where turnout is unavailable. We flag the state count as an estimate.
+[2024 state total, page 1](https://data.capitol.texas.gov/dataset/f8542d9e-1bf2-423e-9c79-244cc659012a/resource/9139aaa6-8e5f-4fa5-a691-6ab4e97c7cfa/download/plans2101_r206_election24g.pdf) ·
+[Council election data methods](https://redistricting.capitol.texas.gov/docs/pubs/data_for_2021_redistricting.pdf)
+
+The turnout audit retains both the EAVS and UF figures for comparison. We
+reviewed every state where these totals differ by at least 10,000. This
+threshold prioritizes source review. Smaller discrepancies can also affect the
+estimates.
+Where EAVS responses are unavailable, the script requires an explicit source
+decision. The records for Hawaii and Maine explain how turnout from areas
+without a separate count is covered.
+
+The [state manifest](02_pl_2020_sources.csv) supplies state postal abbreviations
+and two-digit state FIPS codes. CVAP comes from the sum of the person weights
+for citizens aged 18+ in the 2020–2024 ACS PUMS, saved as `input_weight` in
+`data/output/03_pums_allocation_by_state.csv`. Step 07 checks that
+`allocated_weight` agrees in each state. The [saved-file check](06_build_pums_cells.md#check-the-saved-analysis-files)
+also reconciles this total to the mother frame.
+
+### Why Missouri has missing turnout
+
+Missouri publishes 2,995,376 under its turnout label. Its reporting method
+uses contest votes as a proxy. A ballot can count even if its voter leaves that contest blank.
+Two county checks also rule out adopting the available nationwide series as-is:
+
+- The EAVS subtotal for Missouri is 3,126,837. In St. Francois County alone,
+  EAVS reports 36,844 while the county's official turnout table reports 28,858.
+  Correcting one county would still leave the others unchecked.
+  [County official turnout, p. 3](https://www.sfcgov.org/download/clerk/elections/results/election_results/November-5-2024-Official-Election-Results.pdf)
+- UF gives 3,000,000 for Missouri. St. Louis County counted 510,186 ballots
+  and recorded 502,738 valid presidential votes, a gap of 7,448. Adding this
+  one county's gap to 2,995,327 valid statewide presidential votes yields a
+  statewide lower bound of 3,002,775 counted ballots, already above UF's figure.
+  [County turnout report](https://extcontent.stlouisco.com/BOE/biennial/2024Biennial.pdf) ·
+  [Official county presidential results](https://www.sos.mo.gov/CMSImages/ElectionResultsStatistics/ActualResults-November52024.pdf) ·
+  [Official statewide results](https://www.sos.mo.gov/CMSImages/ElectionResultsStatistics/2024GeneralElection.pdf) ·
+  [State turnout definition](https://www.sos.mo.gov/elections/results)
+
+For Missouri, `turnout_source=unresolved`. An empty turnout-dependent field
+means the quantity is unknown. A numeric zero would require evidence that the
+count was zero. Democratic and Republican votes, other valid presidential
+votes, the valid presidential total, CVAP and the Democratic and Republican
+CVAP shares remain available. The empty measures are `counted_turnout`,
+`turnout_without_valid_presidential_vote`, `voters_other`, `did_not_vote_est`
+and the two dependent shares (`share_other` and `share_did_not_vote`). A
+national sum that skips Missouri would cover only 50 jurisdictions.
 
 ## Presidential grouping and shares
 
-| Output category | Count for a state |
-|---|---|
-| Democrat | Popular votes in the FEC's `HARRIS` column. |
-| Republican | Popular votes in the FEC's `TRUMP` column. |
-| Other | Every other counted presidential selection in `TOTAL VOTES`. This includes Jill Stein (Green), Chase Oliver (Libertarian), the remaining named candidates, reported scattered write-ins and Nevada's “None of These Candidates.” |
-| Did not vote | `did_not_vote_est = cvap - total_votes`. A citizen adult whose ballot contains no counted presidential selection contributes to this residual in principle. |
+| State category | Numerator | Who it counts |
+|---|---|---|
+| Democratic | `votes_dem` | Every presidential vote credited to Harris, across ballot lines. |
+| Republican | `votes_rep` | Every presidential vote credited to Trump, across ballot lines. |
+| Other | `voters_other = counted_turnout - votes_dem - votes_rep` | Every counted general-election ballot outside those two nominee totals. |
+| Did not vote | `did_not_vote_est = cvap - counted_turnout` | Estimated citizen-adult population outside counted turnout. |
 
-All four shares divide by state CVAP and sum to one. In states allowing
+Where turnout is available, the four numerators divide by the same state `cvap` to give `share_dem`,
+`share_rep`, `share_other` and `share_did_not_vote`. The last group is a
+residual. The frame estimates the average resident citizen-adult population over
+five years. Turnout measures the election-day ballot count and may include
+overseas voters or voters eligible only for local contests. An attempted vote
+whose ballot was rejected is also outside counted turnout. These aggregate
+data cannot identify who stayed home.
+
+Two additional fields show exactly what went into Other:
+
+- `valid_presidential_other` counts every valid FEC presidential selection
+  outside Harris and Trump. Across the 50 states and DC it totals 2,918,109,
+  comprising 862,049 votes for Stein (Green), 650,126 for Oliver (Libertarian)
+  and 1,405,934 remaining selections. The last subtotal includes other named
+  candidates, scattered write-ins and Nevada's “None of These Candidates.”
+  These groups are components of Other, so adding them again would double-count.
+- `turnout_without_valid_presidential_vote = counted_turnout - valid_presidential_votes`
+  measures the rest of Other. It can include blank or invalid selections,
+  ballots that did not include a presidential contest, and differences between
+  the turnout and returns sources. A statewide difference does not identify
+  those reasons for individual voters.
+
+**DC example.** Of 328,871 counted ballots citywide, 294,185 recorded a vote for
+Harris and 21,076 for Trump. That leaves **13,610 Other**. Of these, 10,608 are
+valid presidential selections outside Harris and Trump and 3,002 are the
+difference between counted turnout and the 325,869 valid presidential votes.
+The presidential contest reports 2,075 undervotes and 460 overvotes. That
+leaves 467 in the difference between the citywide and contest counts. DC
+permitted eligible noncitizens to vote in local contests. The aggregate figures
+do not establish which voters account for all 467.
+[DC certified results](https://electionresults.dcboe.org/election_results/2024-General-Election) ·
+[DC Board of Elections after-action report](https://www.dcboe.org/getmedia/ded21983-eaca-4ab2-8539-8fefc6a86aa3/After-Action-Report-General-Election-2024_FINAL.pdf) ·
+[DC local voter eligibility](https://www.dcboe.org/voters/register-to-vote/non-citizen)
+
+### Reading the FEC candidate table
+
+In states allowing
 several parties to endorse the same ticket, the FEC combines those ballot
 lines under the candidate's name. For example, the New York certificate
 lists 4,341,375 Democratic-line votes and 277,820 Working Families votes
@@ -83,41 +165,31 @@ vote count. Electoral College votes are never
 included in the popular-vote totals.
 [FEC source and write-in reporting notes](https://www.fec.gov/resources/cms-content/documents/2024presgeresults.pdf)
 
-Across the 50 states and DC, the workbook reports 75,017,613 Democratic
-votes, 77,302,580 Republican votes and **2,918,109 Other** selections,
-for **155,238,302** in total. Other includes 862,049 for Stein, 650,126
-for Oliver, and 1,405,934 for the remaining selections. The latter
-includes 210,381 scattered write-ins and 19,625 “None of These Candidates”
-selections. These subtotals are already included in Other.
+### Ballot terms and double counting
 
-The legacy state script grouped every row outside the two major parties in
-the MIT Election Data and Science Lab file as Other. In its reviewed 2024
-release, that would include 199,150 marked under-, over-, void and spoiled
-ballots in nine jurisdictions. The current rule uses the FEC's counted
-presidential selections. These two source definitions can therefore give
-different values for Other and for the residual.
-[Historical dataset](https://doi.org/10.7910/DVN/42MVDX)
-
-### Ballot terms
-
-| Term | Meaning for these covariates |
+| Election record | How it enters the state presidential covariates |
 |---|---|
-| Undervote or blank | The ballot has fewer selections than the contest allows. Someone may leave the presidential contest empty and still vote for House. |
-| Overvote | The voter marks more selections than the contest allows. If the presidential vote is invalid, it contributes nothing to any presidential candidate. |
-| Spoiled | A voter may spoil a ballot before casting it and obtain a replacement. Only the valid choice on the counted ballot can enter the presidential results. |
-| Void | A ballot or selection has been invalidated under the reporting jurisdiction's rules. |
-| “None of These Candidates” | Nevada offers this printed choice. A voter can deliberately select it and the FEC includes it in the counted contest total. |
+| Undervote | The voter marked fewer options than allowed. A counted ballot left blank for president goes in Other. |
+| Overvote | The voter marked too many options. If the ballot counts and its presidential selection is invalid, it goes in Other. |
+| Spoiled ballot | A voter can surrender a spoiled ballot and receive a replacement. The counted replacement determines the outcome. Counting the surrendered paper would count the voter twice. |
+| Void ballot or selection | A void presidential selection on a counted ballot goes in Other. A wholly rejected ballot supplies no counted turnout. |
+| “None of These Candidates” | Nevada's printed choice is a valid counted presidential selection in Other. |
 
-Election officials use these terms in specific local reporting contexts.
-[U.S. Election Assistance Commission glossary](https://www.eac.gov/sites/default/files/glossary_files/Glossary_of_Election_Terms_EAC.pdf)
+The script obtains the total number of counted voters directly. Adding
+separately reported spoiled papers, undervotes or overvotes to that number
+would duplicate voters or introduce papers that never counted. For example,
+Oregon reports ballots returned by mail as well as ballots that counted.
+Returned ballots can include rejections, so the state covariate uses counted
+turnout. [Oregon 2024 ballot-return statistics](https://sos.oregon.gov/elections/Documents/statistics/November-general-2024-statistical-summary-participation.pdf) ·
+[Oregon ballot rejection and cure](https://sos.oregon.gov/elections/Pages/track-your-ballot.aspx)
+[EAC glossary](https://www.eac.gov/sites/default/files/glossary_files/Glossary_of_Election_Terms_EAC.pdf)
 
-The FEC does not provide a comparable count of blank or invalid
-presidential ballots in each state. Step 07 excludes them from the party
-counts without assigning reasons to individual people. A direct estimate
-of who turned out for *any* office would require a ballot-participation
-source. The [CES benchmark](05_vote_rules.md#comparison-with-2024-election-returns)
-uses the same FEC workbook to check weighted survey estimates.
-[U.S. Election Assistance Commission glossary](https://www.eac.gov/sites/default/files/glossary_files/Glossary_of_Election_Terms_EAC.pdf)
+In the **CES**, the presidential outcome comes from an individual's
+office-specific response, with documented pre-election fallbacks. An eligible
+respondent who reports no presidential vote can appear as No Vote there while
+a counted ballot with no presidential choice contributes to Other here. An
+unresolved survey answer stays missing. The two-party benchmark uses only
+Democratic and Republican choices. [CES vote rules](05_vote_rules.md)
 
 ## House results and their geography
 
@@ -151,24 +223,20 @@ seats.
 
 ## Outputs and verification
 
-| File | Rows and contents |
+| File | Contents and use |
 |---|---|
-| `data/intermediate/07_president_votes_2024.csv` | 51 state/DC rows. `STATEFP`, `STUSAB`, `votes_dem`, `votes_rep`, `votes_other`, `total_votes`. |
-| `data/intermediate/07_state_presidential_covariates_2024.csv` | 51 state/DC rows in a full run. State identifiers, CVAP, the three vote counts, total votes, estimated Did not vote and four CVAP-denominated shares. |
-| `data/intermediate/07_house_votes_cd119.csv` | 436 original district rows. State, district, office, availability, tabulation, three party counts and candidate total. Input for the future boundary adjustment. |
-| `data/output/07_president_source_votes_2024.csv` | 1,326 state-by-source cells (51 × 26). The 423 published numeric entries and 903 blank cells retain their original candidate or selection labels and their harmonised group. |
-| `data/output/07_house_source_lines_cd119.csv` | 1,355 House and delegate lines, with original label, candidate, ballot label, row type, harmonized group and count. Includes accounting and fusion lines. |
+| `data/intermediate/07_president_votes_2024.csv` | 51 state/DC rows. `STATEFP, STUSAB, votes_dem, votes_rep, voters_other, counted_turnout, valid_presidential_other, valid_presidential_votes, turnout_without_valid_presidential_vote, turnout_source, turnout_is_estimate`. Supplies the state covariates and the two components of Other. |
+| `data/intermediate/07_state_presidential_covariates_2024.csv` | The same 51 rows with `cvap, did_not_vote_est, share_dem, share_rep, share_other, share_did_not_vote` added. Requires the Step 03 population audit. |
+| `data/intermediate/07_house_votes_cd119.csv` | 436 original district rows. District, office, availability, tabulation, candidate groups and total. Input for the later boundary adjustment. |
+| `data/output/07_president_source_votes_2024.csv` | 1,326 FEC source cells (51 jurisdictions × 26 columns). The 423 numeric entries and 903 blank cells preserve candidate or selection name, grouping and count. Its `party=other` rows supply the valid presidential component only. |
+| `data/output/07_turnout_audit.csv` | One row per state/DC with selected turnout, source and estimate flag, EAVS coverage and reported subtotal, UF comparison (`uf_ballots`), valid presidential votes and the decomposition of Other. `eavs_minus_selected` and `uf_minus_selected` give signed differences from the selected count. `turnout_source_url` and `turnout_source_detail` identify the evidence. |
+| `data/output/07_house_source_lines_cd119.csv` | 1,355 House and delegate lines, retaining original labels, candidate and ballot lines, harmonized group, row type and count. |
 
-For each state, the script reconciles the three observed presidential groups
-to the FEC's printed state total and checks the source columns against the
-national row. As independent state-level checks, Texas reports 6,393,597
-Republican, 4,835,250 Democratic and 159,827 Other selections. California
-reports 6,081,697 Republican, 9,276,179 Democratic and 507,599 Other.
-[Texas certificate of ascertainment](https://www.archives.gov/files/electoral-college/2024/ascertainment-texas.pdf) ·
-[California statement of vote](https://elections.cdn.sos.ca.gov/sov/2024-general/sov/complete-sov.pdf)
-
-The voting-seat results reconcile to the Clerk's state recapitulation before
-candidate counts are separated from ballot-accounting lines. The 435-seat
-aggregates reproduce the project's original House benchmark. Given the verified
-national frame population of 240,960,972 and the FEC total of 155,238,302,
-the expected national Did not vote residual is **85,722,670**.
+The script reconciles 75,017,613 Democratic votes, 77,302,580 Republican votes
+and 2,918,109 other valid selections to the FEC national total of 155,238,302
+and checks each state against the printed totals. Each available turnout count
+must cover all valid presidential votes. The two components of Other must sum
+to `voters_other`, and the three counted groups must sum to turnout. In a full
+run the four shares must sum to one wherever all are defined, and each
+estimated nonvoting residual must be nonnegative. The voting-seat counts reconcile to the Clerk's state
+recapitulation and the project's original House benchmark.

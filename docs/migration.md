@@ -24,7 +24,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script14_stateabv_statecd.R` | `legacy/frame/scripts/Script14_stateabv_statecd.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | `legacy/frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
-| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and restricts Other to valid presidential votes |
+| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and counts all general-election voters outside the two major nominees as Other |
 | `frame/scripts/Script18ABC_CD_Level_Training_Table.R` | `legacy/frame/scripts/Script18ABC_CD_Level_Training_Table.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script19ABC_CART_Imputation.R` | `legacy/frame/scripts/Script19ABC_CART_Imputation.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | `legacy/frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | Awaiting review | Replacement or retirement not yet decided |
@@ -44,7 +44,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script14.md` | `legacy/frame/docs/ReadMe_Script14.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script15_cd_lvl_demo.md` | `legacy/frame/docs/ReadMe_Script15_cd_lvl_demo.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
-| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and restricts Other to valid presidential votes |
+| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and counts all general-election voters outside the two major nominees as Other |
 | `frame/scripts/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | `legacy/frame/docs/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script19ABC_CART_Impute.md` | `legacy/frame/docs/ReadMe_Script19ABC_CART_Impute.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | `legacy/frame/docs/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
@@ -180,8 +180,13 @@ includes 199,150 undervotes, overvotes, void or spoiled ballots reported in nine
 jurisdictions. The historic script itself excluded DC and did not pin its source
 version. [MEDSL dataset](https://doi.org/10.7910/DVN/42MVDX)
 
-The revised definition uses all valid presidential votes outside the Democratic
-and Republican nominees. Green, Libertarian, other candidates, counted write-ins
-and Nevada’s recorded “None of These Candidates” selection enter Other. The
-[Step 07 guide](../01_frame/docs/07_prepare_area_returns.md) records the
-official source and how the four shares are calculated.
+The active state measure uses an independent ballot-turnout total. Other equals
+counted general-election turnout less Harris and Trump votes. It includes
+other valid presidential choices and counted participants with no valid
+presidential choice. Did not vote equals the frame CVAP less counted turnout.
+The source audit preserves the candidate breakdown, turnout source and estimate
+status. Published candidate returns remain available for all states and DC.
+Mississippi and Texas use turnout estimates, and Missouri has missing turnout-dependent
+fields pending a verified turnout total. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
+records the four state shares and the treatment of blank, invalid, rejected
+and replacement ballots.

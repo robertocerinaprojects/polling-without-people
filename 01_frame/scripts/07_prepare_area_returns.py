@@ -9,12 +9,14 @@ import csv
 import math
 import shutil
 import subprocess
+import sys
 from importlib import import_module
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 official = import_module("helpers.05_benchmark_official")
 president = import_module("helpers.07_president_returns")
+turnout = import_module("helpers.07_turnout")
 house = import_module("helpers.07_house_returns")
 
 
@@ -64,29 +66,42 @@ def write_covariates(presidential, state_audit, destination):
         states[state] = cvap
 
     votes = read_rows(presidential)
-    if set(states) != {row["STATEFP"] for row in votes}:
-        raise ValueError("Step 03 and the FEC presidential returns cover different states")
+    if len(votes) != len(states) or set(states) != {row["STATEFP"] for row in votes}:
+        raise ValueError("Step 03 and the state returns must have exactly one row for every state and DC")
 
-    columns = [f"votes_{party}" for party in president.PARTIES]
-    shares = [f"share_{party}" for party in president.PARTIES]
-    fields = ["STATEFP", "STUSAB", "cvap", *columns, "total_votes", "did_not_vote_est",
-              *shares, "share_did_not_vote"]
+    fields = [*president.STATE_FIELDS, "cvap", "did_not_vote_est",
+              "share_dem", "share_rep", "share_other", "share_did_not_vote"]
     with destination.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in votes:
             cvap = states[row["STATEFP"]]
-            residual = cvap - int(row["total_votes"])
-            if residual < 0:
+            dem, rep = int(row["votes_dem"]), int(row["votes_rep"])
+            if int(row["valid_presidential_votes"]) > cvap:
                 raise ValueError(f"{row['STUSAB']}: valid presidential votes exceed Step 03 CVAP")
-            row.update(cvap=cvap, did_not_vote_est=residual, share_did_not_vote=residual / cvap)
-            for column, share in zip(columns, shares):
-                row[share] = int(row[column]) / cvap
-            if not math.isclose(sum(row[key] for key in shares) + row["share_did_not_vote"],
-                                1, rel_tol=1e-12):
-                raise ValueError(f"{row['STUSAB']}: presidential shares do not sum to one")
-            writer.writerow({field: row[field] for field in fields})
-    return sum(states.values()), sum(int(row["total_votes"]) for row in votes)
+            row.update(cvap=cvap, share_dem=dem / cvap, share_rep=rep / cvap)
+            if row["turnout_source"] == "unresolved":
+                if any(row[key] for key in ("counted_turnout", "voters_other",
+                                            "turnout_without_valid_presidential_vote", "turnout_is_estimate")):
+                    raise ValueError(f"{row['STUSAB']}: unresolved turnout with nonempty dependent fields")
+                writer.writerow(row)
+                continue
+            counted = int(row["counted_turnout"])
+            residual = cvap - counted
+            if residual < 0:
+                raise ValueError(f"{row['STUSAB']}: general-election turnout exceeds Step 03 CVAP")
+            other = int(row["voters_other"])
+            if min(dem, rep, other) < 0 or dem + rep + other != counted:
+                raise ValueError(f"{row['STUSAB']}: turnout categories do not reconcile")
+            row.update(did_not_vote_est=residual, share_other=other / cvap, share_did_not_vote=residual / cvap)
+            if not math.isclose(math.fsum((row["share_dem"], row["share_rep"], row["share_other"],
+                                           row["share_did_not_vote"])), 1, rel_tol=1e-12):
+                raise ValueError(f"{row['STUSAB']}: four CVAP shares do not sum to one")
+            writer.writerow(row)
+    national_turnout = None
+    if all(row["counted_turnout"] for row in votes):
+        national_turnout = sum(int(row["counted_turnout"]) for row in votes)
+    return sum(states.values()), national_turnout
 
 
 def main():
@@ -119,24 +134,34 @@ def main():
 
     with TemporaryDirectory(dir=data) as temp:
         stage = Path(temp)
-        president.write_president(xlsx, stage, state_fips)
+        turnout_by_state = turnout.read_turnout(data / "input", state_fips, frame / "docs")
+        president.write_president(xlsx, stage, state_fips, turnout_by_state)
         house.write_house(report, stage, state_fips)
         products = {
             "07_president_votes_2024.csv": intermediate,
             "07_house_votes_cd119.csv": intermediate,
             "07_president_source_votes_2024.csv": output,
+            "07_turnout_audit.csv": output,
             "07_house_source_lines_cd119.csv": output,
         }
+        name = "07_state_presidential_covariates_2024.csv"
         if not args.returns_only:
-            name = "07_state_presidential_covariates_2024.csv"
-            cvap, valid_votes = write_covariates(stage / "07_president_votes_2024.csv", state_audit, stage / name)
+            cvap, counted = write_covariates(stage / "07_president_votes_2024.csv", state_audit, stage / name)
             products[name] = intermediate
+        elif (intermediate / name).is_file():
+            print(f"The existing {intermediate / name} is outside this returns-only run. "
+                  "Run Step 07 without --returns-only to refresh it before analysis.", file=sys.stderr)
         publish(stage, products)
         for filename, directory in products.items():
             print(f"Saved {directory / filename}")
     if not args.returns_only:
-        print(f"State CVAP summed nationwide: {cvap:,.2f}. "
-              f"Estimated Did not vote: {cvap - valid_votes:,.2f}.")
+        print(f"State CVAP summed nationwide: {cvap:,.2f}.")
+        if counted is not None:
+            print(f"Counted turnout: {counted:,}. Estimated Did not vote: {cvap - counted:,.2f}.")
+    unresolved = sorted(st for st, row in turnout_by_state.items() if row["turnout_source"] == "unresolved")
+    if unresolved:
+        print(f"Statewide turnout unresolved for {', '.join(unresolved)}. National turnout and "
+              "Did not vote totals are unavailable.")
 
 
 if __name__ == "__main__":
