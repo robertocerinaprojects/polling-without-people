@@ -28,6 +28,7 @@ Run individual steps from the repository root, following their companion documen
 | 04 | `scripts/04_harmonize_pums.R` | validated | [PUMS demographics and race probabilities](docs/04_harmonize_pums.md) |
 | 05 | `scripts/05_prepare_ces.R` | national demographics and vote run passed | [2024 CES preparation](docs/05_prepare_ces.md) |
 | 06 | `scripts/06_build_pums_cells.R` | national cell totals and CES coverage checked | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
+| 07 | `scripts/07_prepare_area_returns.py` | observed returns verified; state shares tested with a 51-state fixture | [2024 area-level returns](docs/07_prepare_area_returns.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
@@ -65,6 +66,13 @@ race table and donor audit](docs/05_prepare_ces.md#production-run) record the re
 Step 06 sums Step 03's district weights within the demographic categories
 from Step 04. The CES enters this step only to check which survey profiles
 have population support. It supplies none of the population counts.
+
+Step 07 prepares the 2024 state presidential and district House returns. Its
+state covariates group valid presidential votes as Democratic, Republican and
+Other. They estimate Did not vote by subtracting these votes from the state
+citizen-adult population in Step 03.
+The House table keeps the observed 119th Congress districts for the subsequent
+boundary adjustment.
 
 ## Review of the November 8 checkpoint
 

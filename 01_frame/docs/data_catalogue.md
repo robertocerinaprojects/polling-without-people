@@ -27,6 +27,10 @@ Script 05 also classifies 2024 House and presidential responses from the same
 CES CSV. Script 06 aggregates the district-allocated PUMS weights by all
 seven shared geography and demographic fields, and checks CES cell coverage.
 
+Script 07 prepares presidential state totals and the observed 2024 House
+returns on the election-day district map. A full run uses Step 03's state
+population totals to construct four presidential shares.
+
 ## Scope and reading conventions
 
 All paths in backticks are relative to `01_frame/` unless stated otherwise.
@@ -40,6 +44,7 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 04 | [04_harmonize_pums.R](../scripts/04_harmonize_pums.R) | [PUMS demographics](04_harmonize_pums.md) |
 | Script 05 | [05_prepare_ces.R](../scripts/05_prepare_ces.R) | [CES download and harmonization](05_prepare_ces.md) |
 | Script 06 | [06_build_pums_cells.R](../scripts/06_build_pums_cells.R) | [PUMS cell sizes and CES coverage](06_build_pums_cells.md) |
+| Script 07 | [07_prepare_area_returns.py](../scripts/07_prepare_area_returns.py) | [Area-level returns](07_prepare_area_returns.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
@@ -49,15 +54,16 @@ national coverage and person-level allocation checks on 2026-11-07. Steps
 cell build. See the [survey-to-frame coverage totals](06_build_pums_cells.md#production-results).
 See the [component status](../README.md#script-status).
 
-The inputs comprise 61 source files across the seven scripts: one selected
+Through Step 06 the inputs comprise 61 source files: one selected
 two-file IPUMS pair, 58 Census files and one CES Common Content CSV. Script 00
 also keeps request/receipt metadata and source snapshots.
 
-The scripts define eight intermediate RDS files and 38 output CSVs. Script 01
+Steps 00–06 define eight intermediate RDS files and 38 output CSVs. Script 01
 produces four CSVs, Script 02 produces 21, Scripts 03 and 04 produce two each,
 Script 05 produces eight and Script 06 produces one. These counts cover
 the numbered production runs. The [optional election benchmark](05_vote_rules.md#reproduce-the-vote-benchmark)
-has its own inputs and outputs. Source manifests and two generated Markdown
+shares both its raw files with Step 07. Step 07 writes three intermediate CSVs
+and two audit CSVs, documented below. Source manifests and two generated Markdown
 notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
@@ -582,6 +588,24 @@ Census technical documentation, state-code references and apportionment
 tables cited in script comments explain hard-coded definitions. They are
 not files fetched at runtime. The script's source URLs likewise document
 provenance rather than initiate downloads.
+
+## Area-level election returns
+
+The [Step 07 guide](07_prepare_area_returns.md) gives the source URLs, file IDs,
+SHA-256 fingerprints, row definitions, grouping, and validation evidence.
+Run `python3 01_frame/scripts/07_prepare_area_returns.py` from the repository root.
+The Census manifest `docs/02_pl_2020_sources.csv` supplies state codes for every
+table. Keep `STATEFP` and `CDFP119` as character identifiers when importing CSVs.
+
+| File | Direct inputs or source | Use |
+|---|---|---|
+| `data/input/05_vote_benchmark/fec2024.xlsx` | Federal Election Commission, official 2024 presidential general election workbook. Acquired and verified by Step 07 or the optional Step 05 benchmark. | 2024 state totals for valid presidential votes and the presidential source audit. |
+| `data/input/05_vote_benchmark/clerk2024.pdf` | Office of the Clerk, 2024 general election report. Acquired and verified by Step 07 or the optional Step 05 benchmark. | 119th Congress House contest totals and source lines. |
+| `data/intermediate/07_president_votes_2024.csv` | Step 07, FEC workbook. | State counts for each major nominee and all other valid presidential votes, plus the published contest total. Feeds the presidential covariates. |
+| `data/intermediate/07_state_presidential_covariates_2024.csv` | Step 07, its state presidential counts and `data/output/03_pums_allocation_by_state.csv`. | One state/DC row with CVAP, the three vote groups, estimated Did not vote and four shares. |
+| `data/intermediate/07_house_votes_cd119.csv` | Step 07, Clerk PDF. | One observed 2024 contest per state/district, with coverage and tabulation flags. Upstream of the planned boundary adjustment. |
+| `data/output/07_president_source_votes_2024.csv` | Step 07, FEC workbook. | The source column, assigned group and published value for each state and vote column; preserves blank source cells. |
+| `data/output/07_house_source_lines_cd119.csv` | Step 07, Clerk PDF. | Source label, candidate, ballot affiliation, harmonized group, row type and vote count. Supports auditing fusion and ballot accounting. |
 
 ## Validation, reruns and preservation
 

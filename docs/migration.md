@@ -23,8 +23,8 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script13_CES_vote2024_waterfall.R` | `legacy/frame/scripts/Script13_CES_vote2024_waterfall.R` | Active successor for this task | [Step 05 vote rules](../01_frame/docs/05_vote_rules.md) derive 2024 House vote and record which survey wave supplied it |
 | `frame/scripts/Script14_stateabv_statecd.R` | `legacy/frame/scripts/Script14_stateabv_statecd.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | `legacy/frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Awaiting review | Replacement or retirement not yet decided |
+| `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
+| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and restricts Other to valid presidential votes |
 | `frame/scripts/Script18ABC_CD_Level_Training_Table.R` | `legacy/frame/scripts/Script18ABC_CD_Level_Training_Table.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script19ABC_CART_Imputation.R` | `legacy/frame/scripts/Script19ABC_CART_Imputation.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | `legacy/frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | Awaiting review | Replacement or retirement not yet decided |
@@ -43,8 +43,8 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script13_CES_vote2024_waterfall.md` | `legacy/frame/docs/ReadMe_Script13_CES_vote2024_waterfall.md` | Active successor for this task | [Step 05 vote rules](../01_frame/docs/05_vote_rules.md) derive 2024 House vote and record which survey wave supplied it |
 | `frame/scripts/ReadMe_Script14.md` | `legacy/frame/docs/ReadMe_Script14.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script15_cd_lvl_demo.md` | `legacy/frame/docs/ReadMe_Script15_cd_lvl_demo.md` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Awaiting review | Replacement or retirement not yet decided |
+| `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
+| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and restricts Other to valid presidential votes |
 | `frame/scripts/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | `legacy/frame/docs/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script19ABC_CART_Impute.md` | `legacy/frame/docs/ReadMe_Script19ABC_CART_Impute.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | `legacy/frame/docs/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
@@ -171,3 +171,17 @@ These four historical CSVs are eligible for deletion with the quarantine once
 the broader legacy review is complete. Other legacy scripts still have the
 replacement/retirement decisions listed above; this cleanup does not resolve
 those scientific development tasks.
+
+## Presidential vote grouping in Step 07
+
+Script 17 summed every MEDSL row outside the two major parties as Other.
+Reapplying that formula to Harvard Dataverse v10.1 for the 50 states and DC
+includes 199,150 undervotes, overvotes, void or spoiled ballots reported in nine
+jurisdictions. The historic script itself excluded DC and did not pin its source
+version. [MEDSL dataset](https://doi.org/10.7910/DVN/42MVDX)
+
+The revised definition uses all valid presidential votes outside the Democratic
+and Republican nominees. Green, Libertarian, other candidates, counted write-ins
+and Nevada’s recorded “None of These Candidates” selection enter Other. The
+[Step 07 guide](../01_frame/docs/07_prepare_area_returns.md) records the
+official source and how the four shares are calculated.
