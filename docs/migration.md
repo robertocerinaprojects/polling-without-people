@@ -24,7 +24,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script14_stateabv_statecd.R` | `legacy/frame/scripts/Script14_stateabv_statecd.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | `legacy/frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
-| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and counts all general-election voters outside the two major nominees as Other |
+| `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) classifies candidate votes, uses state PUMS CVAP for the four office-specific shares, and includes DC |
 | `frame/scripts/Script18ABC_CD_Level_Training_Table.R` | `legacy/frame/scripts/Script18ABC_CD_Level_Training_Table.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script19ABC_CART_Imputation.R` | `legacy/frame/scripts/Script19ABC_CART_Imputation.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | `legacy/frame/scripts/Script20_Strat_Frame_ForMrsP_Final.R` | Awaiting review | Replacement or retirement not yet decided |
@@ -44,7 +44,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script14.md` | `legacy/frame/docs/ReadMe_Script14.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script15_cd_lvl_demo.md` | `legacy/frame/docs/ReadMe_Script15_cd_lvl_demo.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
-| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) keeps four categories and the CVAP denominator, includes DC, and counts all general-election voters outside the two major nominees as Other |
+| `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) classifies candidate votes, uses state PUMS CVAP for the four office-specific shares, and includes DC |
 | `frame/scripts/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | `legacy/frame/docs/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script19ABC_CART_Impute.md` | `legacy/frame/docs/ReadMe_Script19ABC_CART_Impute.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | `legacy/frame/docs/ReadMe_Script4_PUMA_CD_Crosswalk_Build.md` | Superseded | 02_build_puma_cd_crosswalk.R; reviewed checks passed |
@@ -172,21 +172,25 @@ the broader legacy review is complete. Other legacy scripts still have the
 replacement/retirement decisions listed above; this cleanup does not resolve
 those scientific development tasks.
 
-## Presidential vote grouping in Step 07
+## Offices and ballot categories in Step 07
 
-Script 17 summed every MEDSL row outside the two major parties as Other.
-Reapplying that formula to Harvard Dataverse v10.1 for the 50 states and DC
-includes 199,150 undervotes, overvotes, void or spoiled ballots reported in nine
-jurisdictions. The historic script itself excluded DC and did not pin its source
-version. [MEDSL dataset](https://doi.org/10.7910/DVN/42MVDX)
+Legacy Scripts 16 and 17 summed MEDSL return rows into three party groups,
+then subtracted their sum from estimated citizen adults. The presidential
+script sent rows with simplified party `OTHER` into the same group even
+when the row represented a blank or invalid ballot. For example, the 2024
+presidential release gives DC's 2,075 undervotes and 460 overvotes that label.
+The historical scripts also excluded DC.
 
-The active state measure uses an independent ballot-turnout total. Other equals
-counted general-election turnout less Harris and Trump votes. It includes
-other valid presidential choices and counted participants with no valid
-presidential choice. Did not vote equals the frame CVAP less counted turnout.
-The source audit preserves the candidate breakdown, turnout source and estimate
-status. Published candidate returns remain available for all states and DC.
-Mississippi and Texas use turnout estimates, and Missouri has missing turnout-dependent
-fields pending a verified turnout total. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
-records the four state shares and the treatment of blank, invalid, rejected
-and replacement ballots.
+Step 07 identifies what each row counts before assigning a party. Democratic
+and Republican include votes for those candidates under local party names;
+Other includes votes for other candidates and unattributed write-ins. An
+undervote, overvote, void or spoiled entry, or explicit choice of none,
+contributes zero candidate votes. Each office's Did not vote estimate is its
+PUMS citizen-adult population less the three candidate totals. A citizen who
+votes only for House is included in the presidential residual. This decision
+supersedes the draft that used election-wide counted ballots.
+
+The presidential results use states and DC. The observed House results use
+the 2024 election districts, including DC's delegate. Translating those
+votes to 2026 districts is a separate task. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
+records the sources, reconciliation and rules for interpreting missing counts.

@@ -5,6 +5,7 @@ Use --returns-only to prepare the source counts without a local PUMS audit.
 """
 
 import argparse
+from collections import Counter, defaultdict
 import csv
 import math
 import shutil
@@ -16,8 +17,16 @@ from tempfile import TemporaryDirectory
 
 official = import_module("helpers.05_benchmark_official")
 president = import_module("helpers.07_president_returns")
-turnout = import_module("helpers.07_turnout")
 house = import_module("helpers.07_house_returns")
+mit_sources = import_module("helpers.07_mit_sources")
+mit_president = import_module("helpers.07_mit_president")
+mit_house = import_module("helpers.07_mit_house")
+
+# MIT minus FEC for Other after excluding Nevada's explicit None selection.
+# These seven differences are documented for the two checksum-pinned editions.
+PRESIDENT_OTHER_DIFFERENCES = {"AZ": -842, "DE": 1, "MT": -27, "NY": 105,
+                               "PA": -24526, "RI": -300, "WV": 2}
+VOTE_COLUMNS = ("votes_dem", "votes_rep", "votes_other")
 
 
 def read_rows(path):
@@ -51,12 +60,75 @@ def publish(stage, products):
         raise
 
 
+def write_rows(path, rows):
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def reconcile_returns(mit_rows, official_path, office, comparison):
+    # The official helper has already checked its source totals. Keep MIT's
+    # original records, including administrative entries and unpolled indicators.
+    groups = defaultdict(Counter)
+    unobserved = set()
+    for row in mit_rows:
+        key = (row["STATEFP"], row["district_2024"])
+        tally = groups[key]
+        category = row["category"]
+        if category == "Unresolved":
+            unobserved.add(key)
+        elif category in official.PARTIES:
+            tally[category] += row["source_votes"]
+        elif category != "Excluded":
+            raise ValueError(f"Unexpected source classification: {row}")
+
+    rows = read_rows(official_path)
+    keys = [(row["STATEFP"], row.get("CDFP119", "")) for row in rows]
+    if len(keys) != len(set(keys)) or set(keys) != groups.keys():
+        raise ValueError(f"MIT and the official {office} source disagree on geography")
+    differences = {}
+    for row, key in zip(rows, keys):
+        counts = groups[key]
+        check = {"office": office, "STATEFP": key[0], "STUSAB": row["STUSAB"],
+                 "CDFP119": key[1]}
+        if key in unobserved or row.get("status") == "unopposed_not_on_ballot":
+            if (office != "House" or key not in unobserved or counts or
+                    row.get("status") != "unopposed_not_on_ballot" or
+                    any(row[column] != "" for column in (*VOTE_COLUMNS, "total_votes"))):
+                raise ValueError(f"MIT and official source disagree on unpolled contest {key}")
+            status, source = "unopposed_not_on_ballot", "no_tabulation"
+            for column in VOTE_COLUMNS:
+                check[f"mit_{column}"] = check[f"official_{column}"] = None
+        else:
+            if sum(counts.values()) <= 0:
+                raise ValueError(f"No candidate votes for {office} {key}")
+            status, source = "matched", "MIT"
+            for party, column in zip(official.PARTIES, VOTE_COLUMNS):
+                reported = int(row[column])
+                check[f"mit_{column}"] = counts[party]
+                check[f"official_{column}"] = reported
+                delta = counts[party] - reported
+                if delta:
+                    if office != "President" or party != "Other":
+                        raise ValueError(f"{office} {key} {party}: source difference {delta}")
+                    differences[row["STUSAB"]] = delta
+                    status, source = "reviewed_other_difference", "FEC"
+            if source == "MIT":
+                for party, column in zip(official.PARTIES, VOTE_COLUMNS):
+                    row[column] = counts[party]
+            if sum(int(row[c]) for c in VOTE_COLUMNS) != int(row["total_votes"]):
+                raise ValueError(f"Selected candidate totals do not reconcile for {office} {key}")
+        row["source_used"] = source
+        comparison.append({**check, "status": status, "source_used": source})
+    if office == "President" and differences != PRESIDENT_OTHER_DIFFERENCES:
+        raise ValueError(f"Unreviewed presidential source discrepancies: {differences}")
+    write_rows(official_path, rows)
+
+
 def write_covariates(presidential, state_audit, destination):
     states = {}
-    state_rows = read_rows(state_audit)
-    if not state_rows or not {"STATEFP", "input_weight", "allocated_weight"} <= state_rows[0].keys():
-        raise ValueError(f"Step 03 audit is empty or missing required columns: {state_audit}")
-    for row in state_rows:
+    for row in read_rows(state_audit):
         state = row["STATEFP"]
         cvap = float(row["input_weight"])
         allocated = float(row["allocated_weight"])
@@ -67,41 +139,23 @@ def write_covariates(presidential, state_audit, destination):
 
     votes = read_rows(presidential)
     if len(votes) != len(states) or set(states) != {row["STATEFP"] for row in votes}:
-        raise ValueError("Step 03 and the state returns must have exactly one row for every state and DC")
-
-    fields = [*president.STATE_FIELDS, "cvap", "did_not_vote_est",
-              "share_dem", "share_rep", "share_other", "share_did_not_vote"]
-    with destination.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
-        writer.writeheader()
-        for row in votes:
-            cvap = states[row["STATEFP"]]
-            dem, rep = int(row["votes_dem"]), int(row["votes_rep"])
-            if int(row["valid_presidential_votes"]) > cvap:
-                raise ValueError(f"{row['STUSAB']}: valid presidential votes exceed Step 03 CVAP")
-            row.update(cvap=cvap, share_dem=dem / cvap, share_rep=rep / cvap)
-            if row["turnout_source"] == "unresolved":
-                if any(row[key] for key in ("counted_turnout", "voters_other",
-                                            "turnout_without_valid_presidential_vote", "turnout_is_estimate")):
-                    raise ValueError(f"{row['STUSAB']}: unresolved turnout with nonempty dependent fields")
-                writer.writerow(row)
-                continue
-            counted = int(row["counted_turnout"])
-            residual = cvap - counted
-            if residual < 0:
-                raise ValueError(f"{row['STUSAB']}: general-election turnout exceeds Step 03 CVAP")
-            other = int(row["voters_other"])
-            if min(dem, rep, other) < 0 or dem + rep + other != counted:
-                raise ValueError(f"{row['STUSAB']}: turnout categories do not reconcile")
-            row.update(did_not_vote_est=residual, share_other=other / cvap, share_did_not_vote=residual / cvap)
-            if not math.isclose(math.fsum((row["share_dem"], row["share_rep"], row["share_other"],
-                                           row["share_did_not_vote"])), 1, rel_tol=1e-12):
-                raise ValueError(f"{row['STUSAB']}: four CVAP shares do not sum to one")
-            writer.writerow(row)
-    national_turnout = None
-    if all(row["counted_turnout"] for row in votes):
-        national_turnout = sum(int(row["counted_turnout"]) for row in votes)
-    return sum(states.values()), national_turnout
+        raise ValueError("Step 03 and the presidential returns must cover the same states and DC")
+    for row in votes:
+        cvap = states[row["STATEFP"]]
+        total = int(row["total_votes"])
+        residual = cvap - total
+        if residual < 0:
+            raise ValueError(f"{row['STUSAB']}: candidate votes exceed the Step 03 population")
+        row.update(cvap=cvap, did_not_vote_est=residual, share_turnout=total / cvap,
+                   share_did_not_vote=residual / cvap)
+        for party, column in zip(president.PARTIES, VOTE_COLUMNS):
+            row[f"share_{party}"] = int(row[column]) / cvap
+        party_share = math.fsum(row[f"share_{party}"] for party in president.PARTIES)
+        if not (math.isclose(party_share, row["share_turnout"], abs_tol=1e-12) and
+                math.isclose(party_share + row["share_did_not_vote"], 1, abs_tol=1e-12)):
+            raise ValueError(f"{row['STUSAB']}: presidential shares do not reconcile")
+    write_rows(destination, votes)
+    return math.fsum(states.values()), sum(int(row["total_votes"]) for row in votes)
 
 
 def main():
@@ -132,36 +186,45 @@ def main():
     report = subprocess.run(["pdftotext", "-layout", str(pdf), "-"],
                             check=True, capture_output=True, encoding="utf-8").stdout
 
+    pres_path, house_path = mit_sources.obtain_mit_sources(data / "input")
     with TemporaryDirectory(dir=data) as temp:
         stage = Path(temp)
-        turnout_by_state = turnout.read_turnout(data / "input", state_fips, frame / "docs")
-        president.write_president(xlsx, stage, state_fips, turnout_by_state)
+        comparison = []
+        president.write_president(xlsx, stage, state_fips)
         house.write_house(report, stage, state_fips)
+        for office, records, audit, totals in (
+            ("President", mit_president.classify_president(pres_path),
+             "07_mit_president_rows.csv", "07_president_votes_2024.csv"),
+            ("House", mit_house.classify_house(house_path),
+             "07_mit_house_rows.csv", "07_house_votes_cd119.csv"),
+        ):
+            write_rows(stage / audit, records)
+            reconcile_returns(records, stage / totals, office, comparison)
+        write_rows(stage / "07_vote_source_comparison.csv", comparison)
         products = {
             "07_president_votes_2024.csv": intermediate,
             "07_house_votes_cd119.csv": intermediate,
             "07_president_source_votes_2024.csv": output,
-            "07_turnout_audit.csv": output,
             "07_house_source_lines_cd119.csv": output,
+            "07_mit_president_rows.csv": output,
+            "07_mit_house_rows.csv": output,
+            "07_vote_source_comparison.csv": output,
         }
         name = "07_state_presidential_covariates_2024.csv"
         if not args.returns_only:
-            cvap, counted = write_covariates(stage / "07_president_votes_2024.csv", state_audit, stage / name)
+            cvap, total = write_covariates(stage / "07_president_votes_2024.csv", state_audit, stage / name)
             products[name] = intermediate
-        elif (intermediate / name).is_file():
-            print(f"The existing {intermediate / name} is outside this returns-only run. "
-                  "Run Step 07 without --returns-only to refresh it before analysis.", file=sys.stderr)
+        elif (intermediate / name).exists():
+            print(f"Run without --returns-only to refresh {name} before analysis.", file=sys.stderr)
         publish(stage, products)
         for filename, directory in products.items():
             print(f"Saved {directory / filename}")
     if not args.returns_only:
-        print(f"State CVAP summed nationwide: {cvap:,.2f}.")
-        if counted is not None:
-            print(f"Counted turnout: {counted:,}. Estimated Did not vote: {cvap - counted:,.2f}.")
-    unresolved = sorted(st for st, row in turnout_by_state.items() if row["turnout_source"] == "unresolved")
-    if unresolved:
-        print(f"Statewide turnout unresolved for {', '.join(unresolved)}. National turnout and "
-              "Did not vote totals are unavailable.")
+        print(f"State PUMS CVAP: {cvap:,.2f}. Classified presidential votes: {total:,}. "
+              f"Estimated without a presidential candidate vote: {cvap - total:,.2f}.")
+    if (output / "07_turnout_audit.csv").exists():
+        print("07_turnout_audit.csv is from the earlier election-wide turnout definition "
+              "and is not an input or output of this calculation.", file=sys.stderr)
 
 
 if __name__ == "__main__":
