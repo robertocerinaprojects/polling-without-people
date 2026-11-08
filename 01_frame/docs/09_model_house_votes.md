@@ -22,6 +22,17 @@ The projection estimates how the 2024 voting relationship translates to the
 new geography and lineup. Actual 2026 turnout and changes in public opinion
 lie outside this calculation.
 
+## Run checkpoint, 8 November 2026
+
+The Codespace run of Step 08 produced 872 district/map rows, 436 for each map including DC. Both maps represent 240,960,972 PUMS citizen adults. Each year's nominee roster covered 436 seats. Step 09 restored its R packages, compiled the Stan program, and reached warmup for the holdout fit. A completed national fit, validation scores and final predictions have yet to be verified.
+
+Before restarting, review two parameter choices:
+
+- Decide whether to express the four probabilities using a zero no-House-vote reference logit while keeping the matching presidential nonvoting effect. Subtracting the current nonvote utility from all four utilities preserves the fitted probabilities. Dropping its presidential slope is a separate change to the model.
+- Decide whether to express the age effect with 13 independent contrasts and a sum-to-zero constraint on the 14 age coefficients. With the corresponding contrast prior this preserves the current predictions. The present model centers the age weights and puts a proper prior on all 14 coefficients.
+
+The current implementation and its [equations](09_house_model_math.md) record the specification that reached warmup.
+
 ## Build and run
 
 Run from the repository root. Step 07 supplies the voting data. Step 08
@@ -43,6 +54,8 @@ Prediction checks that the saved full fit matches the current model and training
 inputs. Generated data stay local under `01_frame/data/`.
 
 ## Outcome and predictors
+
+The [model equations and priors](09_house_model_math.md) and the [generated Stan program](09_house_model_generated.stan) give the exact Step 09 specification.
 
 Let `N` denote the district's unrounded, survey-weighted PUMS citizen-adult
 population on the relevant map. Step 07 classifies the observed 2024 House
