@@ -7,8 +7,10 @@ age group, sex/gender category, race, Hispanic origin and education. We give
 each PUMS person the categories prepared in Step 04, then add up their Step 03
 district contributions within each cell. If a person represents 20 adults and
 has district shares of 70% and 30%, the two district cells receive 14 and 6.
-The result, `N`, estimates the number of citizen adults in that cell. We keep
-the full precision, including fractional people.
+If another person contributes 3.5 to the first cell and these are its only
+contributions, its population estimate is `N = 17.5`. Two CES respondents
+with that profile would give one audit row with `ces_respondents = 2` and
+`N = 17.5`.
 
 The CES stays at one row per respondent. We count how many respondents have
 a matching population cell and keep a separate count for incomplete CES
@@ -16,8 +18,8 @@ profiles and for complete profiles with no positive PUMS contribution.
 
 ## Run and files
 
-From the repository root, run `Rscript 01_frame/scripts/06_build_pums_cells.R`
-after Steps 03, 04 and 05. All four inputs are existing products.
+Run the [cell builder](../scripts/06_build_pums_cells.R) from the repository root
+with `Rscript 01_frame/scripts/06_build_pums_cells.R` after Steps 03, 04 and 05.
 
 | File under `01_frame/data/` | Role |
 |---|---|
@@ -64,11 +66,12 @@ total for each cell.
 - Each state's cell weights reconcile to Step 03's original and allocated totals.
   For the reviewed inputs, the national sum is 240,960,972 and the number of PUMS
   person records is 12,263,785.
-- `matched_positive_N` means the seven CES values match a row with positive
-  estimated population. `no_positive_pums_cell` means the complete profile has
-  zero estimated mass in this empirical frame. Real residents could still have
-  that profile. `missing_ces_key` means at least one value is missing, so its
-  exact-cell `N` stays missing. A coverage flag preserves the respondent.
+
+| What happens when we look up a CES profile? | `coverage_status` | `N` in the coverage audit |
+|---|---|---|
+| All seven fields match a population cell. | `matched_positive_N` | Sum of the PUMS district weights in that cell |
+| All fields are present, but no PUMS record contributes weight to that cell. Real residents could still have that profile. | `no_positive_pums_cell` | `0` |
+| A demographic answer is missing, so we cannot identify the respondent's exact cell. | `missing_ces_key` | `NA` |
 
 ## Production results
 
@@ -94,7 +97,8 @@ both people and population cells.
 
 ### Check the saved analysis files
 
-From the repository root, run `Rscript 01_frame/scripts/helpers/06_check_analysis_files.R`.
+Run the [saved-file check](../scripts/helpers/06_check_analysis_files.R) from the
+repository root with `Rscript 01_frame/scripts/helpers/06_check_analysis_files.R`.
 The check reads the detailed CES, its 11-column export, the mother frame, the Step 03
 state totals and the Step 06 coverage CSV. It compares every exported CES value and
 respondent ID in order, reconciles each state's population, and verifies the count
