@@ -1,16 +1,19 @@
-# Apply the PUMA-to-district crosswalk to cleaned PUMS records.
-# Plain-language summary: 01_frame/docs/03_apply_puma_cd_crosswalk.md
-# Run from repository root: Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
-# Distribute each person's survey weight across districts using their PUMA.
+# Split each citizen adult's PUMS survey weight among 120th Congress districts.
+# Run from the repository root: Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
+# Worked example and output columns: 01_frame/docs/03_apply_puma_cd_crosswalk.md
+#
+# A person with weight 20 in a PUMA split 70% / 30% contributes 14 to one
+# district and 6 to the other. Both rows keep the same person ID. Section 2
+# makes those rows; Section 3 saves them after checking the national totals.
 
 library(dplyr)
 
-check <- function(condition, message) {
-  if (!isTRUE(condition)) stop(message, call. = FALSE)
-}
+source(here::here("01_frame", "scripts", "helpers", "03_allocation_audits.R"),
+       local = TRUE)
 
-# Section 1: validate inputs and check geographic coverage.
+# Section 1: Can we locate every person in the district crosswalk? ----
 intermediate_dir <- here::here("01_frame", "data", "intermediate")
+output_dir <- here::here("01_frame", "data", "output")
 pums_path <- file.path(intermediate_dir, "pums_clean.rds")
 crosswalk_path <- file.path(intermediate_dir, "puma_cd_crosswalk.rds")
 
@@ -18,159 +21,17 @@ check(
   all(file.exists(c(pums_path, crosswalk_path))),
   "Missing input: run Scripts 01 and 02 first."
 )
-
 cat("Reading cleaned PUMS and crosswalk...\n")
 pums <- readRDS(pums_path)
 crosswalk <- readRDS(crosswalk_path)
 
-required_pums <- c("SAMPLE", "YEAR", "STATEFIP", "PUMA", "PERWT")
-required_crosswalk <- c("STATEFP", "PUMA5CE", "CDFP", "allocation_weight")
+# Use the same rounding tolerance for district probabilities as Step 02.
+# When comparing population counts, scale it by the original survey weight.
+tolerance <- 1e-12
+coverage <- audit_puma_coverage(pums, crosswalk, output_dir, tolerance)
 
-check(
-  all(required_pums %in% names(pums)) &&
-    all(required_crosswalk %in% names(crosswalk)),
-  "Required input columns are missing."
-)
-check(
-  nrow(pums) > 0L && nrow(crosswalk) > 0L &&
-    all(vapply(pums[required_pums], is.numeric, logical(1))),
-  "PUMS columns must be numeric and both inputs must contain records."
-)
-
-# Extract identity: pinned IPUMS DDI and checks in Script 01.
-# This reviewed extract uses 2020 PUMA definitions.
-# Matching identifiers alone would not establish the boundary vintage.
-check(
-  all(pums$SAMPLE == 202403 & pums$YEAR == 2024),
-  "Unexpected PUMS sample or year; review geographic compatibility."
-)
-check(
-  all(is.finite(pums$PERWT) & pums$PERWT > 0),
-  "Missing, nonfinite or nonpositive person weights."
-)
-
-# Aggregate numeric keys first; format only this small summary table.
-pums_by_puma <- pums |>
-  group_by(STATEFIP, PUMA) |>
-  summarise(
-    person_records = n(),
-    weighted_population = sum(PERWT),
-    .groups = "drop"
-  )
-
-check(
-  all(
-    is.finite(pums_by_puma$STATEFIP) &
-      pums_by_puma$STATEFIP == trunc(pums_by_puma$STATEFIP) &
-      pums_by_puma$STATEFIP >= 1 & pums_by_puma$STATEFIP <= 99 &
-      is.finite(pums_by_puma$PUMA) &
-      pums_by_puma$PUMA == trunc(pums_by_puma$PUMA) &
-      pums_by_puma$PUMA >= 1 & pums_by_puma$PUMA <= 99999
-  ),
-  "PUMS geographic codes cannot be formatted as the expected identifiers."
-)
-
-# Match the two- and five-digit character identifiers saved by Script 02.
-pums_by_puma <- pums_by_puma |>
-  transmute(
-    STATEFP = sprintf("%02d", as.integer(STATEFIP)),
-    PUMA5CE = sprintf("%05d", as.integer(PUMA)),
-    person_records,
-    weighted_population
-  )
-
-key_columns <- c("STATEFP", "PUMA5CE", "CDFP")
-check(
-  all(vapply(crosswalk[key_columns], is.character, logical(1))) &&
-    !anyNA(crosswalk[key_columns]) &&
-    all(grepl("^[0-9]{2}$", crosswalk$STATEFP)) &&
-    all(grepl("^[0-9]{5}$", crosswalk$PUMA5CE)) &&
-    all(grepl("^[0-9]{2}$", crosswalk$CDFP)) &&
-    anyDuplicated(crosswalk[key_columns]) == 0L,
-  "Crosswalk geographic identifiers are invalid or duplicated."
-)
-check(
-  is.numeric(crosswalk$allocation_weight) &&
-    all(is.finite(crosswalk$allocation_weight)) &&
-    all(crosswalk$allocation_weight >= 0 &
-          crosswalk$allocation_weight <= 1),
-  "Invalid crosswalk allocation weights."
-)
-
-crosswalk_by_puma <- crosswalk |>
-  group_by(STATEFP, PUMA5CE) |>
-  summarise(
-    district_rows = n(),
-    positive_districts = sum(allocation_weight > 0),
-    weight_sum = sum(allocation_weight),
-    .groups = "drop"
-  )
-
-# Same numerical tolerance as Script 02; not a statistical error bound.
-check(
-  all(abs(crosswalk_by_puma$weight_sum - 1) <= 1e-12),
-  "Crosswalk weights do not sum to one within every PUMA."
-)
-
-coverage <- full_join(
-  pums_by_puma,
-  crosswalk_by_puma,
-  by = c("STATEFP", "PUMA5CE"),
-  relationship = "one-to-one"
-) |>
-  mutate(
-    coverage_status = case_when(
-      is.na(person_records) ~ "crosswalk_only",
-      is.na(weight_sum) ~ "pums_only",
-      TRUE ~ "matched"
-    )
-  ) |>
-  arrange(STATEFP, PUMA5CE)
-
-# Save evidence before stopping on an unmatched PUMS geography.
-output_dir <- here::here("01_frame", "data", "output")
-dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-audit_path <- file.path(output_dir, "03_pums_crosswalk_coverage.csv")
-readr::write_csv(coverage, audit_path)
-
-pums_only <- filter(coverage, coverage_status == "pums_only")
-crosswalk_only <- filter(coverage, coverage_status == "crosswalk_only")
-
-cat("\nPUMS input:\n")
-cat("Person records:", nrow(pums), "\n")
-cat("Weighted population:", sum(pums$PERWT), "\n")
-cat("States including DC:", n_distinct(pums_by_puma$STATEFP), "\n")
-cat("PUMAs:", nrow(pums_by_puma), "\n")
-
-cat("\nPUMA coverage:\n")
-coverage |>
-  count(coverage_status, name = "pumas") |>
-  print(n = Inf, width = Inf)
-
-cat("Unmatched PUMS PUMAs:", nrow(pums_only), "\n")
-cat("Person records without a crosswalk:", sum(pums_only$person_records), "\n")
-cat("Weighted population without a crosswalk:",
-    sum(pums_only$weighted_population), "\n")
-cat("Crosswalk PUMAs absent from retained PUMS:", nrow(crosswalk_only), "\n")
-
-if (nrow(pums_only) > 0L) {
-  print(head(pums_only, 20L), n = 20, width = Inf)
-}
-if (nrow(crosswalk_only) > 0L) {
-  print(head(crosswalk_only, 20L), n = 20, width = Inf)
-}
-
-cat("Audit saved:", audit_path, "\n")
-check(
-  nrow(pums_only) == 0L,
-  "Some PUMS PUMAs have no crosswalk entry; inspect the coverage audit."
-)
-
-cat("\nPUMS coverage checks passed.\n")
-
-# Section 2: apply the district probabilities to each person's survey weight.
-# The stable person key was established in Script 01. Keep demographic fields
-# in pums_clean.rds so they need not be repeated for every district.
+# Keep the person ID from Step 01, their PUMA and their survey weight.
+# Demographics stay in pums_clean.rds and can be joined back on this ID.
 person_key <- c("SAMPLE", "SERIAL", "PERNUM")
 check(all(person_key %in% names(pums)), "Required person identifiers are missing.")
 people <- select(pums, all_of(person_key), STATEFIP, PUMA, PERWT)
@@ -181,16 +42,22 @@ check(
   "Expected one input row per SAMPLE, SERIAL and PERNUM."
 )
 
-# A zero probability contributes zero person weight. Keep positive pairs only.
+# Section 2: Make one row per person and positive-probability district ----
+# PUMA numbers can repeat across states. Use both state and PUMA in the join.
+# Keep CDFP as text so district codes such as 00 (at-large) keep their zeroes.
 districts <- crosswalk |>
   filter(allocation_weight > 0) |>
-  transmute(STATEFIP = as.integer(STATEFP), PUMA = as.integer(PUMA5CE),
-            CDFP, allocation_weight) |>
+  transmute(
+    STATEFIP = as.integer(STATEFP), PUMA = as.integer(PUMA5CE),
+    CDFP, allocation_weight
+  ) |>
   arrange(STATEFIP, PUMA, CDFP) |>
   mutate(district_row = row_number())
 
-state_plan <- coverage |>
-  filter(coverage_status == "matched") |>
+# Predict the number of rows from the coverage audit before joining any people.
+# Each PUMA contributes its number of people times its number of positive districts.
+matched_pumas <- filter(coverage, coverage_status == "matched")
+state_plan <- matched_pumas |>
   group_by(STATEFP) |>
   summarise(
     expected_rows = sum(as.double(person_records) * positive_districts),
@@ -201,133 +68,90 @@ state_plan <- coverage |>
 cat("Expected positive-probability person/district rows:",
     format(sum(state_plan$expected_rows), scientific = FALSE), "\n")
 
-# Print one actual split-PUMA example alongside the national checks.
-example <- coverage |>
-  filter(coverage_status == "matched", positive_districts > 1L) |>
+# Pick one split PUMA so the console can show a real person's allocation.
+example_puma <- matched_pumas |>
+  filter(positive_districts > 1L) |>
   arrange(positive_districts, STATEFP, PUMA5CE) |>
   slice_head(n = 1L)
 
+# Expand one state at a time. Keep just the two source row numbers and the
+# allocated weight from each join; the full national table is assembled once.
 pums_rows_by_state <- split(seq_len(nrow(people)), people$STATEFIP)
-allocate_state <- function(i) {
+person_indices <- vector("list", nrow(state_plan))
+district_indices <- vector("list", nrow(state_plan))
+allocated_weights <- vector("list", nrow(state_plan))
+audits_by_state <- vector("list", nrow(state_plan))
+
+for (i in seq_len(nrow(state_plan))) {
   plan <- state_plan[i, ]
-  state <- as.integer(plan$STATEFP)
-  pums_rows_in_state <- pums_rows_by_state[[as.character(state)]]
-  residents <- people[pums_rows_in_state, , drop = FALSE]
+  state_fips <- as.integer(plan$STATEFP)
+  pums_rows <- pums_rows_by_state[[as.character(state_fips)]]
+  residents <- people[pums_rows, , drop = FALSE]
   residents$state_person_row <- seq_len(nrow(residents))
-  weights <- filter(districts, STATEFIP == state)
+  state_districts <- filter(districts, STATEFIP == state_fips)
+
+  # Every person in this PUMA receives the same district probabilities.
+  # PERWT stays on each row; allocated_person_weight is what we add by district.
   pairs <- inner_join(
-    residents, weights, by = c("STATEFIP", "PUMA"), relationship = "many-to-many"
+    residents, state_districts,
+    by = c("STATEFIP", "PUMA"), relationship = "many-to-many"
   ) |>
     mutate(allocated_person_weight = PERWT * allocation_weight)
 
-  # Verify the actual expansion for each person using the positive district
-  # count from the independent Section 1 summary.
-  support <- filter(coverage, STATEFP == plan$STATEFP, coverage_status == "matched")
-  district_counts <- support$positive_districts[
-    match(residents$PUMA, as.integer(support$PUMA5CE))
-  ]
-  check(
-    nrow(pairs) == plan$expected_rows && nrow(residents) == plan$person_records &&
-      all(tabulate(pairs$state_person_row, nbins = nrow(residents)) == district_counts),
-    paste("Unexpected person/district row counts for state", plan$STATEFP)
+  state_pumas <- filter(matched_pumas, STATEFP == plan$STATEFP)
+  audits_by_state[[i]] <- audit_state_allocation(
+    plan, residents, pairs, state_pumas, tolerance
   )
 
-  # Section 1 uses 1e-12 for probabilities. Scale that rounding tolerance
-  # by the original survey weight when checking weighted counts.
-  tolerance <- 1e-12
-  totals <- rowsum(cbind(probability = pairs$allocation_weight,
-                         weight = pairs$allocated_person_weight),
-                   group = pairs$state_person_row, reorder = TRUE)
-  check(identical(as.integer(rownames(totals)), residents$state_person_row),
-        paste("Missing or misordered person totals for state", plan$STATEFP))
-  error <- abs(totals[, "weight"] - residents$PERWT)
-  allocated_weight <- sum(pairs$allocated_person_weight)
-  check(
-    all(is.finite(pairs$allocated_person_weight) & pairs$allocated_person_weight > 0) &&
-      all(abs(totals[, "probability"] - 1) <= tolerance) &&
-      all(error <= tolerance * pmax(1, residents$PERWT)) &&
-      abs(allocated_weight - plan$input_weight) <= tolerance * max(1, plan$input_weight),
-    paste("District contributions do not reconcile for state", plan$STATEFP)
-  )
-
-  if (nrow(example) == 1L && plan$STATEFP == example$STATEFP) {
-    example_state_person_row <- match(as.integer(example$PUMA5CE), residents$PUMA)
+  if (nrow(example_puma) == 1L && plan$STATEFP == example_puma$STATEFP) {
+    example_person <- match(as.integer(example_puma$PUMA5CE), residents$PUMA)
     cat("\nOne person in a split PUMA:\n")
     pairs |>
-      filter(state_person_row == example_state_person_row) |>
+      filter(state_person_row == example_person) |>
       select(STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight) |>
       tibble::as_tibble() |>
       print(n = Inf, width = Inf)
   }
-  audit <- transmute(plan, STATEFP, person_records, expected_rows,
-                     allocated_rows = nrow(pairs), input_weight,
-                     allocated_weight = allocated_weight,
-                     max_person_weight_error = max(error))
-  list(
-    pums_row = pums_rows_in_state[pairs$state_person_row],
-    district_row = pairs$district_row,
-    contribution = pairs$allocated_person_weight,
-    audit = audit
-  )
+
+  # state_person_row counts from 1 inside this state. Convert it back to
+  # a row in the original PUMS file before combining states.
+  person_indices[[i]] <- pums_rows[pairs$state_person_row]
+  district_indices[[i]] <- pairs$district_row
+  allocated_weights[[i]] <- pairs$allocated_person_weight
+  rm(residents, pairs)
 }
 
-parts <- lapply(seq_len(nrow(state_plan)), allocate_state)
-state_audit <- bind_rows(lapply(parts, "[[", "audit"))
-# Keep only the checked weights and row indices from each state in memory.
-# Gather the output columns once, after the temporary state joins have finished.
-collect_column <- function(name) unlist(lapply(parts, "[[", name), use.names = FALSE)
-pums_rows <- collect_column("pums_row")
-district_rows <- collect_column("district_row")
-contributions <- collect_column("contribution")
-rm(parts)
+# Section 3: Assemble the national file and check the totals before saving ----
+pums_rows <- unlist(person_indices, use.names = FALSE)
+district_rows <- unlist(district_indices, use.names = FALSE)
+contributions <- unlist(allocated_weights, use.names = FALSE)
+state_audit <- bind_rows(audits_by_state)
+rm(person_indices, district_indices, allocated_weights, audits_by_state)
+
 allocation <- people[pums_rows, , drop = FALSE] |>
-  mutate(CDFP = districts$CDFP[district_rows],
-         allocation_weight = districts$allocation_weight[district_rows],
-         allocated_person_weight = contributions) |>
+  mutate(
+    CDFP = districts$CDFP[district_rows],
+    allocation_weight = districts$allocation_weight[district_rows],
+    allocated_person_weight = contributions
+  ) |>
   relocate(CDFP, .before = PERWT)
 rm(pums_rows, district_rows, contributions)
+
 input_weight <- sum(people$PERWT)
 national_weight <- sum(allocation$allocated_person_weight)
 check(
   sum(state_audit$person_records) == nrow(people) &&
     sum(state_audit$allocated_rows) == nrow(allocation) &&
     nrow(allocation) == sum(state_plan$expected_rows) &&
-    abs(national_weight - input_weight) <= 1e-12 * max(1, input_weight),
+    abs(national_weight - input_weight) <= tolerance * max(1, input_weight),
   "National row counts or allocated weights do not reconcile."
 )
 
 allocation_path <- file.path(intermediate_dir, "pums_cd_allocation.rds")
 state_audit_path <- file.path(output_dir, "03_pums_allocation_by_state.csv")
-save_results <- function() {
-  staged_rds <- tempfile("pums_cd_", tmpdir = intermediate_dir)
-  staged_csv <- tempfile("pums_cd_", tmpdir = output_dir)
-  previous_csv <- tempfile("previous_allocation_audit_", tmpdir = output_dir)
-  on.exit(unlink(c(staged_rds, staged_csv)), add = TRUE)
-  saveRDS(allocation, staged_rds)
-  readr::write_csv(state_audit, staged_csv)
-  # Keep a copy of the small previous audit until its matching RDS is replaced.
-  had_audit <- file.exists(state_audit_path)
-  if (had_audit) {
-    check(file.copy(state_audit_path, previous_csv), "Could not back up the state audit.")
-  }
-  if (!file.rename(staged_csv, state_audit_path)) {
-    unlink(previous_csv)
-    stop("Could not save the state audit.", call. = FALSE)
-  }
-  if (!file.rename(staged_rds, allocation_path)) {
-    restored <- if (had_audit) {
-      file.rename(previous_csv, state_audit_path)
-    } else {
-      file.remove(state_audit_path)
-    }
-    check(restored,
-          paste("Could not restore the prior state audit. Review", state_audit_path, "and", previous_csv))
-    stop("Could not save the allocation RDS. Restored the previous audit state.", call. = FALSE)
-  }
-  unlink(previous_csv)
-}
 cat("\nSaving checked person/district allocations...\n")
-save_results()
+save_allocation_and_audit(allocation, state_audit, allocation_path, state_audit_path)
+
 cat("Allocation checks passed.\n")
 cat("Person records:", nrow(people), "\n")
 cat("Person/district rows:", nrow(allocation), "\n")

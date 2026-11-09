@@ -14,6 +14,13 @@ probabilities 0.7 and 0.3 for two districts. The two rows contribute 14 and
 weight of 20. A person in a PUMA with a single positive district contributes
 their whole weight to that district.
 
+In the [main script](../scripts/03_apply_puma_cd_crosswalk.R), Section 1 checks
+that every person's state and PUMA can be found in the crosswalk. Section 2
+makes the district rows and calculates `PERWT * allocation_weight`. Section 3
+combines the states, checks the national total and saves the results. The
+[allocation audits](../scripts/helpers/03_allocation_audits.R) show the
+individual checks and how the allocation and its state audit are saved.
+
 ## Run and status
 
 Run the script from the repository root.
@@ -51,6 +58,8 @@ crosswalk district rows are unique and their probabilities sum to one in
 every PUMA, allowing an absolute difference of `1e-12`. The audit records
 state/PUMAs found in both inputs, in PUMS only or in the crosswalk only.
 A PUMS-only geography stops allocation after the audit has been written.
+A crosswalk-only PUMA has no retained people to allocate, so the script reports
+it and continues.
 
 On 2026-11-07 all **2,462 state/PUMA pairs** appeared in both inputs. The
 match covered **12,263,785 person records** across all 50 states and DC,
@@ -78,8 +87,13 @@ allocated weights must add back to `PERWT`. State totals must have the
 expected number of rows and preserve the original person-weight totals.
 The national total must also agree. The probability-sum tolerance is
 `1e-12`. The tolerance for comparing weighted totals scales with the
-original weight or total. After validation, the script combines the state
-results into a single person–district table.
+original weight or total.
+
+Section 3 assembles the national table. Within each state, the output follows
+the original PUMS person order, with each person's districts sorted by code.
+The state loop keeps row numbers that point back to the person and district
+records, plus the allocated weight. This lets the script build the nine output
+columns once after finishing the state joins.
 
 ### Observed allocation on 2026-11-07
 
