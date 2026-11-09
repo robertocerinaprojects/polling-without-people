@@ -1,5 +1,8 @@
 # Frame data catalogue
 
+For House model selection, the [sequential beta comparison](09_compare_house_beta.md) reads `data/intermediate/09_house_training_cd119.csv` from Step 09 preparation. Its scores, held-out predictions, plots and recommendation are separate from the earlier Dirichlet projection products.
+
+
 To find a district's House shares, use the [district-by-party products](#district-by-party-house-shares). The [Step 08 inventory](#district-populations-and-candidate-rosters) describes the two-map populations and rosters behind these products. The [Step 09 inventory](09_model_house_votes.md#files-and-lineage) also lists the holdout, scores and projection audits.
 
 ## Plain-language summary
@@ -53,7 +56,8 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 07 | [07_prepare_area_returns.py](../scripts/07_prepare_area_returns.py) | [Area-level returns](07_prepare_area_returns.md) |
 | Script 08, district populations | [08_build_district_predictors.R](../scripts/08_build_district_predictors.R) | [Two-map CVAP predictors](08_build_district_predictors.md) |
 | Script 08, candidate rosters | [08_prepare_house_slates.py](../scripts/08_prepare_house_slates.py) | [House candidate lineups](08_house_slates.md) |
-| Script 09 | [09_model_house_votes.R](../scripts/09_model_house_votes.R) | [House vote shares](09_model_house_votes.md) |
+| Script 09 | [09_model_house_votes.R](../scripts/09_model_house_votes.R) | [Input preparation and earlier Dirichlet specification](09_model_house_votes.md) |
+| Script 09 | [09_compare_house_beta.R](../scripts/09_compare_house_beta.R) | [Conditional beta comparison and output inventory](09_compare_house_beta.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.

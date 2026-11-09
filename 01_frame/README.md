@@ -1,14 +1,10 @@
 # Frame
 
-For the district-level House model, build [the two-map PUMS predictors](docs/08_build_district_predictors.md)
-and [candidate lineups](docs/08_house_slates.md), then follow the
-[holdout validation and full-model predictions](docs/09_model_house_votes.md).
-Step 09 fits a Dirichlet regression to the four House shares in 434 tabulated
-2024 contests. Its final district-by-party file, `data/intermediate/09_house_party_covariates.csv`,
-covers both maps. Read each district's four rows together for Democratic,
-Republican, Other and citizens without a counted House candidate vote.
-`house_share` gives the share of district citizen adults and `outcome_source`
-records whether the share is observed, missing, carried or predicted. The original FL-20 and OK-03 each have four missing shares.
+For the 2024 House model, use the [district population predictors](docs/08_build_district_predictors.md)
+and [nominee lineups](docs/08_house_slates.md) to prepare the 2024 districts.
+Then [compare three sequential beta regressions](docs/09_compare_house_beta.md)
+on the same held-out districts. This step ends with a model recommendation.
+The original FL-20 and OK-03 outcomes remain missing.
 
 This component produces the two inputs for modeling the 2024 survey and
 poststratifying on the 2026 congressional map.
@@ -41,7 +37,8 @@ Run individual steps from the repository root, following their companion documen
 | 07 | `scripts/07_prepare_area_returns.py` | 2024 candidate votes by state for president and by original district for House | [2024 area-level returns](docs/07_prepare_area_returns.md) |
 | 08 | `scripts/08_build_district_predictors.R` | 436 districts per map, with a common state population check | [District populations and shares](docs/08_build_district_predictors.md) |
 | 08 | `scripts/08_prepare_house_slates.py` | Nominee counts and party incumbency checked for all 436 districts in 2024 and 2026 | [House candidate rosters](docs/08_house_slates.md) |
-| 09 | `scripts/09_model_house_votes.R` | Prepare district-by-party inputs, validate on 30 districts, refit and produce estimates | [House shares and output files](docs/09_model_house_votes.md) |
+| 09 | `scripts/09_model_house_votes.R prepare` | Prepare district inputs with the observed CD119 House shares | [Source tables and outcomes](docs/09_model_house_votes.md) |
+| 09 | `scripts/09_compare_house_beta.R compare` | Compare vanilla, ridge and horseshoe beta regressions on 2024 districts | [Model equations, validation and outputs](docs/09_compare_house_beta.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
@@ -84,9 +81,7 @@ Step 07 groups votes credited to candidates into Democratic, Republican and
 Other. For president, it divides the state totals by the state's PUMS
 citizen-adult population. The remainder estimates how many citizens had no
 counted vote for a presidential candidate. The House table retains votes on
-the original 2024 districts, including DC's delegate. On the new map, Step 09
-carries counts for 290 identical districts, predicts 144 redrawn districts
-using their 2026 rosters, and predicts four shares for FL-20 and OK-03 with each district’s 2024 incumbent as the sole named nominee. The [area-level returns guide](docs/07_prepare_area_returns.md)
+the original 2024 districts, including DC's delegate. The beta comparison uses observed contests on this 2024 map. Applying a selected model on the new map is a later step. The [area-level returns guide](docs/07_prepare_area_returns.md)
 documents the ballot categories and denominators.
 
 ## Review of the November 8 checkpoint

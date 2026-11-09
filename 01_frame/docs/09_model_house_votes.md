@@ -1,5 +1,7 @@
 # Estimate 2024 House voting on the 2026 district map
 
+The active selection step is the [sequential beta comparison](09_compare_house_beta.md). Use this guide for the shared `prepare` stage and for reproducing the earlier Dirichlet fit and projections. A Dirichlet projection is not a result of the beta comparison.
+
 ## Plain-language summary
 
 For every district, we want the share of citizen adults who voted Democratic, Republican or Other for the House, plus the share without a recorded House candidate vote. Step 09 fits one Dirichlet regression to the four shares from each tabulated 2024 contest. It scores predictions for 30 held-out districts, then refits on all 434 tabulated districts.

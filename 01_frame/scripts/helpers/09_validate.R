@@ -2,10 +2,10 @@
 # Inputs are aligned district-by-choice matrices. Predictive interval endpoints
 # are marginal 5th and 95th percentiles for a new district outcome.
 
-house_validation_plots <- function(path, predictions, scores) {
+house_validation_plots <- function(path, predictions, scores, model_label = "District model") {
   labels <- c(dem = "Democratic", rep = "Republican", other = "Other",
               none = "Did not vote for a House candidate")
-  method_names <- c(model = "District model", baseline = "State presidential baseline")
+  method_names <- c(model = model_label, baseline = "State presidential baseline")
   colors <- c(model = "#116789", baseline = "#AE5217")
   symbols <- c(model = 16L, baseline = 2L)
   line_types <- c(model = 1L, baseline = 2L)
@@ -77,9 +77,21 @@ house_validation_plots <- function(path, predictions, scores) {
   }
 }
 
-validate_house_predictions <- function(train_observed, train_pres, test_observed, test_pres,
-                                       model_point, model_lower, model_upper, district_ids,
-                                       output_dir) {
+# Score a single choice across districts. Cross-validation and the final
+# holdout use the same sign for bias and include both interval endpoints.
+house_prediction_metrics <- function(rows) {
+  error <- 100 * (rows$predicted - rows$observed)
+  covered <- with(rows, lower_90 <= observed & observed <= upper_90)
+  rho <- NA_real_
+  if (length(unique(rows$observed)) > 1L && length(unique(rows$predicted)) > 1L) {
+    rho <- stats::cor(rows$predicted, rows$observed, method = "spearman")
+  }
+  data.frame(districts = nrow(rows), bias_pp = mean(error), rmse_pp = sqrt(mean(error^2)),
+             spearman = rho, covered = sum(covered), coverage_90 = mean(covered))
+}
+
+score_house_holdout <- function(train_observed, train_pres, test_observed, test_pres,
+                                model_point, model_lower, model_upper, district_ids) {
   choices <- c("dem", "rep", "other", "none")
   check_matrix <- function(x, n, composition = TRUE) {
     x <- as.matrix(x)
@@ -135,22 +147,21 @@ validate_house_predictions <- function(train_observed, train_pres, test_observed
   predictions$covered_90 <- with(predictions, lower_90 <= observed & observed <= upper_90)
   groups <- split(predictions, list(predictions$choice, predictions$method), drop = TRUE)
   scores <- do.call(rbind, lapply(groups, function(group) {
-    # Spearman is undefined for constant observed or predicted shares.
-    rho <- NA_real_
-    if (length(unique(group$observed)) > 1L && length(unique(group$predicted)) > 1L) {
-      rho <- stats::cor(group$predicted, group$observed, method = "spearman")
-    }
-    data.frame(choice = group$choice[1], method = group$method[1], districts = nrow(group),
-               bias_pp = mean(group$error_pp), rmse_pp = sqrt(mean(group$error_pp^2)),
-               spearman = rho, covered = sum(group$covered_90),
-               coverage_90 = mean(group$covered_90))
+    data.frame(choice = group$choice[1], method = group$method[1], house_prediction_metrics(group))
   }))
   scores$prediction_stage <- "raw"
   rownames(scores) <- NULL
+  list(scores = scores, predictions = predictions)
+}
 
+validate_house_predictions <- function(train_observed, train_pres, test_observed, test_pres,
+                                       model_point, model_lower, model_upper, district_ids,
+                                       output_dir) {
+  result <- score_house_holdout(train_observed, train_pres, test_observed, test_pres,
+                                model_point, model_lower, model_upper, district_ids)
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  utils::write.csv(predictions, file.path(output_dir, "09_holdout_predictions.csv"), row.names = FALSE)
-  utils::write.csv(scores, file.path(output_dir, "09_holdout_scores.csv"), row.names = FALSE)
-  house_validation_plots(file.path(output_dir, "09_holdout_plots.pdf"), predictions, scores)
-  invisible(list(scores = scores, predictions = predictions))
+  utils::write.csv(result$predictions, file.path(output_dir, "09_holdout_predictions.csv"), row.names = FALSE)
+  utils::write.csv(result$scores, file.path(output_dir, "09_holdout_scores.csv"), row.names = FALSE)
+  house_validation_plots(file.path(output_dir, "09_holdout_plots.pdf"), result$predictions, result$scores)
+  invisible(result)
 }
