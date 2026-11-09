@@ -44,11 +44,11 @@ main <- function() {
     data_structure = "rectangular",
     rectangular_on = "P"
   )
-  request_tmp <- tempfile(fileext = ".json")
-  on.exit(unlink(request_tmp), add = TRUE)
-  ipumsr::save_extract_as_json(definition, request_tmp)
-  fingerprint <- function(path) digest::digest(file = path, algo = "sha256")
-  request_sha256 <- fingerprint(request_tmp)
+  request_json_path <- tempfile(fileext = ".json")
+  on.exit(unlink(request_json_path), add = TRUE)
+  ipumsr::save_extract_as_json(definition, request_json_path)
+  file_sha256 <- function(path) digest::digest(file = path, algo = "sha256")
+  request_sha256 <- file_sha256(request_json_path)
 
   store <- file.path(project_root, "01_frame", "data", "input", "ipums_pums")
   dir.create(store, recursive = TRUE, showWarnings = FALSE)
@@ -79,7 +79,7 @@ main <- function() {
                        "_", Sys.getpid())
     run_dir <- file.path(store, snapshot)
     check(dir.create(run_dir), "Could not create a new snapshot directory.")
-    check(file.copy(request_tmp, file.path(run_dir, "request.json")),
+    check(file.copy(request_json_path, file.path(run_dir, "request.json")),
           "Could not save the requested extract definition.")
     # This pointer chooses a download snapshot, not an approved analysis input.
     pointer_tmp <- tempfile(tmpdir = store)
@@ -92,7 +92,7 @@ main <- function() {
         "Invalid local snapshot pointer; inspect it before proceeding.")
   run_dir <- file.path(store, snapshot)
   request_path <- file.path(run_dir, "request.json")
-  check(file.exists(request_path) && fingerprint(request_path) == request_sha256,
+  check(file.exists(request_path) && file_sha256(request_path) == request_sha256,
         "The requested settings differ from this snapshot. Use --refresh for a new request.")
   manifest_path <- file.path(run_dir, "download_manifest.csv")
   files_dir <- file.path(run_dir, "files")
@@ -124,7 +124,7 @@ main <- function() {
     present <- file.exists(paths)
     for (i in which(present)) {
       check(file.info(paths[i])$size == as.numeric(manifest$bytes[i]) &&
-              fingerprint(paths[i]) == manifest$sha256[i],
+              file_sha256(paths[i]) == manifest$sha256[i],
             paste("Stored file differs from its receipt:", manifest$file[i],
                   "Inspect the change; --refresh creates a separate snapshot."))
     }
@@ -249,7 +249,7 @@ main <- function() {
   paths <- file.path(stage_dir, filenames)
   check(all(file.exists(paths)) && all(file.info(paths)$size > 0),
         "The codebook or microdata download is missing or empty.")
-  hashes <- vapply(paths, fingerprint, character(1))
+  hashes <- vapply(paths, file_sha256, character(1))
   sizes <- file.info(paths)$size
   provider_size_checked <- provider_sha256_checked <- rep(FALSE, length(links))
   for (i in seq_along(links)) {
@@ -288,7 +288,7 @@ main <- function() {
   destinations <- file.path(files_dir, filenames)
   for (i in seq_along(paths)) {
     if (!is.null(manifest) && file.exists(destinations[i])) {
-      check(fingerprint(destinations[i]) == hashes[i],
+      check(file_sha256(destinations[i]) == hashes[i],
             "A surviving source file changed during recovery.")
       unlink(paths[i])
     } else {
