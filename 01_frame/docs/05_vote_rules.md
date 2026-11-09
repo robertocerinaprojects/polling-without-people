@@ -99,6 +99,12 @@ The source questionnaires, data guide and pinned CSV are published together in
 
 ## Comparison with 2024 election returns
 
+The optional benchmarks run separately from CES preparation.
+The [official returns reader](../scripts/helpers/05_benchmark_official.py) supplies
+the election counts. The [national and state comparison](../scripts/helpers/05_benchmark_votes.R)
+and the [House district comparison](../scripts/helpers/05_benchmark_house_districts.R)
+use the cleaned survey outcomes.
+
 An independent calculation from the pinned CES V9 release reproduced the
 ten unweighted outcome counts above. For a simple national comparison, use
 the eligible respondents' `commonweight`, count each respondent once per

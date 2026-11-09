@@ -59,12 +59,15 @@ def save(path, header, rows):
 
 def president_rows(xlsx):
     book = load_workbook(xlsx, data_only=True, read_only=True)
-    table = book["OFFICIAL 2024 PRES GE RESULTS"].values
-    positions = dict((name, i) for i, name in enumerate(next(table)))
-    wanted = ["HARRIS", "TRUMP", "TOTAL VOTES"]
-    result = [(r[0], *(r[positions[name]] for name in wanted))
-              for r in table if r[0] in set(STATES.values()) | {"DC"}]
-    book.close()
+    try:
+        table = book["OFFICIAL 2024 PRES GE RESULTS"].values
+        columns = {name: index for index, name in enumerate(next(table))}
+        harris, trump, total = (columns[name] for name in ("HARRIS", "TRUMP", "TOTAL VOTES"))
+        jurisdictions = set(STATES.values()) | {"DC"}
+        result = [(row[0], row[harris], row[trump], row[total])
+                  for row in table if row[0] in jurisdictions]
+    finally:
+        book.close()
     assert len(result) == len({r[0] for r in result}) == 51
     assert [sum(r[i] for r in result) for i in (1, 2, 3)] == [75017613, 77302580, 155238302]
     return result
@@ -102,6 +105,7 @@ def house_source_lines(report):
     state_headers = {**STATES, "DISTRICT OF COLUMBIA": "DC"}
     result = []
     for line in report.splitlines():
+        # A state or office heading sets the contest for the lines that follow.
         text = line.strip()
         if text in state_headers:
             state, district, house = state_headers[text], None, False
@@ -140,6 +144,7 @@ def house_source_lines(report):
         if count == "(1)" and (state, district) not in HOUSE_UNTABULATED:
             raise ValueError("Unexpected district footnote")
         votes = None if count == "(1)" else int(count.replace(",", ""))
+        # Classify one printed row. A fusion endorsement credits the last named candidate.
         candidate, ballot_label, party = "", "", ""
         if state == "DC" and label == "Total":
             kind, state, house = "reported_total", None, False
@@ -189,8 +194,8 @@ def house_rows(report, lines=None):
         if row.party:
             districts[row.state, row.district][row.party] += votes
 
-    # Reconcile every individual candidate and accounting entry to the state's
-    # total in the national recap before discarding blanks or combining fusion.
+    # Include candidate, endorsement and ballot-accounting rows in the printed
+    # recap check. Only rows credited to a party enter the benchmark shares.
     recap = report.split("Recapitulation of Votes Cast for United States Representatives,", 1)[1]
     recap = recap.split("Political Divisions of the U.S. Senate", 1)[0]
     state_total = {}

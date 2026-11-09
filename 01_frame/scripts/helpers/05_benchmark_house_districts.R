@@ -19,6 +19,7 @@ stopifnot(all(required %in% names(ces)), !anyNA(ces$caseid), !anyDuplicated(ces$
           nrow(clerk) == 435L, setequal(clerk$state, state.abb),
           all(grepl("^[0-9]{2}$", clerk$district)), !anyNA(clerk),
           all(as.matrix(clerk[parties]) >= 0), all(rowSums(clerk[parties]) == clerk$total))
+# Build keys on the original 2024 ballot map. DC elected a delegate.
 state_codes <- c(1, 2, 4, 5, 6, 8:10, 12:13, 15:42, 44:51, 53:56)
 us_state <- setNames(state.abb, sprintf("%02d", state_codes))
 keep <- ces$house_contest_2024 %in% "US House representative" &
@@ -33,20 +34,32 @@ stopifnot(all(ballot_keys %in% district_label))
 # Keep all 435 official rows, including districts with zero reported votes.
 group <- factor(ballot_keys, levels = district_label)
 party <- factor(ballots$house_vote_2024, levels = parties)
-sum_w <- as.matrix(xtabs(ballots$commonweight ~ group + party))
-n <- as.matrix(table(group, party))
-stopifnot(sum(n) == nrow(ballots), abs(sum(sum_w) - sum(ballots$commonweight)) < 1e-7)
+weighted_choices <- as.matrix(xtabs(ballots$commonweight ~ group + party))
+respondents <- as.matrix(table(group, party))
+stopifnot(
+  sum(respondents) == nrow(ballots),
+  abs(sum(weighted_choices) - sum(ballots$commonweight)) < 1e-7
+)
+
+# The error is the CES minus the Clerk Democratic share among D and R votes.
+dem_two_party_pct <- function(democratic, republican) {
+  major_party <- democratic + republican
+  ifelse(major_party > 0, 100 * democratic / major_party, NA_real_)
+}
 audit <- clerk
-audit$ces_valid <- rowSums(n)
-audit$ces_two_party <- n[, 1] + n[, 2]
-for (i in seq_along(parties)) audit[[paste0("ces_weight_", parties[i])]] <- sum_w[, i]
-ratio <- function(d, r) ifelse((d + r) > 0, 100 * d / (d + r), NA_real_)
-audit$ces_D_two_pct <- ratio(sum_w[, 1], sum_w[, 2])
-audit$clerk_D_two_pct <- ratio(clerk$Democratic, clerk$Republican)
+audit$ces_valid <- rowSums(respondents)
+audit$ces_two_party <- respondents[, "Democratic"] + respondents[, "Republican"]
+for (party_name in parties) {
+  audit[[paste0("ces_weight_", party_name)]] <- weighted_choices[, party_name]
+}
+audit$ces_D_two_pct <- dem_two_party_pct(weighted_choices[, "Democratic"], weighted_choices[, "Republican"])
+audit$clerk_D_two_pct <- dem_two_party_pct(clerk$Democratic, clerk$Republican)
 audit$error_pp <- audit$ces_D_two_pct - audit$clerk_D_two_pct
-audit$status <- ifelse(clerk$total == 0, "no_official_vote_total",
-                ifelse(is.na(audit$clerk_D_two_pct), "no_official_major_party_vote",
-                ifelse(is.na(audit$ces_D_two_pct), "no_CES_major_party_choice", "compared")))
+# An unavailable official result takes priority when the CES share is also missing.
+audit$status <- "compared"
+audit$status[is.na(audit$ces_D_two_pct)] <- "no_CES_major_party_choice"
+audit$status[is.na(audit$clerk_D_two_pct)] <- "no_official_major_party_vote"
+audit$status[clerk$total == 0] <- "no_official_vote_total"
 compared <- audit$status == "compared"
 district_metrics <- function(scope, mask) {
   error <- audit$error_pp[mask]
@@ -58,9 +71,9 @@ metrics <- rbind(district_metrics("Comparable seats", compared),
                  district_metrics("Both major parties received official votes",
                                   compared & clerk$Democratic > 0 & clerk$Republican > 0))
 national <- function(scope, mask) {
-  survey <- colSums(sum_w[mask, , drop = FALSE])
+  survey <- colSums(weighted_choices[mask, , drop = FALSE])
   official <- colSums(clerk[mask, parties, drop = FALSE])
-  data.frame(scope, districts = sum(mask), ces_valid_choices = sum(n[mask, , drop = FALSE]),
+  data.frame(scope, districts = sum(mask), ces_valid_choices = sum(respondents[mask, , drop = FALSE]),
              party = parties, ces_pct = as.numeric(100 * survey / sum(survey)),
              official_pct = as.numeric(100 * official / sum(official)))
 }

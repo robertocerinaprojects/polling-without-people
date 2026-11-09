@@ -49,12 +49,16 @@ parties <- c("Democratic", "Republican", "Other")
 clean_vote <- list(President = as.character(clean$pres_vote_2024),
                    House = as.character(clean$house_vote_2024))
 # Count checks also identify an earlier or incompatible preparation version.
+expected_counts <- list(
+  President = c(Democratic = 28846L, Republican = 22062L, Other = 1860L,
+                "No Vote" = 4836L, Missing = 1023L),
+  House = c(Democratic = 26906L, Republican = 20551L, Other = 1079L,
+            "No Vote" = 7286L, Missing = 2805L)
+)
 for (office in names(clean_vote)) {
-  expected <- if (office == "President") c(28846, 22062, 1860, 4836, 1023) else
-                                        c(26906, 20551, 1079, 7286, 2805)
   actual <- table(factor(clean_vote[[office]][eligible], levels = c(parties, "No Vote")),
                   useNA = "always")
-  stopifnot(identical(as.integer(actual), as.integer(expected)))
+  stopifnot(identical(as.integer(actual), unname(expected_counts[[office]])))
 }
 # Direct post-election observations, without substitution from another item or wave.
 post_pres <- unname(c(`1`="Democratic", `2`="Republican", `3`="Other",
@@ -63,9 +67,11 @@ post_pres <- unname(c(`1`="Democratic", `2`="Republican", `3`="Other",
 post_house <- rep(NA_character_, nrow(raw))
 choose_slot <- which(raw$CC24_412 %in% 1:5)
 roster <- as.matrix(raw[paste0("HouseCand", 1:5, "Party_post")])
-p <- trimws(roster[cbind(choose_slot, raw$CC24_412[choose_slot])])
-p[p %in% c("", "-1", "__NA__", "NA")] <- NA_character_
-post_house[choose_slot] <- ifelse(is.na(p) | p %in% parties[1:2], p, "Other")
+selected_party <- trimws(roster[cbind(choose_slot, raw$CC24_412[choose_slot])])
+selected_party[selected_party %in% c("", "-1", "__NA__", "NA")] <- NA_character_
+post_house[choose_slot] <- ifelse(
+  is.na(selected_party) | selected_party %in% parties[1:2], selected_party, "Other"
+)
 post_house[raw$CC24_412 %in% 10] <- "Other"
 post_house[raw$CC24_412 %in% c(11,12)] <- "No Vote"
 post_vote <- list(President = post_pres, House = post_house)
@@ -87,18 +93,21 @@ clean_states <- list(
 fips_by_abbr <- setNames(c(1,2,4,5,6,8,9,10,12,13,15:42,44:51,53:56,11),
                          c(state.abb, "DC"))
 stopifnot(length(fips_by_abbr) == 51L)
+
+# All-party percentages use candidate choices as the denominator. The two-party
+# percentage and its approximate standard error use only Democratic and Republican choices.
 shares <- function(votes, weights, indices) {
   votes <- votes[indices]
   weights <- weights[indices]
   party_weight <- vapply(parties, function(k) sum(weights[votes == k]), numeric(1))
   two <- votes %in% parties[1:2]
-  d <- party_weight[[1]] / sum(party_weight[1:2])
+  democratic_share <- party_weight[["Democratic"]] / sum(party_weight[c("Democratic", "Republican")])
   effective_n <- sum(weights[two])^2 / sum(weights[two]^2)
   pct <- 100 * party_weight / sum(party_weight)
   c(ballots = length(votes), n_dem = sum(votes == parties[1]), n_rep = sum(votes == parties[2]),
     n_other = sum(votes == parties[3]), n_two = sum(two), sum_wt = sum(party_weight),
-    pct_dem = pct[[1]], pct_rep = pct[[2]], pct_other = pct[[3]], pct_dem_two = 100*d,
-    n_eff_two = effective_n, se_two_pp = 100*sqrt(d*(1-d) / effective_n))
+    pct_dem = pct[[1]], pct_rep = pct[[2]], pct_other = pct[[3]], pct_dem_two = 100 * democratic_share,
+    n_eff_two = effective_n, se_two_pp = 100 * sqrt(democratic_share * (1 - democratic_share) / effective_n))
 }
 summarize_method <- function(office, method, votes, weight_name, keep, place, alt_state = FALSE) {
   w <- raw[[weight_name]]
@@ -126,8 +135,8 @@ for (office in names(clean_vote)) {
     summarize_method(office, "direct_validated_vvweight_post_clean", post_vote[[office]], "vvweight_post", eligible & validated, post_wave),
     summarize_method(office, "direct_validated_vvweight_post_full", post_vote[[office]], "vvweight_post", validated, post_wave)
   )
-  # The guide does not identify the state field. Use post residence primarily; supplies alternatives
-  # for the published presidential state-level RMSE. Alternative grouping does not change US totals.
+  # The guide gives a presidential state RMSE without specifying which state field it used.
+  # Repeat that comparison using pre-election residence and voter-file state.
   if (office == "President"){
     estimates <- c(estimates,list(
       summarize_method(office,"direct_validated_full_pre_state",post_vote[[office]],"vvweight_post",validated,raw$inputstate),

@@ -1,7 +1,10 @@
 """Build the 119th-to-120th Congress residence lookup for CES Script 05.
 
-Run from the repository root. On first use, download the national CD119 block
-equivalency archive from Census; Script 02 supplies the other local inputs.
+CD119 describes the respondent's district at the 2024 election. CD120 is
+the map for the 2026 election. We locate the same 2024 residence on both
+maps by joining their Census block assignments. Where a county and old
+district still span several new districts, we estimate each new district's
+share of the citizen voting-age population (CVAP).
 """
 
 from collections import Counter, defaultdict
@@ -14,6 +17,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import urllib.request
+from typing import NamedTuple, Optional
 from zipfile import ZipFile
 
 
@@ -29,11 +33,40 @@ BEF_HASH = {
     119: "1433feb5178dc7b4188ee30f5f7f715851f4400740b8fe1ce606a876c6294bd6",
     120: "bc9a4fc543b8b279ce3663642a5cc4e19e32a8ef84f12371e26f754e5b8cc8a5",
 }
-FIELDS = ("STATEFP", "CD119", "county_fips", "CD120", "district_probability",
-          "geography_method", "blocks", "overlap_cvap", "possible_unresolved_cvap",
-          "probability_min", "probability_max")
-AUDIT_FIELDS = ("STATEFP", "county_fips", "bg_cvap", "CD120", "CD119_candidates",
-                "blocks_by_candidate", "vap20", "cvap_unknown_origin")
+# Named rows keep the CSV headers and the values written under them together.
+class DistrictLookupRow(NamedTuple):
+    STATEFP: str
+    CD119: str
+    county_fips: str
+    CD120: str
+    district_probability: float
+    geography_method: str
+    blocks: int
+    overlap_cvap: Optional[float]
+    possible_unresolved_cvap: float
+    probability_min: float
+    probability_max: float
+
+
+class BlockGroupContribution(NamedTuple):
+    blocks: int
+    adults_2020: int
+    cvap: float
+
+
+class UnresolvedOrigin(NamedTuple):
+    STATEFP: str
+    county_fips: str
+    bg_cvap: str
+    CD120: str
+    CD119_candidates: str
+    blocks_by_candidate: str
+    vap20: int
+    cvap_unknown_origin: float
+
+
+FIELDS = DistrictLookupRow._fields
+AUDIT_FIELDS = UnresolvedOrigin._fields
 
 
 def verify_hash(path, expected):
@@ -46,6 +79,7 @@ def verify_hash(path, expected):
 
 
 def load_bef_paths():
+    """Verify both block files, fetching CD119 from Census on its first use."""
     paths = {n: INPUT / f"cd{n}.zip" for n in BEF_HASH}
     verify_hash(paths[120], BEF_HASH[120])
     if paths[119].exists():
@@ -92,6 +126,7 @@ def partition_bef(path, congress, work, states):
 
 
 def state_blocks(work, state):
+    """Join by block ID; count each assigned old-district/county/new-district overlap."""
     old = {}
     with (work / f"119_{state}").open() as f:
         for block, cd in csv.reader(f):
@@ -132,14 +167,20 @@ def read_contributions(state, path):
             cvap = float(row["cvap_contribution"])  # missing estimates need separate review
             if not math.isfinite(cvap) or cvap < 0 or (cd == "ZZ" and cvap != 0):
                 raise ValueError(f"Unsupported CVAP contribution at {key}")
-            cells[key] = (int(row["source_block_links"]), int(row["vap20"]), cvap)
+            cells[key] = BlockGroupContribution(
+                blocks=int(row["source_block_links"]), adults_2020=int(row["vap20"]), cvap=cvap
+            )
     if not cells:
         raise ValueError(f"Missing Script 02 contributions for {state}.")
     return cells
 
 
 def old_intersections(blocks, manifest_row):
-    """Return checked block counts and voting-age counts by BG, new CD, old CD."""
+    """Count blocks and 2020 adults by block group, new district and old district.
+
+    Consume the supplied block dictionary as we match records. Any entries
+    left over reveal blocks missing from the population file.
+    """
     pl_path = Path(manifest_row["path"])
     verify_hash(pl_path, manifest_row["sha256"])
     postal = manifest_row["STUSAB"]
@@ -161,100 +202,136 @@ def old_intersections(blocks, manifest_row):
                 adult_by_record[record] = n
         with archive.open(f"{postal.lower()}geo2020.pl") as f:
             for line in f:
-                g = line.split(b"|", 35)
-                if g[2] != b"750":
+                fields = line.split(b"|", 35)
+                if fields[2] != b"750":  # Summary level 750 identifies census blocks.
                     continue
-                if g[3:7] != [b"00", b"00", b"000", b"00"]:
+                if fields[3:7] != [b"00", b"00", b"000", b"00"]:
                     raise ValueError("Unreviewed PL block summary variant.")
-                # Geography file fields 13/15/33/35 carry state/county/tract/block.
-                block = (g[12] + g[14] + g[32] + g[34]).decode("ascii")
+                # The block ID concatenates state, county, tract and block codes.
+                block = (fields[12] + fields[14] + fields[32] + fields[34]).decode("ascii")
                 old, new = blocks.pop(block)
-                inter = (block[:12], new, old)
-                counts[inter] += 1
-                adults[inter] += adult_by_record.pop(g[7])
+                intersection = (block[:12], new, old)
+                counts[intersection] += 1
+                adults[intersection] += adult_by_record.pop(fields[7])
     if blocks:
         raise ValueError(f"PL block coverage differs from both BEFs in {postal}")
     return counts, adults
 
 
 def reaggregate_cvap(state, counts, adults, cells):
-    source = defaultdict(list)
+    """Divide each Step 02 block-group/CD120 estimate among its CD119 districts."""
+    old_districts_by_cell = defaultdict(list)
     for group, new, old in counts:
-        source[group, new].append(old)
-    if cells.keys() != source.keys():
+        old_districts_by_cell[group, new].append(old)
+    if cells.keys() != old_districts_by_cell.keys():
         raise ValueError(f"Step 02 and BEF block-group/district identifiers differ in {state}")
-    masses = Counter()
+
+    known_cvap = Counter()
     unresolved = []
-    for (group, new), olds in source.items():
-        block_total, adult_total, cvap = cells[group, new]
-        if (sum(counts[group, new, old] for old in olds) != block_total or
-                sum(adults[group, new, old] for old in olds) != adult_total):
+    for (group, new), old_districts in old_districts_by_cell.items():
+        county = group[:5]
+        expected_blocks, expected_adults, cvap = cells[group, new]
+        block_total = sum(counts[group, new, old] for old in old_districts)
+        if (block_total != expected_blocks or
+                sum(adults[group, new, old] for old in old_districts) != expected_adults):
             raise ValueError(f"Block or adult totals differ from Section 02 at {group}, CD{new}")
         if cvap == 0:
             continue
-        if len(olds) > 1 and adult_total == 0:
-            # Reviewed Tarrant County exception. All five are already assigned
-            # to new TX-12; zero adult counts leave their prior district unknown.
-            by_old = {old: counts[group, new, old] for old in olds}
-            if (state, group, new, cvap, by_old) != (
-                    "48", "484391139322", "12", 5.0, {"12": 7, "26": 25}):
-                raise ValueError(f"Review positive CVAP split across old districts without adult support: {group}, CD{new}")
-            unresolved.append((state, group[:5], group, new, "12|26", "7|25", 0, cvap))
+
+        if len(old_districts) > 1 and expected_adults == 0:
+            # In this Tarrant County block group, all estimated citizens belong
+            # to new TX-12. Their old district could be TX-12 or TX-26. Neither
+            # portion has recorded adults, so a population-weighted split is undefined.
+            blocks_by_old = {old: counts[group, new, old] for old in old_districts}
+            if not (state == "48" and group == "484391139322" and new == "12"
+                    and cvap == 5.0 and blocks_by_old == {"12": 7, "26": 25}):
+                raise ValueError(
+                    f"Review positive CVAP split across old districts without adult support: {group}, CD{new}"
+                )
+            unresolved.append(UnresolvedOrigin(
+                STATEFP=state, county_fips=county, bg_cvap=group, CD120=new,
+                CD119_candidates="12|26", blocks_by_candidate="7|25",
+                vap20=0, cvap_unknown_origin=cvap
+            ))
             continue
-        for old in olds:
-            share = 1.0 if len(olds) == 1 else adults[group, new, old] / adult_total
-            masses[old, group[:5], new] += cvap * share
-    expected = math.fsum(c[2] for c in cells.values())
-    accounted = math.fsum(masses.values()) + math.fsum(row[-1] for row in unresolved)
+
+        for old in old_districts:
+            # Containment also works when 2020 adult counts are zero.
+            share = 1.0 if len(old_districts) == 1 else adults[group, new, old] / expected_adults
+            known_cvap[old, county, new] += cvap * share
+
+    expected = math.fsum(cvap for _, _, cvap in cells.values())
+    accounted = math.fsum(known_cvap.values()) + math.fsum(row.cvap_unknown_origin for row in unresolved)
     if not math.isclose(accounted, expected, rel_tol=1e-12, abs_tol=1e-6):
         raise ValueError(f"CVAP not conserved across the district overlay in {state}")
-    return masses, unresolved
+    return known_cvap, unresolved
+
+
+def possible_cvap_by_origin(unresolved):
+    """Count how much of the unresolved CVAP *could* belong to each old district."""
+    possible = defaultdict(Counter)
+    for record in unresolved:
+        row = UnresolvedOrigin(*record)
+        for old in row.CD119_candidates.split("|"):
+            for area in (row.county_fips, ""):
+                possible[old, area][row.CD120] += row.cvap_unknown_origin
+    return possible
 
 
 def lookup_rows(state, counts, masses, unresolved):
-    groups = defaultdict(Counter)
-    mass_groups = defaultdict(Counter)
+    """Emit a county-specific lookup and a whole-old-district lookup for each origin."""
+    block_counts = defaultdict(Counter)
+    known_cvap = defaultdict(Counter)
     for (old, county, new), n in counts.items():
+        # The CES uses the blank-county row when the respondent has no county
+        # code or their reported county/old-district pair is absent.
         for area in (county, ""):
-            groups[old, area][new] += n
+            block_counts[old, area][new] += n
             if masses is not None:
-                mass_groups[old, area][new] += masses[old, county, new]
-    # For each possible prior district, the full unresolved mass could have
-    # come from that district or none of it. These per-origin bounds do not
-    # allocate or double-count the five people in the separate source ledger.
-    possible = defaultdict(Counter)
-    for _, county, _, new, old_choices, _, _, mass in unresolved:
-        for old in old_choices.split("|"):
-            for area in (county, ""):
-                possible[old, area][new] += mass
-    for (old, county), destinations in sorted(groups.items()):
-        if len(groups[old, ""]) == 1:
+                known_cvap[old, area][new] += masses[old, county, new]
+
+    # The audit counts the five Texans once. Here their whole estimate is a
+    # possibility for each eligible old district, used only for its bounds.
+    possible = possible_cvap_by_origin(unresolved)
+    for (old, county), destinations in sorted(block_counts.items()):
+        if len(block_counts[old, ""]) == 1:
             method = "old_district_contained"
         elif len(destinations) == 1:
             method = "county_district_contained"
+        elif county:
+            method = "county_district_cvap"
         else:
-            method = "county_district_cvap" if county else "old_district_cvap"
-        denom = math.fsum(mass_groups[old, county].values())
-        weights = {}
+            method = "old_district_cvap"
+
+        known_by_destination = known_cvap[old, county]
+        known_total = math.fsum(known_by_destination.values())
         if len(destinations) == 1:
-            weights[next(iter(destinations))] = 1.0
+            probabilities = {next(iter(destinations)): 1.0}
         else:
-            if denom == 0:
+            if known_total == 0:
                 raise ValueError(f"Review split district {state}/{old}/{county} with zero known-origin CVAP.")
-            weights = {new: mass_groups[old, county][new] / denom for new in destinations}
-        if not math.isclose(
-                math.fsum(weights.values()), 1.0, abs_tol=1e-12, rel_tol=0):
+            probabilities = {new: known_by_destination[new] / known_total for new in destinations}
+        if not math.isclose(math.fsum(probabilities.values()), 1.0, abs_tol=1e-12, rel_tol=0):
             raise ValueError(f"District probabilities did not sum to one for {state}/{old}/{county}")
+
+        possible_total = math.fsum(possible[old, county].values())
         for new, n in sorted(destinations.items()):
-            cvap = mass_groups[old, county][new] if masses is not None else None
-            low = high = weights[new]
-            possible_total = math.fsum(possible[old, county].values())
-            if possible_total and len(destinations) > 1 and denom:
-                gained = possible[old, county][new]
-                low = cvap / (denom + possible_total - gained)
-                high = (cvap + gained) / (denom + gained)
-            yield (state, old, county, new, weights[new], method, n, cvap,
-                   possible_total, low, high)
+            district_cvap = known_by_destination[new] if masses is not None else None
+            probability = probabilities[new]
+            low = high = probability
+            if possible_total and len(destinations) > 1 and known_total:
+                # For the minimum, add only the possible CVAP headed elsewhere
+                # to this origin's denominator. For the maximum, add only the
+                # possible CVAP headed here, to both numerator and denominator.
+                possible_here = possible[old, county][new]
+                low = district_cvap / (known_total + possible_total - possible_here)
+                high = (district_cvap + possible_here) / (known_total + possible_here)
+            yield DistrictLookupRow(
+                STATEFP=state, CD119=old, county_fips=county, CD120=new,
+                district_probability=probability, geography_method=method, blocks=n,
+                overlap_cvap=district_cvap, possible_unresolved_cvap=possible_total,
+                probability_min=low, probability_max=high
+            )
 
 
 def main():
@@ -274,6 +351,8 @@ def main():
         for congress, path in paths.items():
             partition_bef(path, congress, work, manifest)
         for state, details in sorted(manifest.items()):
+            # Keep one state's blocks in memory at a time. If every old
+            # district is contained, the map alone gives every probability.
             blocks, counts = state_blocks(work, state)
             destinations = defaultdict(set)
             for old, county, new in counts:

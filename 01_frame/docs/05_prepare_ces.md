@@ -24,6 +24,30 @@ presidential choice. We prefer a usable post-election report and flag each
 use of an early vote, a preference or a turnout answer. See the
 [vote questions, priorities and release checks](05_vote_rules.md).
 
+## Follow one respondent through the code
+
+Suppose a citizen answered Hispanic or Latino on the primary race question
+and Yes on Hispanic origin. Their 2024 residence could fall in two districts
+on the 2026 map. First draw one residence district. Then draw race from the
+Hispanic PUMS donors for their age, gender and education in that district.
+If that profile has no positive donor weight there, try the same profile in
+the state, then nationally. The respondent keeps their Hispanic origin.
+
+Now suppose their 2024 post-election House answer was candidate 2. We read
+`HouseCand2Party_post` on **that respondent's survey row**. If it says
+Republican, we record a Republican House vote. Even if the respondent moved
+between waves, that vote belongs to their post-election **2024 ballot district**.
+The 2026 district drawn above remains their residence for matching to PUMS.
+
+| To follow this part | Open |
+|---|---|
+| Cache the reviewed survey, select citizens and map their demographic answers | [Main script](../scripts/05_prepare_ces.R) and [survey file reader](../scripts/helpers/05_ces_files.R) |
+| Find possible 2026 districts from a 2024 district and, when available, a county | [District lookup](../scripts/helpers/05_ces_district_geography.py) |
+| Build the Hispanic donor pools and see how a split person's weight is counted | [PUMS donor tables](../scripts/helpers/build_district_race_donors.R) |
+| Follow the district draw, the donor fallback and the race draw | [District and race assignment](../scripts/helpers/05_assign_district_race.R) |
+| See which vote answer wins for each office and which ballot supplies the House party | [Vote decoder](../scripts/helpers/05_derive_votes.R) |
+| See the 11 columns kept for analysis | [CES analysis export](../scripts/helpers/05_export_ces_analysis.R) |
+
 ## Run and inputs
 
 From the repository root, run `Rscript 01_frame/scripts/05_prepare_ces.R`.
