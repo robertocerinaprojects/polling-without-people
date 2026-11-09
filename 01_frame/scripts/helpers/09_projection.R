@@ -25,7 +25,8 @@ prepare_house_prediction_scope <- function(target, old, roster_path) {
   # Copy only the lineup from the original contest on an identical unpolled
   # footprint. Every input describing the population belongs to the target map.
   lineup_fields <- c("slate", "n_dem", "n_rep", "n_other", "ballot_dem", "ballot_rep",
-                     "ballot_other", "same_party_multiple", "ballot_group", "major_party_direction")
+                     "ballot_other", "same_party_multiple", "ballot_group", "major_party_direction",
+                     house_columns$incumbent)
   lineup_row <- old_row
   lineup_row[!unpolled] <- NA_integer_
   target[lineup_fields] <- old[lineup_row, lineup_fields, drop = FALSE]

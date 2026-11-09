@@ -1,6 +1,6 @@
 # The district House vote model in Step 09
 
-Each 2024 district supplies one observation with four counts. We estimate how its demographic composition, party lineup and statewide presidential results relate to those counts. A state effect lets districts in the same state resemble one another. Four probabilities sum to one, and a common concentration parameter describes how much observed district shares can vary around those probabilities.
+Each 2024 district supplies one observation with four counts. We estimate how its demographic composition, party lineup, sitting candidates and statewide presidential results relate to those counts. A state effect lets districts in the same state resemble one another. Four probabilities sum to one, and a common concentration parameter describes how much observed district shares can vary around those probabilities.
 
 [Complete generated Stan program](09_house_model_generated.stan) · [R model and priors](../scripts/helpers/09_model.R) · [Inputs, validation and projection](09_model_house_votes.md)
 
@@ -24,13 +24,13 @@ Equivalently, one could draw a district-specific probability vector from $\opera
 
 ## Four outcome equations
 
-Let $x_i$ contain the 11 standardized demographic shares in the table below, $\ell_i$ the four lineup terms, $q_{ik}$ the standardized statewide presidential share matching House outcome $k$, and $w_{ib}$ the centered age weight for band $b$. Training-set means and sample standard deviations give each training district equal weight. A state presidential share appears once per district in that state when calculating these constants. The validation fit uses only its 404 training districts to estimate them. The final fit recomputes them from all 434 districts.
+Let $x_i$ contain the 11 standardized demographic shares in the table below, $\ell_i$ the four lineup terms, $I_{ik}$ the indicator that at least one of party $k$'s nominees was serving in Congress immediately before the applicable election, $q_{ik}$ the standardized statewide presidential share matching House outcome $k$, and $w_{ib}$ the centered age weight for band $b$. Training-set means and sample standard deviations give each training district equal weight. A state presidential share appears once per district in that state when calculating these constants. The validation fit uses only its 404 training districts to estimate them. The final fit recomputes them from all 434 districts.
 
 For each $k\in\{D,R,O\}$ the utility is
 
 $$
 \eta_{ik}=a_k+x_i^\mathsf{T}\beta_k+
-(\ell_i-\bar\ell)^\mathsf{T}\delta_k+\gamma_k q_{ik}
+(\ell_i-\bar\ell)^\mathsf{T}\delta_k+\lambda(I_{ik}-\bar I_k)+\gamma_k q_{ik}
 +u_{s(i),k}+\sum_{b=1}^{14} w_{ib}v_{bk}.
 $$
 
@@ -40,7 +40,9 @@ $$
 \eta_{iH}=\gamma_H q_{iH}.
 $$
 
-Here $a_k$ is the centered intercept in the generated Stan program. On each of the three candidate logits, brms centers the entire fixed-effects matrix (including the lineup columns). The already standardized demographic and presidential columns have zero training mean up to floating-point precision. The no-vote utility has a free presidential slope and anchors all other coefficients at zero. Changes to any candidate utility also change the no-vote probability through the shared softmax denominator. Statewide House vote is absent from the regression.
+The intercept $a_k$ is the centered intercept in the generated Stan program. brms centers the fixed effects, including each party's lineup and incumbency columns. The previously standardized demographic and presidential columns have training means of zero up to floating-point precision. The no-vote utility has a free presidential slope and anchors its other coefficients at zero.
+
+The training mean $\bar I_k$ is the proportion of training districts with a sitting nominee for party $k$. Changing that party's flag from 0 to 1 adds $\lambda$ to its utility, holding the other inputs fixed. For example, changing only the Republican flag multiplies $\pi_{iR}/\pi_{iD}$ by $e^\lambda$. The percentage-point change in Republican share depends on all four starting shares. Using the same $\lambda$ for Democrats, Republicans and Other lets a sitting Other candidate on the prediction map use the association estimated from the 2024 major-party incumbents.
 
 | Input family | Coding |
 |---|---|
@@ -50,6 +52,7 @@ Here $a_k$ is the centered intercept in the generated Stan program. On each of t
 | Hispanic ethnicity | Hispanic share. Non-Hispanic is the reference. Ethnicity and race are separate variables. |
 | Presidential vote | One share **per utility**: Democratic for D, Republican for R, Other for O, and no presidential candidate vote for H. Each uses the state's full PUMS citizen-adult denominator. |
 | Lineup | Three 0/1 indicators for D/R/Other, a sole major party, and a sole major party plus Other. D versus R is the reference. A fourth term is +1 for D as the sole major party, −1 for R as the sole major party and 0 if both are present. The four terms retain these units. An Other-only ballot is outside the fitted groups. |
+| Candidate incumbency | Each of D, R and Other uses its own 0/1 flag. The party gets one when at least one eligible nominee was a sitting member, even if multiple nominees ran. There is no incumbency term in the no-House-vote equation. |
 | Age | Thirteen five-year bands from 18–22 through 78–82, plus 83+. Each district contributes to every band in proportion to the centered weight below. |
 
 For a non-age demographic or presidential share $p_{ij}$, the standardized value is $(p_{ij}-\bar p_j)/s_j$ using its training mean and sample SD. The four presidential shares enter different utilities, so the model has no four-column presidential composition within any single utility. State effects and statewide predictors can still compete to explain between-state differences.
@@ -66,7 +69,7 @@ All 14 weights share the same scale. Since every district's raw age composition 
 
 ## Priors and sampling
 
-Student distributions below use location and scale. For each candidate utility, $a_k\sim t_4(0,3)$. All fixed slopes, including all four $\gamma_k$, have independent $t_4(0,2.5)$ priors. State and age effects are independent across their two families and the three candidate utilities. Given their scales,
+Student distributions below use location and scale. For each candidate utility, $a_k\sim t_4(0,3)$. All fixed slopes, including the single shared $\lambda$ and the four $\gamma_k$, have independent $t_4(0,2.5)$ priors. State and age effects are independent across their two families and the three candidate utilities. Given their scales,
 
 $$
 u_{sk}=\sigma_{u,k}z^u_{sk},\quad v_{bk}=\sigma_{v,k}z^v_{bk},\qquad
@@ -79,10 +82,11 @@ The run fits 404 districts, scores 30 held-out districts, then refits on all 434
 
 ## Verify the code from the saved national fit
 
-The companion source was generated with the pinned brms 2.23.0 model and priors. The source was identical for the holdout and refit designs on a fixture and matched the stored source of a sampled brms fit. The numerical national inputs and fitted estimates live in the Codespace. After Step 09 finishes, run the following from the repository root to write the source embedded in that exact fit:
+The companion Stan source was generated from the R formula and priors with brms 2.23.0. The R helper specifies which incumbency column belongs to each candidate outcome. Look for `shared_incumbency` in the Stan file. One sampled parameter supplies the corresponding entry in `b_muD`, `b_muR` and `b_muOther`, and receives one prior. After a national refit, run the following from the repository root to inspect the fitted formulas and save their Stan program.
 
 ```r
 saved <- readRDS("01_frame/data/intermediate/09_house_full_fit.rds")
+print(stats::formula(saved$fit$model))
 cat(as.character(brms::stancode(saved$fit$model)), file = "09_house_model_from_fit.stan")
 ```
 

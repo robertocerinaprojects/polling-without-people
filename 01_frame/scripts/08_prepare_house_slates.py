@@ -1,4 +1,4 @@
-"""Count named candidates in each regular November House contest, including DC.
+"""Count named candidates and identify sitting members in each House contest.
 
 The 2024 roster uses 119th Congress districts and the 2026 roster uses the 120th.
 Read the pinned Clerk lists, apply the documented ballot corrections, then
@@ -21,11 +21,12 @@ SOURCE_DIGEST = {
     2024: "e53acf48e946a270da18aac1ff665c07a6cb7e11057f8f28cfb239f282a3a617",
     2026: "cb2e4194c88042cf22f8589fb6b8c352d29b501f96abc62a962b6cc52e2c28a8",
 }
-# SHA-256 of the sorted state, district and D/R/O counts independently checked
-# against the November rosters and federal DC sample ballots for both years.
-REVIEWED_CONFIGURATIONS = {
-    2024: "b9c60a19c2965132ac20893b8b6d88089365ca9a17175fc0951006bb54b2fe35",
-    2026: "76d1b784c9790bb1b7f94f6abb97c14cb54f719d06adf2ba94aa38cb9453d762",
+# SHA-256 of the reviewed district keys, nominee counts and incumbent flags.
+# The independent roster and congressional membership checks are documented
+# in 08_house_slates.md. The column order is in check_district_roster().
+REVIEWED_ROSTERS = {
+    2024: "6b889f8426e0c8724907a72336ff034354e94f0b7c8387170eee24085c132dc4",
+    2026: "66146e73dc15c38877ac02c9f00d73a1b1202b3b23e7cd407cdb5f2ab5d86ef9",
 }
 AT_LARGE = {"AK", "DE", "ND", "SD", "VT", "WY"}
 TERRITORIES = {"AMERICAN SAMOA", "GUAM", "NORTHERN MARIANA ISLANDS", "PUERTO RICO", "VIRGIN ISLANDS"}
@@ -98,6 +99,14 @@ def read_nominee_rows(text, year, states, url):
             label = district_prefix[2]
         # A suffix such as “Jr.” belongs to the name. Keep the remaining
         # comma-separated party labels together for cross-endorsed nominees.
+        # Read the Clerk's service mark before removing it from the name.
+        # A former member (‡) can stand again after time out of Congress.
+        marks = re.findall("[*†‡]", label)
+        if len(marks) > 1 or "†" in marks:
+            # † denotes service during this Congress. None of our reviewed
+            # House/Delegate rows carries it; check dates if a new one does.
+            raise ValueError(f"Review congressional service for {year}: {label}")
+        service_mark = marks[0] if marks else ""
         terms = [part.strip() for part in re.sub("[*†‡]", "", label).split(",")]
         if not district or len(terms) < 2:
             raise ValueError(f"Unexpected {year} House nominee row: {line}")
@@ -108,7 +117,9 @@ def read_nominee_rows(text, year, states, url):
         if key in roster or not party_labels:
             raise ValueError(f"Duplicate or incomplete {year} nominee: {key}")
         roster[key] = dict(party=", ".join(party_labels), included=1,
-                           decision="clerk_nominee", source=url)
+                           decision="clerk_nominee", source=url,
+                           clerk_service_mark=service_mark, incumbent=int(service_mark == "*"),
+                           incumbent_source=url)
     return roster
 
 
@@ -118,6 +129,9 @@ def nominees(year, states):
         ["pdftotext", "-enc", "UTF-8", "-layout", str(path), "-"],
         capture_output=True, check=True, encoding="utf-8"
     )
+    sitting_congress = {2024: 118, 2026: 119}[year]
+    if f"Those marked * are incumbent in the {sitting_congress}th Congress" not in result.stdout:
+        raise ValueError(f"Could not verify the Clerk's incumbency legend for {year}.")
     return read_nominee_rows(result.stdout, year, states, url)
 
 
@@ -130,8 +144,14 @@ def apply_reviews(roster, decisions):
         if action == "add":
             if key in roster:
                 raise ValueError(f"Reviewed addition already appears: {key}")
+            # These names are absent from the October PDF. Read the separate
+            # membership review for each addition before counting the nominee.
+            if row["incumbent"] not in {"0", "1"} or not row["incumbent_source"]:
+                raise ValueError(f"Missing incumbency review for added nominee: {key}")
             roster[key] = dict(party=row["party"], included=1,
-                               decision=row["reason"], source=row["source"])
+                               decision=row["reason"], source=row["source"],
+                               clerk_service_mark="not_listed", incumbent=int(row["incumbent"]),
+                               incumbent_source=row["incumbent_source"])
         elif action == "remove":
             if roster[key]["party"] != row["party"] or not roster[key]["included"]:
                 raise ValueError(f"Reviewed removal disagrees with input: {key}")
@@ -143,6 +163,7 @@ def apply_reviews(roster, decisions):
 def summarize(year, roster):
     """Count each included nominee once, even if they carry multiple party labels."""
     counts_by_district = {}
+    parties_with_incumbents = set()
     audit = []
     for (state, district, name), nominee in sorted(roster.items()):
         parties = set(nominee["party"].split(", "))
@@ -160,6 +181,8 @@ def summarize(year, roster):
                           party_group=group, **nominee))
         if nominee["included"]:
             counts_by_district.setdefault((state, district), Counter())[group] += 1
+            if nominee["incumbent"]:
+                parties_with_incumbents.add((state, district, group))
 
     # The slate string records which groups are present. “D” can mean either
     # one unopposed Democrat or a choice between two or more Democrats.
@@ -169,7 +192,10 @@ def summarize(year, roster):
         candidate_count = sum(counts.values())
         slates.append(dict(STATEFP=state, CDFP=district, n_dem=counts["D"], n_rep=counts["R"],
                            n_other=counts["O"], slate=slate, unopposed=int(candidate_count == 1),
-                           same_party_multiple=int(len(slate) == 1 and candidate_count > 1)))
+                           same_party_multiple=int(len(slate) == 1 and candidate_count > 1),
+                           incumbent_dem=int((state, district, "D") in parties_with_incumbents),
+                           incumbent_rep=int((state, district, "R") in parties_with_incumbents),
+                           incumbent_other=int((state, district, "O") in parties_with_incumbents)))
     return audit, slates
 
 
@@ -180,13 +206,14 @@ def check_district_roster(year, slates, manifest):
     if len(districts) != 436 or actual_states != expected_states or ("11", "98") not in districts:
         raise ValueError(f"Expected 435 voting districts plus the DC delegate in {year}")
 
-    # Match the reviewed counts for each district. National totals could
-    # still match if two districts' candidates were exchanged.
-    fields = ("STATEFP", "CDFP", "n_dem", "n_rep", "n_other")
+    # Check each district. Two seats exchanging incumbents could preserve the
+    # national count while giving each district the wrong predictors.
+    fields = ("STATEFP", "CDFP", "n_dem", "n_rep", "n_other",
+              "incumbent_dem", "incumbent_rep", "incumbent_other")
     lines = [",".join(str(row[field]) for field in fields) for row in slates]
     fingerprint = hashlib.sha256(("\n".join(lines) + "\n").encode("ascii")).hexdigest()
-    if fingerprint != REVIEWED_CONFIGURATIONS[year]:
-        raise ValueError(f"District party counts differ from the independently reviewed {year} slate.")
+    if fingerprint != REVIEWED_ROSTERS[year]:
+        raise ValueError(f"District nominee counts or incumbency flags differ from the reviewed {year} roster.")
     return districts
 
 

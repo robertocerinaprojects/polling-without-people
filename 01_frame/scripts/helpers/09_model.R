@@ -17,6 +17,16 @@ house_matrix <- function(data, columns, n, label) {
   values
 }
 
+# Each flag describes a candidate on this particular ballot. A sitting member
+# running against another nominee of the same party still counts just once.
+house_incumbency_flags <- function(data, columns, nominees) {
+  flags <- house_matrix(data, columns, 3L, "party incumbency")
+  if (any(!flags %in% c(0, 1)) || any(flags == 1 & nominees == 0)) {
+    stop("Incumbency must be 0 or 1, and a party with no nominee must have 0.")
+  }
+  flags
+}
+
 house_inputs <- function(data, schema, scaling = NULL) {
   if (!nrow(data)) stop("Empty district table")
   training <- is.null(scaling)
@@ -24,6 +34,7 @@ house_inputs <- function(data, schema, scaling = NULL) {
   demographic <- house_matrix(data, schema$demographic, length(schema$demographic), "demographic shares")
   president <- house_matrix(data, schema$president, 4L, "state presidential shares")
   slate <- house_matrix(data, schema$slate, 3L, "ballot presence")
+  incumbents <- house_incumbency_flags(data, schema$incumbent, slate)
   inputs <- c(age, demographic, president)
   if (any(inputs < 0 | inputs > 1 + 1e-9) || any(abs(rowSums(age) - 1) > 1e-8) ||
       any(abs(rowSums(president) - 1) > 1e-8)) {
@@ -66,7 +77,7 @@ house_inputs <- function(data, schema, scaling = NULL) {
   state <- as.character(data[[schema$state]])
   if (anyNA(state) || any(!nzchar(state))) stop("Missing state identifier")
   frame <- data.frame(state = state, nTrials = as.integer(trials),
-                      demographic, president, slate[, scaling$slate_columns, drop = FALSE],
+                      demographic, president, incumbents, slate[, scaling$slate_columns, drop = FALSE],
                       check.names = FALSE)
   if (anyDuplicated(names(frame))) stop("Conflicting demographic/model column labels")
   age_members <- sprintf("ageMember%02d", seq_len(ncol(age)))
@@ -104,15 +115,24 @@ house_formula <- function(prepared, schema) {
   for (choice in house_choices) {
     # Common state, age, ballot and demographic effects are identified as
     # contrasts against DidNotVote. Its own statewide presidential slope stays free.
-    terms <- if (choice == "DidNotVote") "0" else common
+    terms <- if (choice == "DidNotVote") "0" else c(common, schema$incumbent[[choice]])
     rhs <- paste(c(terms, paste0("pres", choice)), collapse = " + ")
     formulas[[length(formulas) + 1L]] <- stats::as.formula(paste0("mu", choice, " ~ ", rhs))
   }
   do.call(brms::bf, formulas)
 }
 
-house_priors <- function() {
-  # Weak Student-t slope priors on standardized predictors. No ridge penalty.
+house_stanvars <- function() {
+  # Estimate one slope across the three party groups. A sitting independent
+  # nominee can then use the association learned from incumbents in major parties.
+  brms::stanvar(scode = "real shared_incumbency;", block = "parameters") +
+    brms::stanvar(scode = "lprior += student_t_lpdf(shared_incumbency | 4, 0, 2.5);",
+                  block = "tparameters", position = "end")
+}
+
+house_priors <- function(schema = house_columns) {
+  # Weak Student-t fixed-effect priors. The candidate incumbency coefficients
+  # all point to the same sampled slope, whose single prior is declared above.
   # The group SD priors pool state effects and age bands.
   priors <- brms::set_prior("lognormal(3, 1.5)", class = "phi")
   for (choice in house_choices) {
@@ -120,6 +140,8 @@ house_priors <- function() {
     priors <- c(priors, brms::set_prior("student_t(4, 0, 2.5)", class = "b", dpar = dpar))
     if (choice != "DidNotVote") {
       priors <- c(priors,
+                  brms::set_prior("constant(shared_incumbency)", class = "b", dpar = dpar,
+                                  coef = schema$incumbent[[choice]]),
                   brms::set_prior("student_t(4, 0, 3)", class = "Intercept", dpar = dpar),
                   brms::set_prior("student_t(4, 0, 1)", class = "sd", dpar = dpar))
     }
@@ -143,13 +165,15 @@ fit_house_dm <- function(training, schema, seed, chains = 4L, iter = 2000L,
     x <- design[[matrix_name]]
     expected <- paste0("pres", choice)
     if (choice != "DidNotVote") {
-      expected <- c("Intercept", schema$demographic, prepared$scaling$slate_columns, expected)
+      expected <- c("Intercept", schema$demographic, prepared$scaling$slate_columns,
+                    schema$incumbent[[choice]], expected)
     }
     if (!identical(colnames(x), expected)) {
       stop("Unexpected fixed effects for ", choice, " in ", matrix_name)
     }
   }
-  fit <- brms::brm(formula, data = prepared$data, family = family, prior = house_priors(),
+  fit <- brms::brm(formula, data = prepared$data, family = family, prior = house_priors(schema),
+                   stanvars = house_stanvars(),
                    backend = backend, seed = seed, chains = chains, iter = iter, warmup = warmup,
                    cores = cores, control = list(adapt_delta = 0.97, max_treedepth = 13))
   list(model = fit, schema = schema, scaling = prepared$scaling, choices = house_choices)
@@ -160,7 +184,7 @@ house_sampler_diagnostics <- function(fit) {
   parameters <- posterior::variables(draws)
   # Include the sampled regression, dispersion and district-composition
   # hierarchy terms; omit Stan's bookkeeping variables (lp__, lprior).
-  parameters <- parameters[grepl("^(b_|sd_|r_|phi$)", parameters)]
+  parameters <- parameters[grepl("^(b_|sd_|r_|phi$|shared_incumbency$)", parameters)]
   if (!length(parameters)) stop("Could not identify posterior model parameters")
   draws <- posterior::subset_draws(draws, variable = parameters)
   chain_count <- posterior::nchains(draws)

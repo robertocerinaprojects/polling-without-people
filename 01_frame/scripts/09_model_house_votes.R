@@ -11,6 +11,7 @@ house_columns <- list(
                   "race_asian", "race_other_multi", "eth_hispanic"),
   president = c("pres_dem", "pres_rep", "pres_other", "pres_none"),
   slate = c("ballot_dem", "ballot_rep", "ballot_other"),
+  incumbent = c(D = "incumbent_dem", R = "incumbent_rep", Other = "incumbent_other"),
   counts = c("votes_dem", "votes_rep", "votes_other"),
   state = "STATEFP", cvap = "cvap"
 )
@@ -83,9 +84,14 @@ add_slate <- function(x, path, complete = FALSE) {
     stop("The 2024 candidate roster and the CD119 frame have different district keys.")
   }
   roster <- roster[district_id(roster) %in% district_id(x), , drop = FALSE]
-  x <- attach_fields(x, roster, c("n_dem", "n_rep", "n_other", "slate"), c("STATEFP", "CDFP"))
+  if (!all(house_columns$incumbent %in% names(roster))) {
+    stop("The roster in ", path, " lacks the party incumbency flags. Rerun 08_prepare_house_slates.py.")
+  }
+  fields <- c("n_dem", "n_rep", "n_other", "slate", house_columns$incumbent)
+  x <- attach_fields(x, roster, fields, c("STATEFP", "CDFP"))
   n <- as.matrix(x[c("n_dem", "n_rep", "n_other")])
   stopifnot(all(is.finite(n) & n >= 0 & n == round(n)), all(rowSums(n) > 0))
+  house_incumbency_flags(x, house_columns$incumbent, n)
   x[house_columns$slate] <- as.data.frame(1L * (n > 0))
   x$same_party_multiple <- as.integer(rowSums(n > 0) == 1L & rowSums(n) > 1L)
   group <- house_ballot_groups(n)
@@ -274,7 +280,7 @@ project_house <- function(tables, mid, out) {
   target <- tables$new
   point <- predict_or_carry_house(saved$fit, target, old, seed = saved$seed + 3L, ndraws = 800L)
   flags <- c("STATEFP", "CDFP", "matching_cd119", "needs_prediction", "prediction_source",
-             "lineup_year", "slate", "ballot_group")
+             "lineup_year", "slate", "ballot_group", house_columns$incumbent)
   status <- target[flags]
 
   # Publish the share matrix and the corresponding record of how each district

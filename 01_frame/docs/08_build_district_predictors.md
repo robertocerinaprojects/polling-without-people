@@ -30,8 +30,8 @@ The R script calls the Python standard-library helper
 Step 05 already caches the Census `cd119.zip` file. The geographic helper
 can fetch it if needed. The other source archives and the
 Step 02, 03, 04 and 06 products must be available locally.
-The [separate roster script](08_house_slates.md) prepares the candidate
-counts for each election. Either Step 08 entry point can run first.
+The [separate roster script](08_house_slates.md) records how many candidates each party fielded
+and whether any of them was already serving in Congress before that election. Either Step 08 entry point can run first.
 
 ## Follow one share from PUMS to a district
 

@@ -7,7 +7,7 @@ House voters, Republican House voters, other House voters, and people without
 a recorded vote for a House candidate. Where the 2026 boundaries enclose
 exactly the same area as a tabulated 2024 district, we already know the three
 candidate counts. Where the boundaries changed, we use the new district's
-PUMS demographics and its 2026 candidate lineup to estimate all four shares
+PUMS demographics, its 2026 candidate lineup and the parties fielding sitting members in that election to estimate all four shares
 for the **whole district**.
 
 We learn the relationship from observed 2024 House elections on their 2024
@@ -24,14 +24,14 @@ lie outside this calculation.
 
 ## Run checkpoint, 8 November 2026
 
-The Codespace run of Step 08 produced 872 district/map rows, 436 for each map including DC. Both maps represent 240,960,972 PUMS citizen adults. Each year's nominee roster covered 436 seats. Step 09 restored its R packages, compiled the Stan program, and reached warmup for the holdout fit. A completed national fit, validation scores and final predictions have yet to be verified.
+The Codespace run of Step 08 produced 872 district/map rows, 436 for each map including DC. Both maps represent 240,960,972 PUMS citizen adults. Each year's nominee roster covered 436 seats. Step 09 restored its R packages, compiled the Stan program, and reached warmup for the holdout fit. That run predates the candidate-incumbency predictor. Validation scores and final predictions for the revised model require a fresh holdout fit and full refit.
 
 Before restarting, review two parameter choices:
 
 - Decide whether to express the four probabilities using a zero no-House-vote reference logit while keeping the matching presidential nonvoting effect. Subtracting the current nonvote utility from all four utilities preserves the fitted probabilities. Dropping its presidential slope is a separate change to the model.
 - Decide whether to express the age effect with 13 independent contrasts and a sum-to-zero constraint on the 14 age coefficients. With the corresponding contrast prior this preserves the current predictions. The present model centers the age weights and puts a proper prior on all 14 coefficients.
 
-The current implementation and its [equations](09_house_model_math.md) record the specification that reached warmup.
+The [current equations](09_house_model_math.md) include the party-specific incumbency predictor.
 
 ## Build and run
 
@@ -47,7 +47,7 @@ Rscript 01_frame/scripts/08_build_district_predictors.R
 Rscript 01_frame/scripts/09_model_house_votes.R all
 ```
 
-If the Step 08 products are already available, start with the last command.
+When upgrading an existing run, rerun the Step 08 roster builder to add the incumbency columns, then run Step 09. Existing district demographic files can be reused.
 To inspect individual stages, use `prepare` to write the input tables, `fit`
 to validate and refit the model, and `predict` to generate the district results.
 Prediction checks that the saved full fit matches the current model and training
@@ -78,6 +78,7 @@ the training and validation sets.
 | State | Partially pooled state effects, including DC. |
 | State presidential vote | Each of the four House choices has its own slope for its matching **2024 presidential share**. Step 07 divides the three presidential candidate counts by the state's PUMS CVAP. The fourth share is the remaining share without a presidential candidate vote. |
 | House lineup | Nominee groups and a directional contrast identifying the major party in a one-major-party contest. |
+| Candidate incumbency | A 0/1 indicator for whether at least one eligible nominee for the corresponding party was serving in Congress immediately before that election. Democratic, Republican and Other flags enter their own choice's equation. |
 
 Step 08 produces all 29 demographic shares. Omitting one reference category
 from each non-age demographic family avoids exact collinearity.
@@ -104,6 +105,14 @@ without a named nominee. The lineup therefore influences the predicted
 shares without forcing the other choices to zero.
 [Nominee sources and ballot audit](08_house_slates.md)
 
+### Candidate incumbency
+
+The training data use the 2024 roster. In CA-34, Jimmy Gomez and David Kim both ran as Democrats. Gomez was a sitting member, so the two candidates' votes are added in the Democratic outcome and the Democratic incumbency flag is 1. In CA-12, the two Democrats were Lateefah Simon and Jennifer Tran. Neither was a sitting member, so the same lineup group has a Democratic flag of 0. Each district still contributes one observation. [House candidate sources and audit](08_house_slates.md)
+
+The model learns one incumbency effect from the 2024 contests and applies it to the party fielding the sitting member. This is a modeling assumption. In particular, the 2024 roster has no sitting Other nominee from whom to learn a separate effect. Sharing the coefficient lets a 2026 Other nominee who is a sitting member receive the same estimated effect. The no-House-vote outcome has no incumbency term. Its predicted share can still change because the four shares sum to one.
+
+Chris Hanretty's work on multiparty constituency vote shares motivates using a joint share model. Here the U.S. incumbency indicator comes from the nominee roster for the relevant election. [Hanretty, *Forecasting multiparty by-elections using Dirichlet regression* (2021)](https://doi.org/10.1016/j.ijforecast.2021.03.007)
+
 ### Four linked choices
 
 The district counts follow a Dirichlet–multinomial distribution. Four linear
@@ -112,7 +121,7 @@ makes them add up to one. A fitted concentration parameter controls variation
 around those shares. Each linear predictor uses exactly one election-share
 covariate: the matching Democratic, Republican, Other or no-candidate-vote
 presidential share. The no-House-vote choice serves as the reference for the
-intercepts, demographics, state, age and lineup effects. Its own presidential
+intercepts, demographics, state, age, lineup and incumbency effects. Its own presidential
 slope is estimated. The script checks the fixed-effects model matrices that
 `brms` generates. [Model family documentation](https://paulbuerkner.com/brms/reference/brmsfamily.html)
 
@@ -138,7 +147,7 @@ effective sample sizes before the fit can supply predictions.
    remaining eligible seats using seed `20241105`. Save the 30 identifiers
    and fit on the other 404.
 2. Predict the four House shares on the held-out **2024 boundaries** with
-   their 2024 lineups. For a jurisdiction absent from training, draw a state
+   their 2024 lineups and incumbency flags. For a jurisdiction absent from training, draw a state
    effect from the fitted distribution of state effects. Use the posterior
    mean as the point estimate and the 5th and 95th percentiles of posterior
    predictive district outcomes as the 90% interval. The interval conditions
@@ -166,14 +175,14 @@ including when a district number changes. [Census 119th Congress geography](http
 | 2026 district situation | Districts | How its final row is calculated |
 |---|---:|---|
 | Identical footprint, observed 2024 return | 290 | Carry the three official candidate counts, divide by the target district's PUMS CVAP, and compute the remaining no-candidate-vote share. |
-| Changed footprint | 145 | Give the full model the whole new district's PUMS demographics, state, 2024 state presidential shares and 2026 lineup. Use the posterior mean of each of the four shares. |
-| Identical footprint, missing 2024 return | 1 | For OK-03, use the target's PUMS demographics and its verified Republican-only 2024 lineup. Its four shares estimate the outcome had that contest gone to a vote. |
+| Changed footprint | 145 | Give the full model the whole new district's PUMS demographics, state, 2024 state presidential shares, 2026 lineup and 2026 incumbency flags. Use the posterior mean of each of the four shares. |
+| Identical footprint, missing 2024 return | 1 | For OK-03, use the target's PUMS demographics and its Republican-only 2024 lineup. Frank Lucas was a sitting member in 2024, so the Republican incumbency flag is 1. Its four shares estimate the outcome had that contest gone to a vote. |
 
 **Florida example.** Old FL-20 had no tabulated House vote and supplies no
 training outcome. For **new FL-20**, Step 09 takes a single row from the
 district-augmented PUMS margins on the new map. The reviewed 2026 roster
 lists one Democrat, one Republican and one Other nominee, so the model uses
-the three-party group. It combines those inputs with Florida's state effect
+the three-party group. The Democratic nominee, Debbie Wasserman Schultz, was already serving before the 2026 election. The 2026 flags are therefore D = 1, R = 0, Other = 0. It combines those inputs with Florida's state effect
 and its four 2024 presidential shares to produce a single set of estimates
 for the whole district. New FL-22 likewise gets its own demographics and
 lineup. [Nominee sources](08_house_slates.md) · [Official 2024 House returns](https://clerk.house.gov/member_info/electionInfo/2024/statistics2024.pdf)
@@ -195,7 +204,7 @@ Paths are relative to `01_frame/data/`.
 | `intermediate/07_house_votes_cd119.csv` | 2024 House candidate counts and reporting status. Supplies district outcomes and the official counts carried to identical footprints. |
 | `intermediate/07_state_presidential_covariates_2024.csv` | The four statewide presidential shares used as predictors and as the validation benchmark. |
 | `intermediate/08_district_demographics.csv` | District population denominators and demographic margins on both maps. |
-| `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026.csv` | Reviewed district nominee counts for each year and their party groupings. |
+| `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026.csv` | Reviewed nominee counts, party groupings and three party-specific incumbency flags for each district and election. |
 | `output/08_district_overlap.csv` | Block evidence identifying exact matches between district footprints. |
 | `intermediate/09_house_training_cd119.csv`, `intermediate/09_house_target_cd120.csv` | Inspectable inputs on each map. The 2024 table retains the two flagged missing contests. |
 | `output/09_training_slate_counts.csv` | Grouped and original 2024 configurations by candidate structure and tabulation status. |
@@ -203,4 +212,4 @@ Paths are relative to `01_frame/data/`.
 | `output/09_holdout_sampler_diagnostics.csv`, `output/09_full_sampler_diagnostics.csv` | Sampler checks for each fit. |
 | `intermediate/09_house_full_fit.rds` | Full fitted model, training inputs, seed and model-source fingerprints. |
 | `intermediate/09_house_final_shares_cd120.csv` | One row per district keyed by `STATEFP,CDFP`, with shares `dem,rep,other,did_not_vote` that sum to one. |
-| `output/09_house_district_status.csv` | Source of each final row, its matched old district where available, whether prediction was needed and the lineup year used. |
+| `output/09_house_district_status.csv` | Source of each final row, its matched old district where available, whether prediction was needed and the lineup year used. Its three incumbency flags record the inputs used for predicted rows. |

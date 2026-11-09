@@ -215,11 +215,56 @@ transformed data {
   }
 }
 parameters {
-  vector[Kc_muD] b_muD;  // regression coefficients
+  real par_b_muD_1;
+  real par_b_muD_2;
+  real par_b_muD_3;
+  real par_b_muD_4;
+  real par_b_muD_5;
+  real par_b_muD_6;
+  real par_b_muD_7;
+  real par_b_muD_8;
+  real par_b_muD_9;
+  real par_b_muD_10;
+  real par_b_muD_11;
+  real par_b_muD_12;
+  real par_b_muD_13;
+  real par_b_muD_14;
+  real par_b_muD_15;
+  real par_b_muD_17;
   real Intercept_muD;  // temporary intercept for centered predictors
-  vector[Kc_muR] b_muR;  // regression coefficients
+  real par_b_muR_1;
+  real par_b_muR_2;
+  real par_b_muR_3;
+  real par_b_muR_4;
+  real par_b_muR_5;
+  real par_b_muR_6;
+  real par_b_muR_7;
+  real par_b_muR_8;
+  real par_b_muR_9;
+  real par_b_muR_10;
+  real par_b_muR_11;
+  real par_b_muR_12;
+  real par_b_muR_13;
+  real par_b_muR_14;
+  real par_b_muR_15;
+  real par_b_muR_17;
   real Intercept_muR;  // temporary intercept for centered predictors
-  vector[Kc_muOther] b_muOther;  // regression coefficients
+  real par_b_muOther_1;
+  real par_b_muOther_2;
+  real par_b_muOther_3;
+  real par_b_muOther_4;
+  real par_b_muOther_5;
+  real par_b_muOther_6;
+  real par_b_muOther_7;
+  real par_b_muOther_8;
+  real par_b_muOther_9;
+  real par_b_muOther_10;
+  real par_b_muOther_11;
+  real par_b_muOther_12;
+  real par_b_muOther_13;
+  real par_b_muOther_14;
+  real par_b_muOther_15;
+  real par_b_muOther_17;
   real Intercept_muOther;  // temporary intercept for centered predictors
   vector[K_muDidNotVote] b_muDidNotVote;  // regression coefficients
   real<lower=0> phi;  // precision parameter
@@ -235,8 +280,12 @@ parameters {
   array[M_5] vector[N_5] z_5;  // standardized group-level effects
   vector<lower=0>[M_6] sd_6;  // group-level standard deviations
   array[M_6] vector[N_6] z_6;  // standardized group-level effects
+  real shared_incumbency;
 }
 transformed parameters {
+  vector[Kc_muD] b_muD;  // regression coefficients
+  vector[Kc_muR] b_muR;  // regression coefficients
+  vector[Kc_muOther] b_muOther;  // regression coefficients
   vector[N_1] r_1_muD_1;  // actual group-level effects
   vector[N_2] r_2_muD_1;  // actual group-level effects
   vector[N_3] r_3_muR_1;  // actual group-level effects
@@ -245,17 +294,113 @@ transformed parameters {
   vector[N_6] r_6_muOther_1;  // actual group-level effects
   // prior contributions to the log posterior
   real lprior = 0;
+  b_muD[16] = shared_incumbency;
+  b_muD[1] = par_b_muD_1;
+  b_muD[2] = par_b_muD_2;
+  b_muD[3] = par_b_muD_3;
+  b_muD[4] = par_b_muD_4;
+  b_muD[5] = par_b_muD_5;
+  b_muD[6] = par_b_muD_6;
+  b_muD[7] = par_b_muD_7;
+  b_muD[8] = par_b_muD_8;
+  b_muD[9] = par_b_muD_9;
+  b_muD[10] = par_b_muD_10;
+  b_muD[11] = par_b_muD_11;
+  b_muD[12] = par_b_muD_12;
+  b_muD[13] = par_b_muD_13;
+  b_muD[14] = par_b_muD_14;
+  b_muD[15] = par_b_muD_15;
+  b_muD[17] = par_b_muD_17;
+  b_muR[16] = shared_incumbency;
+  b_muR[1] = par_b_muR_1;
+  b_muR[2] = par_b_muR_2;
+  b_muR[3] = par_b_muR_3;
+  b_muR[4] = par_b_muR_4;
+  b_muR[5] = par_b_muR_5;
+  b_muR[6] = par_b_muR_6;
+  b_muR[7] = par_b_muR_7;
+  b_muR[8] = par_b_muR_8;
+  b_muR[9] = par_b_muR_9;
+  b_muR[10] = par_b_muR_10;
+  b_muR[11] = par_b_muR_11;
+  b_muR[12] = par_b_muR_12;
+  b_muR[13] = par_b_muR_13;
+  b_muR[14] = par_b_muR_14;
+  b_muR[15] = par_b_muR_15;
+  b_muR[17] = par_b_muR_17;
+  b_muOther[16] = shared_incumbency;
+  b_muOther[1] = par_b_muOther_1;
+  b_muOther[2] = par_b_muOther_2;
+  b_muOther[3] = par_b_muOther_3;
+  b_muOther[4] = par_b_muOther_4;
+  b_muOther[5] = par_b_muOther_5;
+  b_muOther[6] = par_b_muOther_6;
+  b_muOther[7] = par_b_muOther_7;
+  b_muOther[8] = par_b_muOther_8;
+  b_muOther[9] = par_b_muOther_9;
+  b_muOther[10] = par_b_muOther_10;
+  b_muOther[11] = par_b_muOther_11;
+  b_muOther[12] = par_b_muOther_12;
+  b_muOther[13] = par_b_muOther_13;
+  b_muOther[14] = par_b_muOther_14;
+  b_muOther[15] = par_b_muOther_15;
+  b_muOther[17] = par_b_muOther_17;
   r_1_muD_1 = (sd_1[1] * (z_1[1]));
   r_2_muD_1 = (sd_2[1] * (z_2[1]));
   r_3_muR_1 = (sd_3[1] * (z_3[1]));
   r_4_muR_1 = (sd_4[1] * (z_4[1]));
   r_5_muOther_1 = (sd_5[1] * (z_5[1]));
   r_6_muOther_1 = (sd_6[1] * (z_6[1]));
-  lprior += student_t_lpdf(b_muD | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[1] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[2] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[3] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[4] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[5] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[6] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[7] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[8] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[9] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[10] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[11] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[12] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[13] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[14] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[15] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muD[17] | 4, 0, 2.5);
   lprior += student_t_lpdf(Intercept_muD | 4, 0, 3);
-  lprior += student_t_lpdf(b_muR | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[1] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[2] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[3] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[4] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[5] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[6] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[7] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[8] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[9] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[10] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[11] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[12] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[13] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[14] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[15] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muR[17] | 4, 0, 2.5);
   lprior += student_t_lpdf(Intercept_muR | 4, 0, 3);
-  lprior += student_t_lpdf(b_muOther | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[1] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[2] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[3] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[4] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[5] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[6] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[7] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[8] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[9] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[10] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[11] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[12] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[13] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[14] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[15] | 4, 0, 2.5);
+  lprior += student_t_lpdf(b_muOther[17] | 4, 0, 2.5);
   lprior += student_t_lpdf(Intercept_muOther | 4, 0, 3);
   lprior += student_t_lpdf(b_muDidNotVote | 4, 0, 2.5);
   lprior += lognormal_lpdf(phi | 3, 1.5);
@@ -271,6 +416,7 @@ transformed parameters {
     - 1 * student_t_lccdf(0 | 4, 0, 1);
   lprior += student_t_lpdf(sd_6 | 4, 0, 1)
     - 1 * student_t_lccdf(0 | 4, 0, 1);
+  lprior += student_t_lpdf(shared_incumbency | 4, 0, 2.5);
 }
 model {
   // likelihood including constants

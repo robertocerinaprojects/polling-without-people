@@ -5,7 +5,7 @@ and [candidate lineups](docs/08_house_slates.md), then follow the
 [holdout validation and full-model predictions](docs/09_model_house_votes.md).
 Step 09 keeps observed 2024 candidate counts on unchanged district footprints.
 It estimates the four House shares directly from the new district's citizen-adult
-demographics, party lineup and state presidential shares wherever a prediction is needed.
+demographics, party lineup, candidate incumbency and state presidential shares wherever a prediction is needed.
 
 This component produces the two inputs for modeling the 2024 survey and
 poststratifying on the 2026 congressional map.
@@ -37,7 +37,7 @@ Run individual steps from the repository root, following their companion documen
 | 06 | `scripts/06_build_pums_cells.R` | national cell totals and CES coverage checked | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
 | 07 | `scripts/07_prepare_area_returns.py` | 2024 candidate votes by state for president and by original district for House | [2024 area-level returns](docs/07_prepare_area_returns.md) |
 | 08 | `scripts/08_build_district_predictors.R` | 436 districts per map, with a common state population check | [District populations and shares](docs/08_build_district_predictors.md) |
-| 08 | `scripts/08_prepare_house_slates.py` | 2024 and 2026 nominee counts checked for all 436 districts | [House candidate rosters](docs/08_house_slates.md) |
+| 08 | `scripts/08_prepare_house_slates.py` | Nominee counts and party incumbency checked for all 436 districts in 2024 and 2026 | [House candidate rosters](docs/08_house_slates.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
