@@ -1,6 +1,6 @@
 # The district House vote model in Step 09
 
-This document records the earlier Dirichlet specification. The current [sequential beta models](09_compare_house_beta.md) have three conditional responses.
+This document records the earlier Dirichlet specification. See the [current sequential beta model](09_validate_house_beta.md) for the three conditional responses and their predictors.
 
 
 Each observed 2024 district contributes one vector of four vote shares. The four rows for that district in the district-by-party covariate file describe one composition. The regression relates that composition to district demographics, party lineups, incumbency and statewide presidential vote shares. A state effect lets districts in the same state resemble one another.

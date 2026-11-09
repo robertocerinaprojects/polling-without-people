@@ -2,6 +2,27 @@
 # Inputs are aligned district-by-choice matrices. Predictive interval endpoints
 # are marginal 5th and 95th percentiles for a new district outcome.
 
+# Reserve the six at-large states, DC and 23 other observed districts. Both
+# models use these same districts, sorted by state and district before sampling.
+house_holdout_split <- function(districts, seed = 20241105L) {
+  eligible <- eligible_house_rows(districts)
+  state_sizes <- table(districts$STATEFP)
+  single_states <- names(state_sizes)[state_sizes == 1L]
+  forced <- which(eligible$STATEFP %in% single_states)
+  stopifnot(nrow(eligible) > 30L, setequal(district_id(eligible[forced, ]),
+                     c("02-00", "10-00", "11-98", "38-00", "46-00", "50-00", "56-00")))
+
+  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+  pool <- setdiff(seq_len(nrow(eligible)), forced)
+  held <- sort(c(forced, sample(pool, 30L - length(forced))))
+  test <- eligible[held, , drop = FALSE]
+  selection <- test[c("STATEFP", "CDFP")]
+  selection$holdout_selection <- ifelse(held %in% forced, "at_large_state", "sampled")
+  selection$holdout_selection[selection$STATEFP == "11"] <- "dc_delegate"
+  list(eligible = eligible, train = eligible[-held, , drop = FALSE], test = test,
+       selection = selection)
+}
+
 house_validation_plots <- function(path, predictions, scores, model_label = "District model") {
   labels <- c(dem = "Democratic", rep = "Republican", other = "Other",
               none = "Did not vote for a House candidate")
@@ -77,8 +98,8 @@ house_validation_plots <- function(path, predictions, scores, model_label = "Dis
   }
 }
 
-# Score a single choice across districts. Cross-validation and the final
-# holdout use the same sign for bias and include both interval endpoints.
+# Score one choice across the held-out districts. A positive bias means the
+# model overpredicts. An observation at either interval endpoint is covered.
 house_prediction_metrics <- function(rows) {
   error <- 100 * (rows$predicted - rows$observed)
   covered <- with(rows, lower_90 <= observed & observed <= upper_90)

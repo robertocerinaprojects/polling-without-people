@@ -247,27 +247,11 @@ model_source_hashes <- function() {
 }
 
 fit_and_validate <- function(old, mid, out, seed) {
-  eligible <- eligible_house_rows(old)
-  stopifnot(nrow(eligible) > 30L)
-  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
-  # Count districts on the complete CD119 map, including off-ballot seats.
-  # DC has one delegate district and is evaluated alongside the at-large states.
-  district_counts <- table(old$STATEFP)
-  single_states <- names(district_counts)[district_counts == 1L]
-  forced <- which(eligible$STATEFP %in% single_states)
-  # Six 2024 at-large states and DC; see the district-code audit in Step 02.
-  stopifnot(setequal(district_id(eligible[forced, ]),
-                     c("02-00", "10-00", "11-98", "38-00", "46-00", "50-00", "56-00")))
-  remaining <- setdiff(seq_len(nrow(eligible)), forced)
-  # The other 23 come from all remaining eligible seats on the 2024 map.
-  random <- sample(remaining, 30L - length(forced), replace = FALSE)
-  hold <- sort(c(forced, random))
-  train <- eligible[-hold, ]
-  test <- eligible[hold, ]
-  selection <- test[c("STATEFP","CDFP")]
-  selection$holdout_selection <- ifelse(hold %in% forced, "at_large_state", "sampled")
-  selection$holdout_selection[selection$STATEFP == "11"] <- "dc_delegate"
-  stage_write(selection, file.path(out,"09_holdout_districts.csv"))
+  split <- house_holdout_split(old, seed)
+  eligible <- split$eligible
+  train <- split$train
+  test <- split$test
+  stage_write(split$selection, file.path(out, "09_holdout_districts.csv"))
   audit <- fit_house_dirichlet(train, house_columns, seed = seed)
   check_house_chains(audit, "holdout", out)
   prediction <- predict_house_dirichlet(audit, test, seed = seed + 1L)
@@ -365,7 +349,9 @@ project_house <- function(tables, mid, out) {
 }
 
 main_house09 <- function(args = commandArgs(trailingOnly = TRUE)) {
-  mode <- if (length(args) == 0L) "all" else match.arg(args, c("prepare","fit","predict","all"))
+  # The active beta validation reads the prepared district tables. The explicit
+  # fit, predict and all modes reproduce the earlier Dirichlet analysis.
+  mode <- if (length(args) == 0L) "prepare" else match.arg(args, c("prepare","fit","predict","all"))
   mid <- "01_frame/data/intermediate"
   out <- "01_frame/data/output"
   dir.create(mid, recursive=TRUE, showWarnings=FALSE)

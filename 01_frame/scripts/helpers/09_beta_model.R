@@ -1,10 +1,7 @@
 # One district contributes one response at each stage where voters remain.
-# party_order is the fixed national order of dem, rep and other.
-beta_stage_targets <- function(data, party_order) {
-  if (!identical(sort(unname(party_order)), sort(c("dem", "rep", "other")))) {
-    stop("Expected the three distinct party groups dem, rep and other.")
-  }
-  votes <- house_matrix(data, paste0("votes_", party_order), 3L, "House votes")
+# The 2024 candidate-vote order is Republican, Democratic, then Other.
+beta_stage_targets <- function(data) {
+  votes <- house_matrix(data, c("votes_rep", "votes_dem", "votes_other"), 3L, "House votes")
   total <- rowSums(votes)
   cvap <- data$cvap
   if (length(cvap) != nrow(data) || any(!is.finite(cvap)) || any(cvap <= 0) ||
@@ -22,124 +19,142 @@ beta_stage_targets <- function(data, party_order) {
   }
   target <- cbind((cvap - total) / cvap, ratio(votes[, 1L], total),
                   ratio(votes[, 2L], remaining))
-  colnames(target) <- c("none", party_order[1:2])
+  colnames(target) <- c("none", "rep", "dem")
   target
 }
 
-# Preprocessing parameters are learned on districts with a defined response
-# for this stage. The same parameters are applied during prediction.
-beta_stage_design <- function(data, choice, remaining, scaling = NULL) {
-  age <- house_matrix(data, house_columns$age, 14L, "age shares")
-  people <- house_matrix(data, house_columns$demographic, length(house_columns$demographic),
-                         "demographic shares")
-  president <- house_matrix(data, paste0("pres_", choice), 1L, "state presidential share")
-  if (any(age < 0 | age > 1) || any(abs(rowSums(age) - 1) > 1e-8) ||
-      any(people < 0 | people > 1) || any(president < 0 | president > 1)) {
-    stop("Invalid district demographic or statewide presidential share.")
+# Ordered age and education effects have one parameter for each adjacent
+# difference. Every difference contributes to all later bands. Subtracting
+# the column mean makes the band coefficients sum to zero, without choosing
+# a reference band. Multiplying district composition by this matrix gives
+# the district's weight on each adjacent difference.
+beta_walk_basis <- function(n_bands) {
+  after_step <- outer(seq_len(n_bands), seq_len(n_bands - 1L), ">")
+  sweep(after_step, 2L, colMeans(after_step))
+}
+
+beta_walk_term <- function(shares_z, label) {
+  weights <- shares_z %*% beta_walk_basis(ncol(shares_z))
+  steps <- seq_len(ncol(weights))
+  members <- sprintf("%sStep%02d", label, steps)
+  weight_names <- sprintf("%sWeight%02d", label, steps)
+  colnames(weights) <- weight_names
+  frame <- as.data.frame(weights)
+  # Each level is an independent normal increment, sharing one SD per walk.
+  # All districts use the same named steps with their own signed weights.
+  for (j in steps) frame[[members[j]]] <- members[j]
+  term <- sprintf("(1 | mm(%s, weights = cbind(%s), scale = FALSE))",
+                  paste(members, collapse = ", "), paste(weight_names, collapse = ", "))
+  list(frame = frame, term = term)
+}
+
+beta_stage_design <- function(data, choice, scaling = NULL) {
+  stopifnot(choice %in% c("none", "rep", "dem"))
+  age <- house_columns$age
+  education <- c("educ_no_hs", "educ_hs", "educ_some_college", "educ_two_year",
+                 "educ_four_year", "educ_postgrad")
+  fixed <- c("sex_female", "race_black", "race_native", "race_asian",
+             "race_other_multi", "eth_hispanic")
+  columns <- c(fixed, paste0("pres_", choice), age, education)
+  shares <- house_matrix(data, columns, length(columns), "district predictors")
+  if (any(shares < 0 | shares > 1) ||
+      any(abs(rowSums(shares[, age, drop = FALSE]) - 1) > 1e-8) ||
+      any(abs(rowSums(shares[, education, drop = FALSE]) - 1) > 1e-8)) {
+    stop("Invalid district or presidential shares. Age and education must each sum to one.")
   }
-  counts <- house_matrix(data, c("n_dem", "n_rep", "n_other"), 3L, "nominee counts")
-  lineup <- house_ballot_design(house_ballot_groups(counts))
-  incumbents <- house_incumbency_flags(data, house_columns$incumbent, counts)
-  colnames(incumbents) <- c("dem", "rep", "other")
-  fixed <- data.frame(people, lineup, presidentialShare = president[, 1L])
-  if (choice == "none") {
-    fixed$anyIncumbent <- as.integer(rowSums(incumbents) > 0)
-  } else {
-    fixed$focalIncumbent <- incumbents[, choice]
-    fixed$remainingIncumbent <- as.integer(rowSums(incumbents[, remaining, drop = FALSE]) > 0)
+  raw <- as.data.frame(shares)
+  names(raw)[names(raw) == paste0("pres_", choice)] <- "presidentialShare"
+
+  # Raw zeros denote D-v-R and no incumbent. After centering, those same
+  # reference ballots are represented by their transformed predictor values.
+  if (choice != "none") {
+    nominees <- house_matrix(data, c("n_dem", "n_rep", "n_other"), 3L, "nominees")
+    lineup <- house_ballot_design(house_ballot_groups(nominees))
+    incumbent <- house_matrix(data, paste0("incumbent_", choice), 1L, "focal incumbency")[, 1L]
+    if (any(!incumbent %in% c(0, 1)) ||
+        any(incumbent == 1 & nominees[, paste0("n_", choice)] == 0)) {
+      stop("A focal incumbent must be a nominee of that party.")
+    }
+    raw <- cbind(raw, lineup, focalIncumbent = incumbent)
+    fixed <- c(fixed, names(lineup), "focalIncumbent")
   }
 
+  # Fit means and sample SDs on eligible districts from THIS training stage.
+  # A fixed indicator with no training variation contributes no estimable slope.
   if (is.null(scaling)) {
-    # An indicator constant in the training districts cannot identify a slope.
-    sd <- vapply(fixed, stats::sd, numeric(1))
-    if (any(!is.finite(sd))) stop("Too few districts to estimate stage predictor scales.")
-    keep <- names(sd)[sd > 0]
-    center <- colMeans(age)
-    age_scale <- sqrt(mean(rowSums(sweep(age, 2L, center)^2)))
-    if (!is.finite(age_scale) || age_scale <= 0) stop("No district age variation.")
-    scaling <- list(mean = colMeans(fixed[keep]), sd = sd[keep],
-                    age_center = center, age_scale = age_scale,
-                    omitted = setdiff(names(fixed), keep))
+    deviations <- vapply(raw, stats::sd, numeric(1))
+    if (any(!is.finite(deviations))) stop("Too few districts to estimate predictor scales.")
+    if (any(deviations[c(age, education)] == 0)) stop("An ordered share has zero training SD.")
+    if (length(unique(raw$presidentialShare)) < 5L) {
+      stop("The presidential spline requires five distinct training shares.")
+    }
+    omitted <- names(deviations)[deviations == 0]
+    keep <- setdiff(names(raw), omitted)
+    scaling <- list(mean = colMeans(raw[keep]), sd = deviations[keep], omitted = omitted)
   }
-  variables <- names(scaling$mean)
-  x <- sweep(sweep(as.matrix(fixed[variables]), 2L, scaling$mean), 2L, scaling$sd, "/")
-  age <- sweep(age, 2L, scaling$age_center) / scaling$age_scale
-  frame <- data.frame(state = as.character(data$STATEFP), x, check.names = FALSE)
-  if (anyNA(frame) || any(!nzchar(frame$state))) stop("Missing state or model predictor.")
-
-  # The age composition supplies the weights for partially pooled age effects.
-  # Every district has 14 bands, and the centered weights sum to zero.
-  members <- sprintf("ageMember%02d", seq_len(ncol(age)))
-  weights <- sprintf("ageWeight%02d", seq_len(ncol(age)))
-  for (j in seq_along(members)) {
-    frame[[members[j]]] <- house_columns$age[j]
-    frame[[weights[j]]] <- age[, j]
-  }
-  age_effect <- paste0("(1 | mm(", paste(members, collapse = ", "), ", weights = cbind(",
-                       paste(weights, collapse = ", "), "), scale = FALSE))")
-  formula <- stats::reformulate(c(variables, "(1 | state)", age_effect),
-                                response = "response", env = globalenv())
+  keep <- names(scaling$mean)
+  z <- sweep(sweep(as.matrix(raw[keep]), 2L, scaling$mean), 2L, scaling$sd, "/")
+  fixed <- setdiff(fixed, scaling$omitted)
+  age_walk <- beta_walk_term(z[, age, drop = FALSE], "age")
+  education_walk <- beta_walk_term(z[, education, drop = FALSE], "education")
+  frame <- data.frame(state_id = as.character(data$STATEFP),
+                      z[, c(fixed, "presidentialShare"), drop = FALSE],
+                      age_walk$frame, education_walk$frame)
+  if (anyNA(frame) || any(!nzchar(frame$state_id))) stop("Missing state or model predictor.")
+  terms <- c(fixed, "s(presidentialShare, bs = 'cr', k = 5)", "(1 | state_id)",
+             age_walk$term, education_walk$term)
+  formula <- stats::reformulate(terms, response = "response", env = globalenv())
   list(frame = frame, formula = formula, scaling = scaling)
 }
 
-beta_stage_priors <- function(method, hyper = NULL) {
-  method <- match.arg(method, c("vanilla", "ridge", "horseshoe"))
-  if (method != "vanilla" &&
-      (length(hyper) != 1L || !is.numeric(hyper) || !is.finite(hyper) || hyper <= 0)) {
-    stop("The ridge SD and horseshoe expected active/inactive ratio must be positive.")
-  }
-  slopes <- switch(method,
-    vanilla = "student_t(4, 0, 2.5)",
-    ridge = sprintf("normal(0, %.12g)", hyper),
-    horseshoe = sprintf("horseshoe(par_ratio = %.12g, scale_slab = 2, df_slab = 4)", hyper)
-  )
-  c(brms::set_prior(slopes, class = "b"),
+beta_stage_priors <- function() {
+  c(brms::set_prior("student_t(4, 0, 2.5)", class = "b"),
     brms::set_prior("student_t(4, 0, 3)", class = "Intercept"),
     brms::set_prior("student_t(4, 0, 1)", class = "sd"),
+    brms::set_prior("student_t(4, 0, 1)", class = "sds"),
     brms::set_prior("lognormal(3, 1.5)", class = "phi"))
 }
 
-# Reuse the last compiled program for the active prior setting. update.brmsfit
-# checks the generated Stan code and recompiles if the design requires it.
-beta_templates <- new.env(parent = emptyenv())
-
-beta_sampler_diagnostics <- function(model, method) {
+# Extend the common sampler checks to the presidential spline. Its curvature
+# scale and basis coefficients are separate from the state and walk effects.
+beta_sampler_diagnostics <- function(model) {
   audit <- house_sampler_diagnostics(list(model = model))
-  if (method == "horseshoe") {
-    # Track the sampled scales as well as the regression slopes they shrink.
-    hs <- posterior::as_draws_array(model, variable = "^hs_", regex = TRUE)
-    stats <- posterior::summarise_draws(hs, "rhat", "ess_bulk", "ess_tail")
-    audit$parameters <- audit$parameters + nrow(stats)
-    audit$max_rhat <- max(audit$max_rhat, stats$rhat)
-    audit$min_bulk_ess <- min(audit$min_bulk_ess, stats$ess_bulk)
-    audit$min_tail_ess <- min(audit$min_tail_ess, stats$ess_tail)
-    audit$passed <- isTRUE(audit$passed && audit$max_rhat < 1.01 &&
-                    audit$min_bulk_ess >= 100 * audit$chains &&
-                    audit$min_tail_ess >= 100 * audit$chains)
+  smooth <- posterior::as_draws_array(model, variable = "^(sds_|s_)", regex = TRUE)
+  variables <- posterior::variables(smooth)
+  if (!any(startsWith(variables, "sds_")) || !any(startsWith(variables, "s_"))) {
+    stop("Missing presidential spline parameters in the saved fit.")
   }
+  stats <- posterior::summarise_draws(smooth, "rhat", "ess_bulk", "ess_tail")
+  audit$parameters <- audit$parameters + nrow(stats)
+  audit$max_rhat <- max(audit$max_rhat, stats$rhat)
+  audit$min_bulk_ess <- min(audit$min_bulk_ess, stats$ess_bulk)
+  audit$min_tail_ess <- min(audit$min_tail_ess, stats$ess_tail)
+  audit$passed <- isTRUE(audit$passed && audit$max_rhat < 1.01 &&
+                         audit$min_bulk_ess >= 100 * audit$chains &&
+                         audit$min_tail_ess >= 100 * audit$chains)
   audit
 }
 
-fit_beta_sequence <- function(training, order, method, hyper = NULL, seed,
-                              cache_dir = NULL, chains = 4L, iter = 2000L,
+fit_beta_sequence <- function(training, seed, cache_dir = NULL, chains = 4L, iter = 2000L,
                               cores = min(chains, 2L), warmup = iter %/% 2L, retry = FALSE) {
-  raw <- beta_stage_targets(training, order)
+  raw <- beta_stage_targets(training)
   replacement <- 1 / mean(training$total_votes)
-  if (replacement >= 0.5) stop("Endpoint correction is too large for a beta response.")
-  prior <- beta_stage_priors(method, hyper)
-  key <- if (method == "vanilla") method else paste(method, hyper)
+  if (!is.finite(replacement) || replacement <= 0 || replacement >= 0.5) {
+    stop("The one-vote endpoint correction must lie strictly between zero and one half.")
+  }
+  prior <- beta_stage_priors()
+  previous <- NULL
   if (!is.null(cache_dir)) dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
   stages <- vector("list", 3L)
   diagnostics <- vector("list", 3L)
 
   for (j in seq_len(3L)) {
     choice <- colnames(raw)[j]
-    remaining <- order[seq_along(order) >= j]
-    # For a candidate stage, its opponents are the parties below it in order.
     y <- raw[, j]
     keep <- !is.na(y)
-    design <- beta_stage_design(training[keep, , drop = FALSE], choice, remaining)
+    design <- beta_stage_design(training[keep, , drop = FALSE], choice)
     y <- y[keep]
+    message("Stage ", choice, ": ", length(y), " eligible training districts.")
     y[y == 0] <- replacement
     y[y == 1] <- 1 - replacement
     design$frame$response <- y
@@ -150,29 +165,26 @@ fit_beta_sequence <- function(training, order, method, hyper = NULL, seed,
     if (!is.null(path) && file.exists(path)) {
       model <- readRDS(path)
     } else {
-      template <- if (identical(beta_templates$key, key)) beta_templates$model
-      if (is.null(template)) {
+      if (is.null(previous)) {
         model <- do.call(brms::brm, c(list(formula = design$formula, data = design$frame,
-                         family = brms::Beta(link = "logit"), prior = prior, backend = "rstan",
-                         save_pars = brms::save_pars(manual = if (method == "horseshoe") "hs_local")), args))
+                         family = brms::Beta(link = "logit"), prior = prior, backend = "rstan"), args))
       } else {
-        model <- do.call(stats::update, c(list(object = template, formula. = design$formula,
+        model <- do.call(stats::update, c(list(object = previous, formula. = design$formula,
                          newdata = design$frame, prior = prior), args))
       }
       if (!is.null(path)) stage_write(model, path, rds = TRUE)
     }
-    audit <- beta_sampler_diagnostics(model, method)
+    audit <- beta_sampler_diagnostics(model)
     if (retry && !audit$passed && model$fit@sim$iter <= iter) {
-      message("Retrying ", method, " stage ", choice, " with longer warmup and sampling.")
+      message("Retrying stage ", choice, " with longer warmup and sampling.")
       model <- stats::update(model, seed = seed + j + 1000L, iter = 2L * iter,
                     warmup = 2L * warmup, chains = chains, cores = cores, refresh = 0,
                     control = list(adapt_delta = 0.995, max_treedepth = 13L))
       if (!is.null(path)) stage_write(model, path, rds = TRUE)
-      audit <- beta_sampler_diagnostics(model, method)
+      audit <- beta_sampler_diagnostics(model)
     }
-    beta_templates$key <- key
-    beta_templates$model <- model
-    stages[[j]] <- list(choice = choice, remaining = remaining, scaling = design$scaling,
+    previous <- model
+    stages[[j]] <- list(choice = choice, scaling = design$scaling,
                         model = model)
     diagnostics[[j]] <- data.frame(stage = choice, districts = sum(keep),
                                    omitted_empty_pool = sum(!keep), zero_share = replacement,
@@ -180,20 +192,19 @@ fit_beta_sequence <- function(training, order, method, hyper = NULL, seed,
                                    adjusted_ones = sum(raw[keep, j] == 1),
                                    iterations = model$fit@sim$iter, audit)
   }
-  list(order = order, stages = stages, diagnostics = do.call(rbind, diagnostics))
+  list(stages = stages, diagnostics = do.call(rbind, diagnostics))
 }
 
 # Convert a draw of the three conditional fractions into four unconditional
 # shares of all citizen adults. The final party gets exactly the remainder.
-beta_unconditional_draws <- function(conditional, party_order) {
+beta_unconditional_draws <- function(conditional) {
   home <- conditional[[1L]]
   voters <- 1 - home
-  party1 <- voters * conditional[[2L]]
-  others <- voters * (1 - conditional[[2L]])
-  party2 <- others * conditional[[3L]]
-  party3 <- others * (1 - conditional[[3L]])
-  shares <- setNames(list(home, party1, party2, party3), c("none", party_order))
-  shares[c("dem", "rep", "other", "none")]
+  republican <- voters * conditional[[2L]]
+  nonrepublican_voters <- voters * (1 - conditional[[2L]])
+  democratic <- nonrepublican_voters * conditional[[3L]]
+  other <- nonrepublican_voters * (1 - conditional[[3L]])
+  list(dem = democratic, rep = republican, other = other, none = home)
 }
 
 predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
@@ -201,7 +212,7 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
   predictive <- list()
   for (j in seq_along(fit$stages)) {
     stage <- fit$stages[[j]]
-    frame <- beta_stage_design(newdata, stage$choice, stage$remaining, stage$scaling)$frame
+    frame <- beta_stage_design(newdata, stage$choice, stage$scaling)$frame
     # Stage posteriors are independent. Pair independently sampled draws
     # across stages and share each unseen state's effect across its districts.
     set.seed(seed + j)
@@ -211,8 +222,8 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
     epred[[j]] <- brms::posterior_epred(prep, dpar = NULL, nlpar = NULL)
     predictive[[j]] <- brms::posterior_predict(prep)
   }
-  expected <- beta_unconditional_draws(epred, fit$order)
-  outcomes <- beta_unconditional_draws(predictive, fit$order)
+  expected <- beta_unconditional_draws(epred)
+  outcomes <- beta_unconditional_draws(predictive)
   collapse <- function(draws, statistic) {
     result <- do.call(cbind, lapply(draws, function(x) apply(x, 2L, statistic)))
     stopifnot(nrow(result) == nrow(newdata), all(is.finite(result) & result >= 0 & result <= 1))
@@ -230,12 +241,12 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
   list(point = point, lower = interval(.05), upper = interval(.95))
 }
 
-# fit_dir identifies this exact split, prior setting and sampler configuration.
+# The driver keys fit_dir on model inputs, source and sampler configuration.
 # Keep only the compact predictions once all three stage fits have succeeded.
-beta_fit_predict <- function(training, assessment, party_order, method, hyperparameter, seed, fit_dir) {
+beta_fit_predict <- function(training, assessment, seed, fit_dir) {
   completed <- file.path(fit_dir, "predictions.rds")
   if (file.exists(completed)) return(readRDS(completed))
-  fit <- fit_beta_sequence(training, party_order, method, hyperparameter, seed, fit_dir, retry = TRUE)
+  fit <- fit_beta_sequence(training, seed, fit_dir, retry = TRUE)
   stage_write(fit$diagnostics, file.path(fit_dir, "diagnostics.csv"))
   if (!all(fit$diagnostics$passed)) {
     failed <- which(!fit$diagnostics$passed)

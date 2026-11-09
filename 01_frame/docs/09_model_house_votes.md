@@ -1,8 +1,8 @@
 # Estimate 2024 House voting on the 2026 district map
 
-The active selection step is the [sequential beta comparison](09_compare_house_beta.md). Use this guide for the shared `prepare` stage and for reproducing the earlier Dirichlet fit and projections. A Dirichlet projection is not a result of the beta comparison.
+Use `prepare` here to build the district inputs. Then run the [sequential beta holdout validation](09_validate_house_beta.md). The Dirichlet fit and projection commands below reproduce the earlier specification.
 
-## Plain-language summary
+## Earlier Dirichlet specification
 
 For every district, we want the share of citizen adults who voted Democratic, Republican or Other for the House, plus the share without a recorded House candidate vote. Step 09 fits one Dirichlet regression to the four shares from each tabulated 2024 contest. It scores predictions for 30 held-out districts, then refits on all 434 tabulated districts.
 
@@ -19,7 +19,7 @@ Before restarting, review two parameter choices:
 - Decide whether to express the four probabilities using a zero no-House-vote reference logit while keeping the matching presidential nonvoting effect. Subtracting the current nonvote utility from all four utilities preserves the fitted probabilities. Dropping its presidential slope is a separate change to the model.
 - Decide whether to express the age effect with 13 independent contrasts and a sum-to-zero constraint on the 14 age coefficients. With the corresponding contrast prior this preserves the current predictions. The present model centers the age weights and puts a proper prior on all 14 coefficients.
 
-The [current equations](09_house_model_math.md) include the party-specific incumbency predictor.
+The [Dirichlet equations](09_house_model_math.md) include the party-specific incumbency predictor.
 
 ## Build and run
 
@@ -32,14 +32,11 @@ builds the demographic margins and lineups for both maps. The lockfile pins
 Rscript -e 'renv::restore(prompt = FALSE)'
 Rscript 01_frame/scripts/08_build_district_predictors.R
 /usr/bin/python3 01_frame/scripts/08_prepare_house_slates.py
-Rscript 01_frame/scripts/09_model_house_votes.R all
+Rscript 01_frame/scripts/09_model_house_votes.R prepare
+Rscript 01_frame/scripts/09_validate_house_beta.R validate
 ```
 
-On an existing checkout with Step 08 district demographics, rerun the roster script and use `Rscript 01_frame/scripts/09_model_house_votes.R prepare` to inspect `09_house_party_inputs.csv` and the zero audit before sampling.
-To inspect individual stages, use `prepare` to write the input tables, `fit`
-to validate and refit the model, and `predict` to generate the district results.
-Prediction checks that the saved full fit matches the current model and training
-inputs. Generated data stay local under `01_frame/data/`.
+Running `09_model_house_votes.R` without an argument prepares the input tables. To reproduce the earlier Dirichlet analysis, explicitly pass `fit` for validation and refitting, `predict` for district projections, or `all` for the complete Dirichlet workflow. Generated data stay local under `01_frame/data/`.
 
 ## Outcome and predictors
 

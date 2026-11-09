@@ -2,8 +2,8 @@
 
 For the 2024 House model, use the [district population predictors](docs/08_build_district_predictors.md)
 and [nominee lineups](docs/08_house_slates.md) to prepare the 2024 districts.
-Then [compare three sequential beta regressions](docs/09_compare_house_beta.md)
-on the same held-out districts. This step ends with a model recommendation.
+Then [fit the three stages of the House vote model](docs/09_validate_house_beta.md)
+and score their combined predictions on the 30 held-out districts.
 The original FL-20 and OK-03 outcomes remain missing.
 
 This component produces the two inputs for modeling the 2024 survey and
@@ -38,7 +38,7 @@ Run individual steps from the repository root, following their companion documen
 | 08 | `scripts/08_build_district_predictors.R` | 436 districts per map, with a common state population check | [District populations and shares](docs/08_build_district_predictors.md) |
 | 08 | `scripts/08_prepare_house_slates.py` | Nominee counts and party incumbency checked for all 436 districts in 2024 and 2026 | [House candidate rosters](docs/08_house_slates.md) |
 | 09 | `scripts/09_model_house_votes.R prepare` | Prepare district inputs with the observed CD119 House shares | [Source tables and outcomes](docs/09_model_house_votes.md) |
-| 09 | `scripts/09_compare_house_beta.R compare` | Compare vanilla, ridge and horseshoe beta regressions on 2024 districts | [Model equations, validation and outputs](docs/09_compare_house_beta.md) |
+| 09 | `scripts/09_validate_house_beta.R validate` | Fit the no-House-vote, Republican and Democratic shares in sequence and score the holdout | [Model equations, predictors and outputs](docs/09_validate_house_beta.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
@@ -81,7 +81,7 @@ Step 07 groups votes credited to candidates into Democratic, Republican and
 Other. For president, it divides the state totals by the state's PUMS
 citizen-adult population. The remainder estimates how many citizens had no
 counted vote for a presidential candidate. The House table retains votes on
-the original 2024 districts, including DC's delegate. The beta comparison uses observed contests on this 2024 map. Applying a selected model on the new map is a later step. The [area-level returns guide](docs/07_prepare_area_returns.md)
+the original 2024 districts, including DC's delegate. The beta regressions use observed contests on this 2024 map. The current run ends with the holdout scores. The [area-level returns guide](docs/07_prepare_area_returns.md)
 documents the ballot categories and denominators.
 
 ## Review of the November 8 checkpoint
