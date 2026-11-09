@@ -24,15 +24,18 @@ The calculated weights use the published ACS CVAP point estimates. They carry
 no uncertainty intervals for sampling error or for the assumed within-group split.
 [Census whole-block tabulation notes](https://www.census.gov/geographies/mapping-files/2027/dec/rdo/120-congressional-district-bef.html)
 
-Using the geographic mappings, we identify each block's PUMA and
-assigned district. We then add up the estimated citizen-adult
-contributions for each PUMA–district combination and divide by the
-corresponding PUMA total.
+There are two different denominators. For example, suppose a block group
+has an ACS estimate of 240 citizen adults and the 2020 Census counted 400
+adults there. If 100 of those 400 adults lived in the part of the group
+in PUMA A and district B, we credit that intersection with
+`240 × (100 / 400) = 60` estimated citizen adults.
 
-Those shares form the PUMA-to-district crosswalk. A subsequent step uses
-them to allocate the PUMS records. Every individual in the same PUMA
-receives the same probability distribution, regardless of their
-demographic characteristics.
+The second denominator is the estimated citizen-adult population available
+for district allocation **across all of PUMA A**. Suppose the contributions
+from all its block groups add to 8,000 in district B and 40,000 across its
+assigned districts. The PUMS allocation probability for B is then
+`8,000 / 40,000 = 0.20`. Every person in PUMA A gets that same probability.
+All numbers in this example are illustrative.
 
 If a PUMA lies entirely within one assigned district, its allocation
 weight is 1 without needing to estimate an internal split. Missing CVAP,
@@ -53,10 +56,21 @@ exceptions. Each worked example identifies its actual or illustrative values.
 To regenerate the PDF, run `python3 01_frame/docs/figures/02_district_probability_guide.py`
 from the repository root in a Python environment with Matplotlib installed.
 
-## CVAP allocation decisions
+## Finding the calculation in the code
 
-See [CVAP allocation decisions](02_cvap_allocation_decisions.md) for the selected rules, evidence and implementation status.
+Start with the [Step 02 script](../scripts/02_build_puma_cd_crosswalk.R).
+Sections 10 and 11 are where the two divisions above take place. To trace a
+value back to its source, follow the numbered sections and their helpers.
 
+| What do you want to trace? | Where to look |
+|---|---|
+| Which PUMA and district contain a block, and how many residents and adults did the Census count there? | Sections 1–5 use the [Census file readers](../scripts/helpers/02_census_inputs.R) and [block geography and population joins](../scripts/helpers/02_block_geography.R). |
+| Why is a New York estimate missing, or why does a Connecticut block group have two possible geographic identifiers? | Sections 6–8 use the [CVAP geography checks](../scripts/helpers/02_cvap_geography.R). The [allocation decision record](02_cvap_allocation_decisions.md) explains the treatment. |
+| Which block groups are split, allocated directly or handled under a reviewed exception? | Section 9 prepares the [allocation inputs](../scripts/helpers/02_allocation_inputs.R). |
+| How are the resulting contributions and weights checked? | Sections 10–11 and the [crosswalk audits](../scripts/helpers/02_crosswalk_audits.R). |
+
+The New York and Connecticut sections also write two review notes. Their
+wording lives in the [audit note functions](../scripts/helpers/02_cvap_audit_notes.R).
 
 ## Reading 2020 block adult population
 

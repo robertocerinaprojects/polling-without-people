@@ -212,8 +212,8 @@ and account-specific extract numbers are resolved from the local receipt.
 - **Source/download:** Exact per-state URLs in the [manifest](02_pl_2020_sources.csv),
   under [Census 2020 PL redistricting files](https://www2.census.gov/programs-surveys/decennial/2020/data/01-Redistricting_File--PL_94-171/).
   Download each `url` to its `path`; verify its `bytes` and `sha256`.
-- **Reader:** Script 02 Section 5 uses the Section 4 reader. It reads the
-  manifest, verifies each local archive and reads two members:
+- Script 02 Sections 4–5 read the manifest and verify each local archive.
+  The [PL reader](../scripts/helpers/02_census_inputs.R) reads two members,
   `<abbr>geo2020.pl` and `<abbr>000022020.pl`. Script 05 reads the manifest
   and the same two archived members for states with split old districts.
 - **Geography member:** 97 pipe-delimited fields; the reader selects
@@ -236,8 +236,8 @@ Script 02 reads but never rewrites the manifest.
 
 - **File:** `data/input/CVAP_2020-2024_ACS_csv_files.zip`; member `BlockGr.csv`.
 - **Source/download:** [Census 2020-2024 CVAP archive](https://www2.census.gov/programs-surveys/decennial/rdo/datasets/2024/2024-cvap/CVAP_2020-2024_ACS_csv_files.zip).
-- **Readers:** Script 02 Section 6 for identifiers; reread in Section 8 for
-  national estimates and reused in memory in Section 9.
+- Script 02 reads the block-group identifiers and estimates together in Section 6.
+  Sections 8 and 9 reuse that table for Connecticut and the national allocation.
 - **Source columns:** `geoname, lntitle, geoid, lnnumber, cit_est, cit_moe,
   cvap_est, cvap_moe`. Current calculations use `geoid, lnnumber, cvap_est`.
 - **Selection/key:** `lnnumber == 1` is Total. Remove `1500000US` from `geoid`
@@ -579,18 +579,16 @@ interpretation of estimated individual districts.
 
 | File | Producer or reader | Upstream inputs / purpose |
 |---|---|---|
-| `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes it; Section 7 reads it back and appends results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
-| `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes it, then reads it back and appends reviewed-exception results | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
+| `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes the identifier checks and Section 7 adds the affected PUMA and district results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
+| `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes the identifier checks and adds the reviewed exceptions | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
 | `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
 | `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02, 05 and 07 | State keys, source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
 | [CES eligibility, district and race decisions](05_citizenship_district_decisions.md) | Maintained decision record for Script 05 | Rules for citizenship and gender eligibility, translating residence to 2026 districts, conditional race draws and donor fallback. |
 | [CES vote rules](05_vote_rules.md) | Maintained decision record for Script 05 | Source questions, party coding by wave, priority of answers, DC delegate treatment and comparison with 2024 election returns. |
 
-The two generated Markdown notes are tracked, but a full Script 02 run
-recreates their text. Change their generating code when revising them.
-They are the only generated files Script 02 reads back; that read-back
-appends narrative results, not inputs to the numerical calculation.
+Step 02 recreates both tracked Markdown notes from the audit results held
+in memory. To revise their text, edit the [audit note functions](../scripts/helpers/02_cvap_audit_notes.R).
 
 Census technical documentation, state-code references and apportionment
 tables cited in script comments explain hard-coded definitions. They are
