@@ -332,7 +332,7 @@ district and county for the harmonized CES RDS and respondent-level audits. [Rel
 
 | File | Producer and upstream inputs | Direct downstream use |
 |---|---|---|
-| `data/intermediate/pums_clean.rds` | Script 01; approved IPUMS pair acquired by Script 00, local pointer/receipt and tracked source approval | Script 03 reads person weights and geography. Script 04 reads the person key, demographics, citizenship and original person weights. |
+| `data/intermediate/pums_clean.rds` | Script 01 reads the approved IPUMS pair acquired by Script 00 and checks the local receipt and tracked source specification. | Script 03 reads person weights and geography. Script 04 reads the person key, demographics, citizenship and original person weights. Script 08 uses the person key, PUMA, state and original person weights to build the 2024 district predictors. |
 | `data/intermediate/puma_cd_crosswalk.rds` | Script 02 Section 11; BEF + PUMA lookup + PL + CVAP + reviewed CT mapping; NY suppression and CT query validate exceptions | Script 03 reads this RDS. `02_puma_cd_weights.csv` is a readable export of the same table. |
 | `data/intermediate/pums_cd_allocation.rds` | Script 03 Section 2, using `pums_clean.rds` and `puma_cd_crosswalk.rds` | Script 05 uses `allocated_person_weight` once per person/district contribution to estimate the Hispanic donor race distribution. Step 06 joins the demographics by `SAMPLE + SERIAL + PERNUM` to estimate full cell populations. |
 | `data/intermediate/pums_demographics.rds` | Script 04 using `pums_clean.rds` | One row per `SAMPLE + SERIAL + PERNUM` with `age_cat, gender_cat, educ_cat, race_cat, hispanic_cat`. Scripts 05 and 06 use the three identifiers to attach these categories to Script 03 district contributions. |
@@ -344,8 +344,8 @@ district and county for the harmonized CES RDS and respondent-level audits. [Rel
 ### Cleaned person schema
 
 `pums_clean.rds` contains one retained record per `SAMPLE + SERIAL + PERNUM`.
-All 24 source columns above are retained, with six additional columns:
-`gender, hispanic_flag, hispanic_detailed, race_detailed, educ_detailed,
+The 24 source columns are followed by six derived columns in this order:
+`hispanic_flag, gender, hispanic_detailed, race_detailed, educ_detailed,
 hhincome_clean`.
 
 The population is citizens aged 18+ at observation, including institutional

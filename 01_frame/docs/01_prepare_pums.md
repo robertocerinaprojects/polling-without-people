@@ -19,6 +19,13 @@ person identifiers and recoding, and save the cleaned person file with
 its audit tables. Each person's available location is their PUMA.
 District assignment is a subsequent step.
 
+To see who enters the frame, start at “Select the citizen-adult population”
+in [the preparation script](../scripts/01_prepare_pums.R). Each filter is
+followed by its row count and weighted population. The same script shows
+the recodes and the four audit tables. To trace how a download is approved
+or how the five output files are published, see the
+[file-handling functions](../scripts/helpers/01_pums_files.R).
+
 ## Status and execution
 
 Status: validated. The full Script 00 → Script 01 run passed the source,
@@ -110,7 +117,7 @@ starts with that published area and inherits its geographic uncertainty.
 
 | File | Purpose |
 |---|---|
-| `data/intermediate/pums_clean.rds` | Cleaned person records used for district allocation in Script 03 and demographic harmonization in [Script 04](04_harmonize_pums.md). |
+| `data/intermediate/pums_clean.rds` | Script 03 applies district probabilities to the person weights. [Script 04](04_harmonize_pums.md) harmonizes demographics. [Script 08](08_build_district_predictors.md) uses original weights and PUMA identifiers to reconstruct the population on the 2024 district boundaries. |
 | `data/output/01_pums_filtering.csv` | Records, weighted population and losses at each filtering stage. |
 | `data/output/01_pums_recoding.csv` | Missing values in the six derived fields. |
 | `data/output/01_pums_hispanic.csv` | Records and weighted population by Hispanic-origin flag. |
