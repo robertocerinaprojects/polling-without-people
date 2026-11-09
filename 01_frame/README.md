@@ -78,9 +78,9 @@ Step 07 groups votes credited to candidates into Democratic, Republican and
 Other. For president, it divides the state totals by the state's PUMS
 citizen-adult population. The remainder estimates how many citizens had no
 counted vote for a presidential candidate. The House table retains votes on
-the original 2024 districts, including DC's delegate. To calculate 2026
-district shares, the House counts first need to be redistributed onto those
-boundaries. The [area-level returns guide](docs/07_prepare_area_returns.md)
+the original 2024 districts, including DC's delegate. Step 09 carries the
+counts for identical, tabulated districts and models shares for redrawn
+or unpolled districts. The [area-level returns guide](docs/07_prepare_area_returns.md)
 documents every ballot category, source reconciliation and denominator.
 
 ## Review of the November 8 checkpoint

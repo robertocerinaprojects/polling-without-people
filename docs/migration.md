@@ -23,7 +23,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/Script13_CES_vote2024_waterfall.R` | `legacy/frame/scripts/Script13_CES_vote2024_waterfall.R` | Active successor for this task | [Step 05 vote rules](../01_frame/docs/05_vote_rules.md) derive 2024 House vote and record which survey wave supplied it |
 | `frame/scripts/Script14_stateabv_statecd.R` | `legacy/frame/scripts/Script14_stateabv_statecd.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | `legacy/frame/scripts/Script15_CD_level_demographic_proportions_pums.R` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
+| `frame/scripts/Script16_2024_House_Shares.R` | `legacy/frame/scripts/Script16_2024_House_Shares.R` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. [Step 09](../01_frame/docs/09_model_house_votes.md) specifies how to carry observed counts or predict new-map shares |
 | `frame/scripts/Script17_State_Pres_Shares.R` | `legacy/frame/scripts/Script17_State_Pres_Shares.R` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) classifies candidate votes, uses state PUMS CVAP for the four office-specific shares, and includes DC |
 | `frame/scripts/Script18ABC_CD_Level_Training_Table.R` | `legacy/frame/scripts/Script18ABC_CD_Level_Training_Table.R` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/Script19ABC_CART_Imputation.R` | `legacy/frame/scripts/Script19ABC_CART_Imputation.R` | Awaiting review | Replacement or retirement not yet decided |
@@ -43,7 +43,7 @@ Old companion documents follow the status of their associated script.
 | `frame/scripts/ReadMe_Script13_CES_vote2024_waterfall.md` | `legacy/frame/docs/ReadMe_Script13_CES_vote2024_waterfall.md` | Active successor for this task | [Step 05 vote rules](../01_frame/docs/05_vote_rules.md) derive 2024 House vote and record which survey wave supplied it |
 | `frame/scripts/ReadMe_Script14.md` | `legacy/frame/docs/ReadMe_Script14.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script15_cd_lvl_demo.md` | `legacy/frame/docs/ReadMe_Script15_cd_lvl_demo.md` | Awaiting review | Replacement or retirement not yet decided |
-| `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. Rebalancing for 2026 remains open |
+| `frame/scripts/ReadMe_Script16AB.md` | `legacy/frame/docs/ReadMe_Script16AB.md` | Observed returns replaced | [Step 07](../01_frame/docs/07_prepare_area_returns.md) prepares original-district House returns. [Step 09](../01_frame/docs/09_model_house_votes.md) specifies how to carry observed counts or predict new-map shares |
 | `frame/scripts/ReadMe_Script17_State_Pres_Shares.md` | `legacy/frame/docs/ReadMe_Script17_State_Pres_Shares.md` | Active successor | [Step 07](../01_frame/docs/07_prepare_area_returns.md) classifies candidate votes, uses state PUMS CVAP for the four office-specific shares, and includes DC |
 | `frame/scripts/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | `legacy/frame/docs/ReadMe_Script18ABC_CD_Level_Training_Table_For_CART.md` | Awaiting review | Replacement or retirement not yet decided |
 | `frame/scripts/ReadMe_Script19ABC_CART_Impute.md` | `legacy/frame/docs/ReadMe_Script19ABC_CART_Impute.md` | Awaiting review | Replacement or retirement not yet decided |
@@ -191,6 +191,6 @@ votes only for House is included in the presidential residual. This decision
 supersedes the draft that used election-wide counted ballots.
 
 The presidential results use states and DC. The observed House results use
-the 2024 election districts, including DC's delegate. Translating those
-votes to 2026 districts is a separate task. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
+the 2024 election districts, including DC's delegate. Step 09 uses their counts
+on matching district footprints and predicts shares for redrawn or unpolled districts. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
 records the sources, reconciliation and rules for interpreting missing counts.

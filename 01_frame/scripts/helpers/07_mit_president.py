@@ -25,6 +25,22 @@ EXCLUDED = {
 }
 
 
+def classify_presidential_choice(name, writein):
+    """Return the office-specific vote category and its audit reason."""
+    if name in NOMINEES:
+        reason = "named_nominee_writein" if writein else "named_nominee"
+        return NOMINEES[name], reason
+    if name in EXCLUDED:
+        return "Excluded", EXCLUDED[name]
+    if name in POOLED_CHOICES:
+        return "Other", "pooled_choices"
+
+    # The remaining labels in the pinned CSV are named candidates or tickets.
+    # The party on a write-in alone cannot identify Harris or Trump.
+    reason = "other_named_writein" if writein else "other_named_candidate"
+    return "Other", reason
+
+
 def classify_president(path):
     """Return one audit row per published 2024 candidate or accounting tally."""
     data = Path(path).read_bytes()
@@ -38,19 +54,7 @@ def classify_president(path):
                 continue
             name = row["candidate"]
             writein = row["writein"] == "True"
-            if name in NOMINEES:
-                category = NOMINEES[name]
-                reason = "named_nominee_writein" if writein else "named_nominee"
-            elif name in EXCLUDED:
-                category, reason = "Excluded", EXCLUDED[name]
-            elif name in POOLED_CHOICES:
-                category, reason = "Other", "pooled_choices"
-            else:
-                # All remaining labels in the pinned file are named candidates
-                # or tickets. Some write-ins report a party affiliation despite
-                # naming a person other than the Democratic or Republican nominee.
-                category = "Other"
-                reason = "other_named_writein" if writein else "other_named_candidate"
+            category, reason = classify_presidential_choice(name, writein)
 
             result.append({
                 "STATEFP": row["state_fips"].zfill(2),

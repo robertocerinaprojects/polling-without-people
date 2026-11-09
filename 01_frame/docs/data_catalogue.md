@@ -615,7 +615,7 @@ additionally requires the Step 03 PUMS audit.
 |---|---|
 | `data/intermediate/07_president_votes_2024.csv` | One row per state or DC. State candidate counts feed the presidential covariates. |
 | `data/intermediate/07_state_presidential_covariates_2024.csv` | State candidate counts plus the Step 03 citizen-adult population. Supplies Democratic, Republican, Other and Did not vote shares. |
-| `data/intermediate/07_house_votes_cd119.csv` | One row per 2024 House district, including DC. Supplies original-district counts for the planned boundary adjustment. |
+| `data/intermediate/07_house_votes_cd119.csv` | One row per 2024 House district, including DC. Step 09 fits the model to tabulated contests and carries observed counts to identical districts. |
 | `data/output/07_mit_president_rows.csv` | One row per 2024 MIT presidential source line. Records candidate or ballot label, raw count and treatment. |
 | `data/output/07_mit_house_rows.csv` | One row per 2024 MIT House source line. Records district, raw count, candidate or ballot label and treatment. |
 | `data/output/07_president_source_votes_2024.csv` | State-by-selection audit of the FEC workbook. Preserves named candidates, write-ins, Nevada's explicit none option and empty source cells. |
@@ -624,9 +624,9 @@ additionally requires the Step 03 PUMS audit.
 
 The 2024 House file uses `STATEFP` and `CDFP119`. District population cells
 from Step 06 use `STATEFP` and `CDFP120`. A same-numbered district can
-cover different voters in the two elections. The district shares require
-redistributing House counts to the 2026 map before pairing them with
-2026-district PUMS citizen-adult totals.
+cover different voters in the two elections. Step 08 identifies exact matches
+by their Census blocks. For redrawn districts, Step 09 estimates shares using
+the target district's composition and candidate lineup.
 
 ## Validation, reruns and preservation
 

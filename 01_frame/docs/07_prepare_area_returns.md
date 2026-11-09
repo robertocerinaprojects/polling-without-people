@@ -14,8 +14,25 @@ votes, presidential turnout under this definition is 70% and Did not vote
 for president is 30%. The 30 can include people who voted for House and
 left president blank. We retain blank, invalid and “none” vote totals in the
 source audits. They add nothing to the 70, and they are already covered by
-the residual of 30. For the final House shares, both the votes and the
-citizen-adult population must first refer to the same 2026 district.
+the residual of 30. Step 07 leaves each House count in the district where
+the election took place. Step 09 uses those observed counts to fit the
+House model on the 2024 map.
+
+## Follow a vote through the code
+
+In Connecticut's first House district, MIT lists one candidate as
+`WORKING FAMILIES`. The Clerk credits that ballot line to John B. Larson.
+The [MIT House reader](../scripts/helpers/07_mit_house.py) first identifies
+the major-party nominees in each district. On its second pass it can credit
+both of Larson's lines to Democratic, even if the Working Families row
+comes first. An unattributed pool of write-ins goes to Other. An undervote
+stays in the source audit.
+
+In the [main script](../scripts/07_prepare_area_returns.py), `reconcile_returns`
+compares each of the three candidate totals with the Clerk's district totals.
+It returns both the selected counts and the side-by-side audit. For president
+the same comparison uses the FEC state totals. The table below records the
+seven reviewed differences in presidential Other.
 
 ## Ballot decisions for both offices
 
@@ -45,13 +62,15 @@ separately describe respondents' answers and survey-wave fallbacks.
 From the repository root:
 
 ```bash
-python3 01_frame/scripts/07_prepare_area_returns.py
+/usr/bin/python3 01_frame/scripts/07_prepare_area_returns.py
 ```
 
 Use `--returns-only` to prepare the two offices' observed counts and audits
-without the Step 03 state PUMS file. A full run also computes state presidential
-shares. The official-source check uses Python 3, `openpyxl` and Poppler's
-`pdftotext`. Paths in the table are relative to `01_frame/`.
+without the Step 03 state PUMS file. If a state presidential shares file
+already exists, this mode leaves it in place. A full run refreshes it.
+The command uses the Codespace's system Python. In another environment,
+use a Python 3 interpreter with `openpyxl` and make Poppler's `pdftotext`
+available on the command path. Paths in the table are relative to `01_frame/`.
 
 | Cached input | Release and use | SHA-256 of reviewed bytes |
 |---|---|---|
@@ -123,14 +142,18 @@ An eventual Did not vote residual on these data means no candidate vote
 credited in the selected tabulation. It cannot establish that the voter
 left the office blank.
 
-**2026 House covariates are a subsequent step.** First redistribute the 2024
-candidate counts to 120th Congress boundaries using the agreed boundary
-method. Then sum the Step 06 population cell sizes `N` by `STATEFP` and
-`CDFP120` to obtain district PUMS CVAP. Divide the redistributed district
-counts by this population, using the same turnout and Did not vote formulas
-as for president. Preserve uncertainty for districts overlapping an unpolled
-contest. Attaching original votes to a same-numbered 2026 district could
-pair votes and residents from different places.
+**How the House counts enter the later model.** [Step 08](08_build_district_predictors.md)
+compares the actual district boundaries using Census blocks. Under the
+[Step 09 projection rules](09_model_house_votes.md), 290 districts with
+identical territory and observed returns carry their 2024 candidate counts
+forward. The four shares use the target district's citizen-adult population.
+For each of the 145 redrawn districts, including new FL-20, the model predicts
+all four shares from the whole district's new demographics, its state's 2024
+presidential shares and its 2026 candidate lineup. Unchanged OK-03 also needs
+a prediction because it has no observed count. It uses its 2024 Republican-only
+lineup. Modelled districts keep their predicted shares, so aggregating
+them can give a different state total from the 2024 House count. The Step 09
+guide records the status of the national fit.
 
 ## Outputs and source reconciliation
 
@@ -171,7 +194,7 @@ the House table and the comparison audit.
 |---|---|
 | `intermediate/07_president_votes_2024.csv` | State and DC candidate counts, `total_votes` and `source_used`. |
 | `intermediate/07_state_presidential_covariates_2024.csv` | Presidential counts with `cvap`, `did_not_vote_est`, `share_dem`, `share_rep`, `share_other`, `share_turnout` and `share_did_not_vote`. Full run only. |
-| `intermediate/07_house_votes_cd119.csv` | Original district counts, `total_votes`, tabulation and availability, and `source_used`. Input for the later boundary adjustment. |
+| `intermediate/07_house_votes_cd119.csv` | Original district counts, `total_votes`, tabulation, availability and `source_used`. Supplies observed House outcomes for fitting and the counts carried to identical districts. |
 | `output/07_mit_president_rows.csv` and `output/07_mit_house_rows.csv` | Original MIT vote lines and their treatment by office. |
 | `output/07_president_source_votes_2024.csv` and `output/07_house_source_lines_cd119.csv` | Official-source lines supporting the comparison. |
 | `output/07_vote_source_comparison.csv` | By office and geography, MIT and official counts, `source_used` and `status`. |

@@ -1,7 +1,11 @@
 """Prepare 2024 presidential and House returns on election-day geography.
 
-Run from the repository root. See 01_frame/docs/07_prepare_area_returns.md.
-Use --returns-only to prepare the source counts without a local PUMS audit.
+For president, compare MIT state counts with the Federal Election Commission
+and divide the selected counts by each state's PUMS citizen-adult population.
+For House, compare MIT district counts with the Clerk on the 2024 boundaries.
+
+Run from the repository root. Use --returns-only for counts and source audits.
+Decisions and outputs: 01_frame/docs/07_prepare_area_returns.md.
 """
 
 import argparse
@@ -24,14 +28,247 @@ mit_house = import_module("helpers.07_mit_house")
 
 # MIT minus FEC for Other after excluding Nevada's explicit None selection.
 # These seven differences are documented for the two checksum-pinned editions.
-PRESIDENT_OTHER_DIFFERENCES = {"AZ": -842, "DE": 1, "MT": -27, "NY": 105,
-                               "PA": -24526, "RI": -300, "WV": 2}
-VOTE_COLUMNS = ("votes_dem", "votes_rep", "votes_other")
+PRESIDENT_OTHER_DIFFERENCES = {
+    "AZ": -842, "DE": 1, "MT": -27, "NY": 105, "PA": -24526, "RI": -300, "WV": 2,
+}
+PARTY_VOTE_COLUMNS = {
+    "Democratic": "votes_dem",
+    "Republican": "votes_rep",
+    "Other": "votes_other",
+}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--returns-only", action="store_true",
+                        help="Write the observed returns and their source audits only")
+    args = parser.parse_args()
+    frame = Path("01_frame")
+    state_fips = read_state_codes(frame / "docs" / "02_pl_2020_sources.csv")
+    data = frame / "data"
+    source = data / "input" / "05_vote_benchmark"
+    intermediate = data / "intermediate"
+    output = data / "output"
+    state_audit = output / "03_pums_allocation_by_state.csv"
+    if not args.returns_only and not state_audit.is_file():
+        parser.error(f"Missing {state_audit}. Run Step 03 or use --returns-only for the election results.")
+    for directory in (source, intermediate, output):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    # Read the official FEC workbook and the Clerk's district-by-district report.
+    xlsx = source / "fec2024.xlsx"
+    pdf = source / "clerk2024.pdf"
+    official.fetch(xlsx, official.FEC_URL, official.FEC_SHA256)
+    official.fetch(pdf, official.CLERK_URL, official.CLERK_SHA256)
+    report = subprocess.run(
+        ["pdftotext", "-layout", str(pdf), "-"], check=True, capture_output=True, encoding="utf-8"
+    ).stdout
+
+    mit_pres_path, mit_house_path = mit_sources.obtain_mit_sources(data / "input")
+    with TemporaryDirectory(dir=data) as temp:
+        stage = Path(temp)
+        # Each official reader writes its counts and a source-line audit here.
+        # Replace the staged counts with our selected rows after both comparisons pass.
+        president.write_president(xlsx, stage, state_fips)
+        house.write_house(report, stage, state_fips)
+        president_path = stage / "07_president_votes_2024.csv"
+        house_path = stage / "07_house_votes_cd119.csv"
+
+        presidential_lines = mit_president.classify_president(mit_pres_path)
+        house_lines = mit_house.classify_house(mit_house_path)
+        state_votes, president_comparison = reconcile_returns(
+            presidential_lines, read_rows(president_path), "President"
+        )
+        district_votes, house_comparison = reconcile_returns(
+            house_lines, read_rows(house_path), "House"
+        )
+
+        write_rows(president_path, state_votes)
+        write_rows(house_path, district_votes)
+        write_rows(stage / "07_mit_president_rows.csv", presidential_lines)
+        write_rows(stage / "07_mit_house_rows.csv", house_lines)
+        write_rows(stage / "07_vote_source_comparison.csv", president_comparison + house_comparison)
+
+        products = {
+            "07_president_votes_2024.csv": intermediate,
+            "07_house_votes_cd119.csv": intermediate,
+            "07_president_source_votes_2024.csv": output,
+            "07_house_source_lines_cd119.csv": output,
+            "07_mit_president_rows.csv": output,
+            "07_mit_house_rows.csv": output,
+            "07_vote_source_comparison.csv": output,
+        }
+        # The optional eighth file uses the Step 03 citizen-adult population.
+        shares_file = "07_state_presidential_covariates_2024.csv"
+        if not args.returns_only:
+            cvap, total = write_covariates(president_path, state_audit, stage / shares_file)
+            products[shares_file] = intermediate
+        elif (intermediate / shares_file).exists():
+            print(f"Run without --returns-only to refresh {shares_file} before analysis.", file=sys.stderr)
+        publish(stage, products)
+        for filename, directory in products.items():
+            print(f"Saved {directory / filename}")
+    if not args.returns_only:
+        print(f"State PUMS CVAP: {cvap:,.2f}. Classified presidential votes: {total:,}. "
+              f"Estimated without a presidential candidate vote: {cvap - total:,.2f}.")
+    if (output / "07_turnout_audit.csv").exists():
+        print("07_turnout_audit.csv is from the earlier election-wide turnout definition "
+              "and is not an input or output of this calculation.", file=sys.stderr)
+
+
+def tally_mit_votes(mit_rows):
+    """Sum the classified rows within each state (President) or district (House)."""
+    counts_by_area = defaultdict(Counter)
+    unpolled = set()
+    for row in mit_rows:
+        area = (row["STATEFP"], row["district_2024"])
+        counts = counts_by_area[area]  # Keep an entry even for an unpolled contest.
+        category = row["category"]
+        if category in PARTY_VOTE_COLUMNS:
+            counts[category] += row["source_votes"]
+        elif category == "Unresolved":
+            unpolled.add(area)
+        elif category != "Excluded":
+            raise ValueError(f"Unexpected source classification: {row}")
+    return counts_by_area, unpolled
+
+
+def reconcile_returns(mit_rows, official_rows, office):
+    """Return the selected counts and the side-by-side audit, in official file order."""
+    mit_counts, mit_unpolled = tally_mit_votes(mit_rows)
+    # Presidential rows have an empty district key. For House, use the original
+    # 119th Congress district, including DC's delegate district 98.
+    official_by_area = {(row["STATEFP"], row.get("CDFP119", "")): row for row in official_rows}
+    if len(official_by_area) != len(official_rows) or official_by_area.keys() != mit_counts.keys():
+        raise ValueError(f"MIT and the official {office} source disagree on geography")
+
+    selected_rows = []
+    comparison_rows = []
+    presidential_other_deltas = {}
+    for area, reported in official_by_area.items():
+        counts = mit_counts[area]
+        selected = reported.copy()
+        audit = {
+            "office": office, "STATEFP": area[0], "STUSAB": reported["STUSAB"], "CDFP119": area[1]
+        }
+
+        # FL-20 and OK-03 have winners but no counts. The MIT reader flags
+        # its placeholder rows (1 vote, total -1). The Clerk must agree.
+        official_unpolled = reported.get("status") == "unopposed_not_on_ballot"
+        if area in mit_unpolled or official_unpolled:
+            if office != "House" or area not in mit_unpolled or not official_unpolled or counts:
+                raise ValueError(f"MIT and official source disagree on unpolled contest {area}")
+            if any(reported[c] != "" for c in (*PARTY_VOTE_COLUMNS.values(), "total_votes")):
+                raise ValueError(f"MIT and official source disagree on unpolled contest {area}")
+            for column in PARTY_VOTE_COLUMNS.values():
+                audit[f"mit_{column}"] = None
+                audit[f"official_{column}"] = None
+            status, source = "unopposed_not_on_ballot", "no_tabulation"
+        else:
+            if sum(counts.values()) <= 0:
+                raise ValueError(f"No candidate votes for {office} {area}")
+
+            other_delta = 0
+            for party, column in PARTY_VOTE_COLUMNS.items():
+                official_count = int(reported[column])
+                audit[f"mit_{column}"] = counts[party]
+                audit[f"official_{column}"] = official_count
+                delta = counts[party] - official_count
+                if delta:
+                    if office != "President" or party != "Other":
+                        raise ValueError(f"{office} {area} {party}: source difference {delta}")
+                    other_delta = delta
+
+            # Matching counts use MIT. A reviewed discrepancy in presidential
+            # Other uses the whole FEC state row. Check the exact deltas below.
+            if other_delta:
+                presidential_other_deltas[reported["STUSAB"]] = other_delta
+                status, source = "reviewed_other_difference", "FEC"
+            else:
+                for party, column in PARTY_VOTE_COLUMNS.items():
+                    selected[column] = counts[party]
+                status, source = "matched", "MIT"
+
+            selected_total = sum(int(selected[column]) for column in PARTY_VOTE_COLUMNS.values())
+            if selected_total != int(reported["total_votes"]):
+                raise ValueError(f"Selected candidate totals do not reconcile for {office} {area}")
+
+        selected["source_used"] = source
+        selected_rows.append(selected)
+        comparison_rows.append({**audit, "status": status, "source_used": source})
+
+    if office == "President" and presidential_other_deltas != PRESIDENT_OTHER_DIFFERENCES:
+        raise ValueError(f"Unreviewed presidential source discrepancies: {presidential_other_deltas}")
+    return selected_rows, comparison_rows
+
+
+def read_state_cvap(state_audit):
+    """Step 03 records both the original person weights and their district allocations."""
+    cvap_by_state = {}
+    for row in read_rows(state_audit):
+        state = row["STATEFP"]
+        cvap = float(row["input_weight"])
+        allocated = float(row["allocated_weight"])
+        if (state in cvap_by_state or not math.isfinite(cvap) or cvap <= 0 or
+                not math.isclose(cvap, allocated, rel_tol=1e-12)):
+            raise ValueError(f"Invalid or unreconciled Step 03 population for state {state}")
+        cvap_by_state[state] = cvap
+    return cvap_by_state
+
+
+def write_covariates(presidential, state_audit, destination):
+    cvap_by_state = read_state_cvap(state_audit)
+    votes = read_rows(presidential)
+    if len(votes) != len(cvap_by_state) or set(cvap_by_state) != {row["STATEFP"] for row in votes}:
+        raise ValueError("Step 03 and the presidential returns must cover the same states and DC")
+
+    for row in votes:
+        cvap = cvap_by_state[row["STATEFP"]]
+        candidate_votes = int(row["total_votes"])
+        # A voter who cast a House vote but left president blank is already
+        # in this residual. Subtract only votes credited to presidential candidates.
+        without_candidate_vote = cvap - candidate_votes
+        if without_candidate_vote < 0:
+            raise ValueError(f"{row['STUSAB']}: candidate votes exceed the Step 03 population")
+
+        row["cvap"] = cvap
+        row["did_not_vote_est"] = without_candidate_vote
+        row["share_turnout"] = candidate_votes / cvap
+        row["share_did_not_vote"] = without_candidate_vote / cvap
+        row["share_dem"] = int(row["votes_dem"]) / cvap
+        row["share_rep"] = int(row["votes_rep"]) / cvap
+        row["share_other"] = int(row["votes_other"]) / cvap
+
+        candidate_share = math.fsum((row["share_dem"], row["share_rep"], row["share_other"]))
+        all_choices = candidate_share + row["share_did_not_vote"]
+        if (not math.isclose(candidate_share, row["share_turnout"], abs_tol=1e-12) or
+                not math.isclose(all_choices, 1, abs_tol=1e-12)):
+            raise ValueError(f"{row['STUSAB']}: presidential shares do not reconcile")
+    write_rows(destination, votes)
+    return math.fsum(cvap_by_state.values()), sum(int(row["total_votes"]) for row in votes)
+
+
+def read_state_codes(manifest_path):
+    manifest = read_rows(manifest_path)
+    state_fips = {row["STUSAB"]: row["STATEFP"] for row in manifest}
+    expected_states = set(official.STATES.values()) | {"DC"}
+    if (len(manifest) != 51 or set(state_fips) != expected_states or
+            len(set(state_fips.values())) != 51 or state_fips["DC"] != "11" or
+            not all(len(code) == 2 and code.isdigit() for code in state_fips.values())):
+        raise ValueError("Invalid state keys in the Census manifest")
+    return state_fips
 
 
 def read_rows(path):
     with path.open(encoding="utf-8", newline="") as stream:
         return list(csv.DictReader(stream))
+
+
+def write_rows(path, rows):
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def publish(stage, products):
@@ -58,173 +295,6 @@ def publish(stage, products):
             else:
                 destination.unlink()
         raise
-
-
-def write_rows(path, rows):
-    with path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def reconcile_returns(mit_rows, official_path, office, comparison):
-    # The official helper has already checked its source totals. Keep MIT's
-    # original records, including administrative entries and unpolled indicators.
-    groups = defaultdict(Counter)
-    unobserved = set()
-    for row in mit_rows:
-        key = (row["STATEFP"], row["district_2024"])
-        tally = groups[key]
-        category = row["category"]
-        if category == "Unresolved":
-            unobserved.add(key)
-        elif category in official.PARTIES:
-            tally[category] += row["source_votes"]
-        elif category != "Excluded":
-            raise ValueError(f"Unexpected source classification: {row}")
-
-    rows = read_rows(official_path)
-    keys = [(row["STATEFP"], row.get("CDFP119", "")) for row in rows]
-    if len(keys) != len(set(keys)) or set(keys) != groups.keys():
-        raise ValueError(f"MIT and the official {office} source disagree on geography")
-    differences = {}
-    for row, key in zip(rows, keys):
-        counts = groups[key]
-        check = {"office": office, "STATEFP": key[0], "STUSAB": row["STUSAB"],
-                 "CDFP119": key[1]}
-        if key in unobserved or row.get("status") == "unopposed_not_on_ballot":
-            if (office != "House" or key not in unobserved or counts or
-                    row.get("status") != "unopposed_not_on_ballot" or
-                    any(row[column] != "" for column in (*VOTE_COLUMNS, "total_votes"))):
-                raise ValueError(f"MIT and official source disagree on unpolled contest {key}")
-            status, source = "unopposed_not_on_ballot", "no_tabulation"
-            for column in VOTE_COLUMNS:
-                check[f"mit_{column}"] = check[f"official_{column}"] = None
-        else:
-            if sum(counts.values()) <= 0:
-                raise ValueError(f"No candidate votes for {office} {key}")
-            status, source = "matched", "MIT"
-            for party, column in zip(official.PARTIES, VOTE_COLUMNS):
-                reported = int(row[column])
-                check[f"mit_{column}"] = counts[party]
-                check[f"official_{column}"] = reported
-                delta = counts[party] - reported
-                if delta:
-                    if office != "President" or party != "Other":
-                        raise ValueError(f"{office} {key} {party}: source difference {delta}")
-                    differences[row["STUSAB"]] = delta
-                    status, source = "reviewed_other_difference", "FEC"
-            if source == "MIT":
-                for party, column in zip(official.PARTIES, VOTE_COLUMNS):
-                    row[column] = counts[party]
-            if sum(int(row[c]) for c in VOTE_COLUMNS) != int(row["total_votes"]):
-                raise ValueError(f"Selected candidate totals do not reconcile for {office} {key}")
-        row["source_used"] = source
-        comparison.append({**check, "status": status, "source_used": source})
-    if office == "President" and differences != PRESIDENT_OTHER_DIFFERENCES:
-        raise ValueError(f"Unreviewed presidential source discrepancies: {differences}")
-    write_rows(official_path, rows)
-
-
-def write_covariates(presidential, state_audit, destination):
-    states = {}
-    for row in read_rows(state_audit):
-        state = row["STATEFP"]
-        cvap = float(row["input_weight"])
-        allocated = float(row["allocated_weight"])
-        if (state in states or not math.isfinite(cvap) or cvap <= 0 or
-                not math.isclose(cvap, allocated, rel_tol=1e-12)):
-            raise ValueError(f"Invalid or unreconciled Step 03 population for state {state}")
-        states[state] = cvap
-
-    votes = read_rows(presidential)
-    if len(votes) != len(states) or set(states) != {row["STATEFP"] for row in votes}:
-        raise ValueError("Step 03 and the presidential returns must cover the same states and DC")
-    for row in votes:
-        cvap = states[row["STATEFP"]]
-        total = int(row["total_votes"])
-        residual = cvap - total
-        if residual < 0:
-            raise ValueError(f"{row['STUSAB']}: candidate votes exceed the Step 03 population")
-        row.update(cvap=cvap, did_not_vote_est=residual, share_turnout=total / cvap,
-                   share_did_not_vote=residual / cvap)
-        for party, column in zip(president.PARTIES, VOTE_COLUMNS):
-            row[f"share_{party}"] = int(row[column]) / cvap
-        party_share = math.fsum(row[f"share_{party}"] for party in president.PARTIES)
-        if not (math.isclose(party_share, row["share_turnout"], abs_tol=1e-12) and
-                math.isclose(party_share + row["share_did_not_vote"], 1, abs_tol=1e-12)):
-            raise ValueError(f"{row['STUSAB']}: presidential shares do not reconcile")
-    write_rows(destination, votes)
-    return math.fsum(states.values()), sum(int(row["total_votes"]) for row in votes)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--returns-only", action="store_true",
-                        help="Write the observed returns and their source audits only")
-    args = parser.parse_args()
-    frame = Path("01_frame")
-    manifest = read_rows(frame / "docs" / "02_pl_2020_sources.csv")
-    state_fips = {row["STUSAB"]: row["STATEFP"] for row in manifest}
-    if (len(manifest) != 51 or set(state_fips) != set(official.STATES.values()) | {"DC"} or
-            len(set(state_fips.values())) != 51 or state_fips["DC"] != "11" or
-            not all(len(code) == 2 and code.isdigit() for code in state_fips.values())):
-        raise ValueError("Invalid state keys in the Census manifest")
-
-    data = frame / "data"
-    source = data / "input" / "05_vote_benchmark"
-    intermediate = data / "intermediate"
-    output = data / "output"
-    state_audit = output / "03_pums_allocation_by_state.csv"
-    if not args.returns_only and not state_audit.is_file():
-        parser.error(f"Missing {state_audit}. Run Step 03 or use --returns-only for the election results.")
-    for directory in (source, intermediate, output):
-        directory.mkdir(parents=True, exist_ok=True)
-    xlsx, pdf = source / "fec2024.xlsx", source / "clerk2024.pdf"
-    official.fetch(xlsx, official.FEC_URL, official.FEC_SHA256)
-    official.fetch(pdf, official.CLERK_URL, official.CLERK_SHA256)
-    report = subprocess.run(["pdftotext", "-layout", str(pdf), "-"],
-                            check=True, capture_output=True, encoding="utf-8").stdout
-
-    pres_path, house_path = mit_sources.obtain_mit_sources(data / "input")
-    with TemporaryDirectory(dir=data) as temp:
-        stage = Path(temp)
-        comparison = []
-        president.write_president(xlsx, stage, state_fips)
-        house.write_house(report, stage, state_fips)
-        for office, records, audit, totals in (
-            ("President", mit_president.classify_president(pres_path),
-             "07_mit_president_rows.csv", "07_president_votes_2024.csv"),
-            ("House", mit_house.classify_house(house_path),
-             "07_mit_house_rows.csv", "07_house_votes_cd119.csv"),
-        ):
-            write_rows(stage / audit, records)
-            reconcile_returns(records, stage / totals, office, comparison)
-        write_rows(stage / "07_vote_source_comparison.csv", comparison)
-        products = {
-            "07_president_votes_2024.csv": intermediate,
-            "07_house_votes_cd119.csv": intermediate,
-            "07_president_source_votes_2024.csv": output,
-            "07_house_source_lines_cd119.csv": output,
-            "07_mit_president_rows.csv": output,
-            "07_mit_house_rows.csv": output,
-            "07_vote_source_comparison.csv": output,
-        }
-        name = "07_state_presidential_covariates_2024.csv"
-        if not args.returns_only:
-            cvap, total = write_covariates(stage / "07_president_votes_2024.csv", state_audit, stage / name)
-            products[name] = intermediate
-        elif (intermediate / name).exists():
-            print(f"Run without --returns-only to refresh {name} before analysis.", file=sys.stderr)
-        publish(stage, products)
-        for filename, directory in products.items():
-            print(f"Saved {directory / filename}")
-    if not args.returns_only:
-        print(f"State PUMS CVAP: {cvap:,.2f}. Classified presidential votes: {total:,}. "
-              f"Estimated without a presidential candidate vote: {cvap - total:,.2f}.")
-    if (output / "07_turnout_audit.csv").exists():
-        print("07_turnout_audit.csv is from the earlier election-wide turnout definition "
-              "and is not an input or output of this calculation.", file=sys.stderr)
 
 
 if __name__ == "__main__":

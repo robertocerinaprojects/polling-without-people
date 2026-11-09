@@ -10,7 +10,12 @@ from openpyxl import load_workbook
 # The FEC table from state election offices lists votes under each nominee
 # across ballot lines. FEC pp. 6–9 include Nevada’s explicit None selection
 # in the official total. Our office-participation numerator excludes it.
+# All other candidate and scattered write-in columns contribute to Other.
 NOMINEE_PARTY = {"HARRIS": "dem", "TRUMP": "rep"}
+EXPLICIT_NONE = "NONE OF THESE CANDIDATES"
+STATE_COLUMNS = (
+    "STATE", "ELECTORAL VOTES", "ELECTORAL VOTE: TRUMP (R)", "ELECTORAL VOTE: HARRIS (D)",
+)
 PARTIES = ("dem", "rep", "other")
 VOTE_COLUMNS = (
     "AYYADURAI", "BOWMAN", "DE LA CRUZ", "DUNCAN", "EBKE", "EVERYLOVE", "FRUIT",
@@ -29,26 +34,31 @@ def write_president(xlsx, stage, state_fips):
     with closing(load_workbook(xlsx, read_only=True, data_only=True)) as workbook:
         rows = iter(workbook["OFFICIAL 2024 PRES GE RESULTS"].values)
         header = next(rows)
-        votes_columns = header[4:-1]
-        if (header[:4] != ("STATE", "ELECTORAL VOTES", "ELECTORAL VOTE: TRUMP (R)",
-                           "ELECTORAL VOTE: HARRIS (D)") or header[-1] != "TOTAL VOTES"
-                or votes_columns != VOTE_COLUMNS):
+        if header != (*STATE_COLUMNS, *VOTE_COLUMNS, "TOTAL VOTES"):
             raise ValueError("Unexpected FEC presidential result columns")
 
         for row in rows:
             state = row[0]
+            # The state and three electoral-vote fields precede the
+            # popular-vote columns. The printed state total is the last field.
+            vote_cells = row[len(STATE_COLUMNS):-1]
             if state == "Total:":
-                if list(row[4:]) != [national[column] for column in header[4:]]:
+                printed_totals = [*vote_cells, row[-1]]
+                expected_totals = [national[column] for column in (*VOTE_COLUMNS, "TOTAL VOTES")]
+                if printed_totals != expected_totals:
                     raise ValueError("State returns differ from the FEC national column totals")
                 break
             if state not in state_fips or state in seen:
                 raise ValueError(f"Unexpected or repeated FEC state: {state!r}")
             seen.add(state)
             counts = Counter()
-            for source, votes in zip(votes_columns, row[4:-1]):
+            for source, votes in zip(VOTE_COLUMNS, vote_cells):
                 if votes is not None and (type(votes) is not int or votes < 0):
                     raise ValueError(f"Invalid FEC count for {state}/{source}: {votes!r}")
-                party = "excluded" if source == "NONE OF THESE CANDIDATES" else NOMINEE_PARTY.get(source, "other")
+                if source == EXPLICIT_NONE:
+                    party = "excluded"
+                else:
+                    party = NOMINEE_PARTY.get(source, "other")
                 # Preserve blank source cells in the audit. They add no separately
                 # identified votes in the FEC table, even if scattered votes exist.
                 audit_rows.append((state_fips[state], state, source, party, votes))
@@ -58,7 +68,10 @@ def write_president(xlsx, stage, state_fips):
             total = row[-1]
             if type(total) is not int or total <= 0 or sum(counts.values()) != total:
                 raise ValueError(f"Candidate and residual counts differ from {state}'s FEC total")
-            state_rows.append((state_fips[state], state, *(counts[party] for party in PARTIES), total - counts["excluded"]))
+            candidate_votes = total - counts["excluded"]
+            state_rows.append((
+                state_fips[state], state, counts["dem"], counts["rep"], counts["other"], candidate_votes
+            ))
             national["TOTAL VOTES"] += total
         else:
             raise ValueError("Missing FEC national totals row")
