@@ -1,4 +1,4 @@
-# District-level Dirichlet–multinomial regression. Each choice has its own
+# Dirichlet regression on the four observed shares of district CVAP. Each choice has its own
 # slope for the corresponding statewide presidential share. DidNotVote anchors the other effects.
 # Method: 01_frame/docs/09_model_house_votes.md
 house_choices <- c("D", "R", "Other", "DidNotVote")
@@ -25,6 +25,46 @@ house_incumbency_flags <- function(data, columns, nominees) {
     stop("Incumbency must be 0 or 1, and a party with no nominee must have 0.")
   }
   flags
+}
+
+# Hanretty (2021, section 3.2) uses one vote in a typical election to
+# replace an exact zero. Use the mean number of classified House candidate
+# votes in the districts available to this fit. Held-out returns stay unseen.
+# https://doi.org/10.1016/j.ijforecast.2021.03.007
+house_zero_share <- function(training) {
+  votes <- training[["total_votes"]]
+  if (!length(votes) || !is.numeric(votes) || any(!is.finite(votes)) ||
+      any(votes <= 0 | votes != round(votes))) {
+    stop("Each training district needs a positive whole number of classified House votes.")
+  }
+  1 / mean(votes)
+}
+
+# A continuous Dirichlet response must be strictly inside the simplex.
+# Take the replacement share from the positive choices in proportion to
+# their recorded shares. Rows without zeros keep their original values.
+dirichlet_fit_shares <- function(observed, replacement) {
+  if (!is.matrix(observed) || !is.numeric(observed) || ncol(observed) != 4L ||
+      any(!is.finite(observed)) || any(observed < 0 | observed > 1) ||
+      any(abs(rowSums(observed) - 1) > 1e-10)) {
+    stop("Observed House shares must be four finite proportions summing to one per district.")
+  }
+  if (length(replacement) != 1L || !is.numeric(replacement) || !is.finite(replacement) ||
+      replacement <= 0 || replacement >= 1) {
+    stop("The replacement share must be one number strictly between zero and one.")
+  }
+  adjusted <- observed
+  for (i in which(rowSums(observed == 0) > 0)) {
+    zero <- observed[i, ] == 0
+    remaining <- 1 - sum(zero) * replacement
+    if (remaining <= 0) stop("The replacement leaves no share for recorded House choices.")
+    adjusted[i, zero] <- replacement
+    adjusted[i, !zero] <- observed[i, !zero] * remaining / sum(observed[i, !zero])
+  }
+  if (any(adjusted <= 0 | adjusted >= 1) || any(abs(rowSums(adjusted) - 1) > 1e-10)) {
+    stop("Adjusted training shares fall outside the open simplex.")
+  }
+  adjusted
 }
 
 house_inputs <- function(data, schema, scaling = NULL) {
@@ -58,6 +98,7 @@ house_inputs <- function(data, schema, scaling = NULL) {
       pres_center = colMeans(president),
       pres_sd = apply(president, 2, stats::sd),
       age_center = age_center, age_scale = age_scale,
+      zero_share = house_zero_share(data),
       slate_columns = colnames(slate)[apply(slate, 2, function(x) length(unique(x)) > 1)]
     )
     sd_all <- c(scaling$dem_sd, scaling$pres_sd)
@@ -71,13 +112,12 @@ house_inputs <- function(data, schema, scaling = NULL) {
   colnames(president) <- paste0("pres", house_choices)
 
   cvap <- house_matrix(data, schema$cvap, 1L, "citizen-adult population")[, 1]
-  trials <- round(cvap)
-  if (any(cvap <= 0 | trials < 1 | trials > .Machine$integer.max)) stop("Invalid district CVAP")
+  if (any(cvap <= 0)) stop("Invalid district CVAP")
   if (length(schema$state) != 1L || !schema$state %in% names(data)) stop("Missing state identifier")
   state <- as.character(data[[schema$state]])
   if (anyNA(state) || any(!nzchar(state))) stop("Missing state identifier")
-  frame <- data.frame(state = state, nTrials = as.integer(trials),
-                      demographic, president, incumbents, slate[, scaling$slate_columns, drop = FALSE],
+  frame <- data.frame(state = state, demographic, president, incumbents,
+                      slate[, scaling$slate_columns, drop = FALSE],
                       check.names = FALSE)
   if (anyDuplicated(names(frame))) stop("Conflicting demographic/model column labels")
   age_members <- sprintf("ageMember%02d", seq_len(ncol(age)))
@@ -90,18 +130,9 @@ house_inputs <- function(data, schema, scaling = NULL) {
     frame[[age_weights[j]]] <- age[, j]
   }
   if (training) {
-    if (!length(schema$counts) %in% 3:4) stop("Specify the three candidate counts in D, R, Other order")
-    votes <- house_matrix(data, schema$counts, length(schema$counts), "training counts")
-    candidate <- votes[, 1:3, drop = FALSE]
-    if (any(candidate < 0) || any(candidate != round(candidate)) || any(rowSums(candidate) > cvap)) {
-      stop("Candidate counts are invalid or exceed the unrounded district CVAP")
-    }
-    remainder <- trials - rowSums(candidate)
-    if (ncol(votes) == 4L && any(votes[, 4] != remainder)) stop("Incorrect rounded nonvote count")
-    y <- cbind(candidate, remainder)
-    colnames(y) <- house_choices
-    storage.mode(y) <- "integer"
-    frame$houseCounts <- I(y)
+    observed <- house_matrix(data, schema$shares, 4L, "observed House shares")
+    colnames(observed) <- house_choices
+    frame$houseShares <- I(dirichlet_fit_shares(observed, scaling$zero_share))
   }
   list(data = frame, scaling = scaling, age_members = age_members, age_weights = age_weights)
 }
@@ -111,7 +142,7 @@ house_formula <- function(prepared, schema) {
                     ", weights = cbind(", paste(prepared$age_weights, collapse = ", "),
                     "), scale = FALSE))")
   common <- c(schema$demographic, prepared$scaling$slate_columns, "(1 | state)", mm_term)
-  formulas <- list(stats::as.formula("houseCounts | trials(nTrials) ~ 1"))
+  formulas <- list(houseShares ~ 1)
   for (choice in house_choices) {
     # Common state, age, ballot and demographic effects are identified as
     # contrasts against DidNotVote. Its own statewide presidential slope stays free.
@@ -149,14 +180,14 @@ house_priors <- function(schema = house_columns) {
   priors
 }
 
-fit_house_dm <- function(training, schema, seed, chains = 4L, iter = 2000L,
+fit_house_dirichlet <- function(training, schema, seed, chains = 4L, iter = 2000L,
                          warmup = iter %/% 2L, cores = min(chains, 2L), backend = "rstan") {
   if (!requireNamespace("brms", quietly = TRUE) || utils::packageVersion("brms") < "2.23.0") {
-    stop("Step 09 requires brms >= 2.23.0 for the native Dirichlet–multinomial family.")
+    stop("Step 09 requires brms >= 2.23.0 to fit the reviewed Dirichlet model.")
   }
   prepared <- house_inputs(training, schema)
   formula <- house_formula(prepared, schema)
-  family <- brms::dirichlet_multinomial(refcat = NA)
+  family <- brms::dirichlet(refcat = NA)
   # Verify every fixed-effect design, including the presidential slope for
   # DidNotVote. The nonvote utility anchors the other contrasts.
   design <- brms::make_standata(formula, data = prepared$data, family = family)
@@ -205,7 +236,7 @@ house_sampler_diagnostics <- function(fit) {
   audit
 }
 
-predict_house_dm <- function(fit, newdata, seed, ndraws = NULL) {
+predict_house_dirichlet <- function(fit, newdata, seed, ndraws = NULL) {
   frame <- house_inputs(newdata, fit$schema, scaling = fit$scaling)$data
   set.seed(seed)
   # Shared prediction preparation draws unseen state effects only once
@@ -213,14 +244,14 @@ predict_house_dm <- function(fit, newdata, seed, ndraws = NULL) {
   prep <- brms::prepare_predictions(fit$model, newdata = frame,
                                     allow_new_levels = TRUE, sample_new_levels = "gaussian",
                                     ndraws = ndraws, check_response = FALSE)
-  as_share <- function(draws) {
+  check_shares <- function(draws) {
     if (length(dim(draws)) != 3L || dim(draws)[2] != nrow(frame) ||
         !setequal(dimnames(draws)[[3]], house_choices)) stop("Unexpected prediction shape")
-    shares <- sweep(draws[, , house_choices, drop = FALSE], 2, frame$nTrials, "/")
+    shares <- draws[, , house_choices, drop = FALSE]
     if (any(!is.finite(shares)) || any(shares < 0) ||
         any(abs(apply(shares, c(1, 2), sum) - 1) > 1e-8)) stop("Invalid prediction shares")
     shares
   }
-  list(mean_share = as_share(brms::posterior_epred(prep, dpar = NULL, nlpar = NULL)),
-       predictive_share = as_share(brms::posterior_predict(prep)))
+  list(mean_share = check_shares(brms::posterior_epred(prep, dpar = NULL, nlpar = NULL)),
+       predictive_share = check_shares(brms::posterior_predict(prep)))
 }

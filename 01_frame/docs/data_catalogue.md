@@ -1,6 +1,6 @@
 # Frame data catalogue
 
-For district predictors and candidate rosters, see [Step 08 inputs and products](#district-populations-and-candidate-rosters). The [district model inventory](09_model_house_votes.md#files-and-lineage) lists the held-out districts and scores, the sources of observed and predicted district rows, and the final four-share matrix for the 2026 map.
+To find a district's House shares, use the [district-by-party products](#district-by-party-house-shares). The [Step 08 inventory](#district-populations-and-candidate-rosters) describes the two-map populations and rosters behind these products. The [Step 09 inventory](09_model_house_votes.md#files-and-lineage) also lists the holdout, scores and projection audits.
 
 ## Plain-language summary
 
@@ -32,8 +32,10 @@ seven shared geography and demographic fields, and checks CES cell coverage.
 Script 07 groups 2024 candidate votes for president by state and for House
 by original district. It divides presidential totals by the state PUMS
 citizen-adult population from Script 03 and estimates how many recorded no
-vote for a candidate for that office. The original-district House counts
-will supply the numerators for a later adjustment to the 2026 boundaries.
+vote for a candidate for that office. Step 09 uses the original House counts
+and district CVAP to calculate 2024 shares. Together with the match between
+district boundaries, these determine which results can carry to the new map
+and where Step 09 needs a prediction.
 
 ## Scope and reading conventions
 
@@ -51,6 +53,7 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 07 | [07_prepare_area_returns.py](../scripts/07_prepare_area_returns.py) | [Area-level returns](07_prepare_area_returns.md) |
 | Script 08, district populations | [08_build_district_predictors.R](../scripts/08_build_district_predictors.R) | [Two-map CVAP predictors](08_build_district_predictors.md) |
 | Script 08, candidate rosters | [08_prepare_house_slates.py](../scripts/08_prepare_house_slates.py) | [House candidate lineups](08_house_slates.md) |
+| Script 09 | [09_model_house_votes.R](../scripts/09_model_house_votes.R) | [House vote shares](09_model_house_votes.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
@@ -627,8 +630,8 @@ additionally requires the Step 03 PUMS audit.
 The 2024 House file uses `STATEFP` and `CDFP119`. District population cells
 from Step 06 use `STATEFP` and `CDFP120`. A same-numbered district can
 cover different voters in the two elections. Step 08 identifies exact matches
-by their Census blocks. For redrawn districts, Step 09 estimates shares using
-the target district's composition and candidate lineup.
+by their Census blocks. Step 09 uses each target district’s own demographics
+and records the roster year and outcome source in its district-by-party file.
 
 ## District populations and candidate rosters
 
@@ -641,6 +644,19 @@ Step 08 has two independent entry points. One produces district population estim
 | `intermediate/08_pums_cd119_cells.rds` | The district predictors script joins Step 01 person weights and PUMAs to Step 04 demographics by `SAMPLE + SERIAL + PERNUM`, then applies the CD119 PUMA weights. | Population by district and demographic cell for the 2024 map. |
 | `intermediate/08_district_demographics.csv` and `output/08_cd119_cvap_benchmark.csv` | The district predictors script summarizes CD119 cells and Step 06 CD120 cells. It checks state totals against Step 03 and compares CD119 totals to the Census CVAP archive’s `CD.csv`. | The first table supplies Step 09 with district CVAP and 29 demographic shares. The second records the CD119 comparison in people. |
 | `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026.csv` and `output/08_house_slate_nominees.csv` | The candidate roster script reads the House Clerk’s `input/119-nominations.pdf` and `input/120-nominations.pdf`, plus the tracked state manifest and reviewed amendments. | Step 09 reads the nominee counts and the three 0/1 columns `incumbent_dem`, `incumbent_rep`, and `incumbent_other` from the same annual roster. The nominee audit gives each candidate’s inclusion, original Clerk service mark, incumbency flag and source. [Definition and examples](08_house_slates.md#which-parties-fielded-a-sitting-member) [State manifest](02_pl_2020_sources.csv) · [Roster amendments](08_house_slate_corrections.csv) |
+
+## District-by-party House shares
+
+Step 09 joins the Step 07 House returns and state presidential shares with the Step 08 two-map demographics, district overlap and candidate rosters. It checks the declared winners of the two unpolled contests against the nominee audit and their House membership records. [Unpolled winners and sources](09_unpolled_house_winners_2024.csv)
+
+| Product under `data/intermediate/` | What it contains |
+|---|---|
+| `09_house_party_inputs.csv` | Available after `prepare`. One row per `congress, STATEFP, CDFP, party`, with four choices for each of 436 districts (including DC) on each map. The 3,488 rows include the district’s CVAP and 29 demographic shares, the matching statewide presidential share, the party’s nominee count and incumbency, the roster year and the outcome source. |
+| `09_house_party_covariates.csv` | Available after `predict` or `all`. Adds `house_share` for every choice. On CD119, 434 districts have raw observed shares and two have simulated shares. On CD120, 290 carry observed counts, 144 use a redrawn district prediction with the 2026 roster, and two use the verified unopposed 2024 winner. |
+| `09_house_unopposed_shares_cd119.csv` | Estimates for the unpolled FL-20 and OK-03 elections on their original footprints. These simulations are excluded from fitting and validation. |
+| `09_house_final_shares_cd120.csv` | One row per 2026 district and one column per choice for the four shares. The numbers agree with the CD120 rows of the final district-by-party file. |
+
+Read `STATEFP` and `CDFP` as text to preserve leading zeros. The four choices are `D`, `R`, `Other` and `DidNotVote` (no counted House candidate vote). Their shares sum to one for each district and map. Count the repeated district CVAP only once per district and map. Nominee count, presence and incumbency are inapplicable for `DidNotVote`. [Outcome definition and treatment of exact zeros when fitting](09_model_house_votes.md#outcome-and-predictors)
 
 ## Validation, reruns and preservation
 

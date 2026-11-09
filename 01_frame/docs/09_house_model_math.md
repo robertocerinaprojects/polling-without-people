@@ -1,26 +1,48 @@
 # The district House vote model in Step 09
 
-Each 2024 district supplies one observation with four counts. We estimate how its demographic composition, party lineup, sitting candidates and statewide presidential results relate to those counts. A state effect lets districts in the same state resemble one another. Four probabilities sum to one, and a common concentration parameter describes how much observed district shares can vary around those probabilities.
+Each observed 2024 district contributes one vector of four vote shares. The four rows for that district in the district-by-party covariate file describe one composition. The regression relates that composition to district demographics, party lineups, incumbency and statewide presidential vote shares. A state effect lets districts in the same state resemble one another.
 
 [Complete generated Stan program](09_house_model_generated.stan) · [R model and priors](../scripts/helpers/09_model.R) · [Inputs, validation and projection](09_model_house_votes.md)
 
 ## Response and likelihood
 
-Let $i$ index a district, $s(i)$ its state or DC, $N_i$ its unrounded PUMS citizen-adult population, and $n_i=\operatorname{round}(N_i)$. In the order Democrat, Republican, Other, no House candidate vote, the response is
+Let $N_i$ be district $i$’s unrounded PUMS citizen-adult population and $D_i,R_i,O_i$ its tabulated Democratic, Republican and Other House votes. The four **observed shares** are
 
 $$
-y_i=(D_i,R_i,O_i,n_i-D_i-R_i-O_i).
+r_i = \frac{1}{N_i}(D_i, R_i, O_i, N_i-D_i-R_i-O_i).
 $$
 
-The first three entries are observed votes for this office. The last entry estimates citizen adults without a classified candidate vote. Scoring uses the unrounded denominator and the corresponding unrounded residual. FL-20 and OK-03 have missing House outcomes on the original map. They are excluded from fitting and scoring.
+The residual estimates the share of citizen adults without a classified House candidate vote. The published returns supply no composition for FL-20 or OK-03. Their simulated results are separate from the 434 districts available for fitting and scoring.
+
+The Dirichlet likelihood requires positive components. Hanretty (2021, section 3.2) gives an exact zero the share of one vote in an average election. We apply that convention to U.S. House races. Let $T$ be the districts used for this fit and $V_j=D_j+R_j+O_j$ the classified House candidate votes in district $j$. Each district in $T$ contributes once to the average. The replacement share is
+
+$$
+m_T=\frac{1}{|T|}\sum_{j\in T} V_j,\qquad \delta_T=\frac{1}{m_T}.
+$$
+
+For the validation model, $T$ contains the 404 training districts. For the final model, $T$ contains all 434 tabulated districts including DC, with 148,310,611 classified House votes. The national mean is 341,729.5184 votes per district, giving $\delta_T\approx 0.000002926291$ as a fraction, or 0.0002926291%. The denominator for the original vote shares is still the district's own CVAP. [Hanretty (2021), section 3.2](https://chrishanretty.co.uk/pubs/10.1016_j.ijforecast.2021.03.007/fulltext.pdf#page=7)
+
+For a training row with $z_i$ exact zeros, the fitted response is
+
+$$
+y_{ik} =
+\begin{cases}
+r_{ik} & z_i=0,\\
+\delta_T & z_i>0 \text{ and } r_{ik}=0,\\
+(1-z_i\delta_T)\dfrac{r_{ik}}{\sum_{h:r_{ih}>0}r_{ih}} & z_i>0 \text{ and } r_{ik}>0.
+\end{cases}
+$$
+
+Each exact zero in the training set gets the same value. The originally positive entries keep their relative proportions and together receive the remaining mass. The zero audit records the raw and adjusted values for each choice with an observed zero. Holdout scoring and carried returns use the original shares, including zeros.
+
+With $s(i)$ denoting the state or DC and $\phi>0$ the common precision, the model is
 
 $$
 \pi_{ik}=\frac{\exp(\eta_{ik})}{\sum_{h=1}^4\exp(\eta_{ih})},
-\qquad
-y_i\mid n_i,\pi_i,\phi\sim\operatorname{DirichletMultinomial}(n_i,\phi\pi_i),\qquad \phi>0.
+\qquad y_i \mid \pi_i,\phi \sim \operatorname{Dirichlet}(\phi\pi_i).
 $$
 
-Equivalently, one could draw a district-specific probability vector from $\operatorname{Dirichlet}(\phi\pi_i)$ and then draw $n_i$ multinomial outcomes. The generated Stan program integrates out that vector. Its likelihood loops over districts. The variance of outcome $k$ is $n_i\pi_{ik}(1-\pi_{ik})(n_i+\phi)/(1+\phi)$. One precision $\phi$ serves all districts and choices.
+Each district supplies one likelihood term with equal weight. Conditional on the predictors and parameters, the mean of share $k$ is $\pi_{ik}$, and its variance is $\pi_{ik}(1-\pi_{ik})/(1+\phi)$. CVAP supplies the denominator for the raw response. Posterior expected shares and predictive share draws come directly from this continuous model. [Stan Dirichlet distribution](https://mc-stan.org/docs/functions-reference/simplex_distributions.html)
 
 ## Four outcome equations
 
@@ -90,4 +112,4 @@ print(stats::formula(saved$fit$model))
 cat(as.character(brms::stancode(saved$fit$model)), file = "09_house_model_from_fit.stan")
 ```
 
-[brms family documentation](https://paulbuerkner.com/brms/reference/brmsfamily.html) · [brms multiple-membership weights](https://paulbuerkner.com/brms/reference/mm.html) · [Stan Dirichlet–multinomial reference](https://mc-stan.org/docs/functions-reference/multivariate_discrete_distributions.html)
+[brms family documentation](https://paulbuerkner.com/brms/reference/brmsfamily.html) · [brms multiple-membership weights](https://paulbuerkner.com/brms/reference/mm.html)

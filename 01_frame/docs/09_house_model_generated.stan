@@ -1,30 +1,21 @@
 // generated with brms 2.23.0
 functions {
-  /* dirichlet-multinomial-logit log-PMF
+  /* dirichlet-logit log-PDF
    * Args:
-   *   y: array of integer response values
+   *   y: vector of real response values
    *   mu: vector of category logit probabilities
-   *   phi: precision parameter (sum of Dirichlet alphas)
+   *   phi: precision parameter
    * Returns:
    *   a scalar to be added to the log posterior
-  */
-  real dirichlet_multinomial_logit2_lpmf(array[] int y, vector mu, real phi) {
-    // get Dirichlet alphas
-    int N = num_elements(mu);
-    vector[N] alpha = phi * softmax(mu);
-
-    // get trials from y
-    real T = sum(y);
-
-    return lgamma(phi) + lgamma(T + 1.0) - lgamma(T + phi) +
-      sum(lgamma(to_vector(y) + alpha)) - sum(lgamma(alpha)) - sum(lgamma(to_vector(y) + 1));
-  }
+   */
+   real dirichlet_logit_lpdf(vector y, vector mu, real phi) {
+     return dirichlet_lpdf(y | softmax(mu) * phi);
+   }
 }
 data {
   int<lower=1> N;  // total number of observations
   int<lower=2> ncat;  // number of categories
-  array[N, ncat] int Y;  // response array
-  array[N] int trials;  // number of trials
+  array[N] vector[ncat] Y;  // response array
   int<lower=1> K_muD;  // number of population-level effects
   matrix[N, K_muD] X_muD;  // population-level design matrix
   int<lower=1> Kc_muD;  // number of population-level effects after centering
@@ -451,7 +442,7 @@ model {
       mu[n] = transpose([muD[n], muR[n], muOther[n], muDidNotVote[n]]);
     }
     for (n in 1:N) {
-      target += dirichlet_multinomial_logit2_lpmf(Y[n] | mu[n], phi);
+      target += dirichlet_logit_lpdf(Y[n] | mu[n], phi);
     }
   }
   // priors including constants

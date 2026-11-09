@@ -1,6 +1,7 @@
 # Estimate 2024 House voting on the 2026 map. Run from the repository root.
 # Modes: prepare, fit, predict, or all (default). See ../docs/09_model_house_votes.md.
-for (helper in c("09_ballot_groups.R", "09_model.R", "09_validate.R", "09_projection.R")) {
+for (helper in c("09_ballot_groups.R", "09_model.R", "09_validate.R", "09_projection.R",
+                 "09_party_covariates.R")) {
   source(file.path("01_frame", "scripts", "helpers", helper))
 }
 
@@ -12,7 +13,7 @@ house_columns <- list(
   president = c("pres_dem", "pres_rep", "pres_other", "pres_none"),
   slate = c("ballot_dem", "ballot_rep", "ballot_other"),
   incumbent = c(D = "incumbent_dem", R = "incumbent_rep", Other = "incumbent_other"),
-  counts = c("votes_dem", "votes_rep", "votes_other"),
+  shares = c("observed_dem", "observed_rep", "observed_other", "observed_none"),
   state = "STATEFP", cvap = "cvap"
 )
 choice_names <- c("dem", "rep", "other", "none")
@@ -100,6 +101,22 @@ add_slate <- function(x, path, complete = FALSE) {
   x
 }
 
+# Record each zero that moves inside the simplex for fitting. The district
+# tables, carried results and holdout scores keep the raw shares.
+dirichlet_zero_audit <- function(observed) {
+  raw <- as.matrix(observed[house_columns$shares])
+  replacement <- house_zero_share(observed)
+  adjusted <- dirichlet_fit_shares(raw, replacement)
+  zeros <- which(raw == 0, arr.ind = TRUE)
+  district <- zeros[, "row"]
+  data.frame(STATEFP = observed$STATEFP[district], CDFP = observed$CDFP[district],
+             party = house_choices[zeros[, "col"]], cvap = observed$cvap[district],
+             observed_share = raw[zeros], share_for_fit = adjusted[zeros],
+             reference_districts = rep(nrow(observed), nrow(zeros)),
+             mean_house_votes = rep(mean(observed$total_votes), nrow(zeros)),
+             row.names = NULL)
+}
+
 prepare_house_tables <- function(mid, out, need_target = TRUE) {
   demos <- read_table09(file.path(mid, "08_district_demographics.csv"))
   state_file <- file.path(mid, "07_state_presidential_covariates_2024.csv")
@@ -142,7 +159,7 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   ), house_file)
   house <- office_geo(house, district = TRUE)
   stopifnot(nrow(house) == nrow(old))
-  vote_cols <- house_columns$counts
+  vote_cols <- c("votes_dem", "votes_rep", "votes_other")
   office_count <- as.matrix(house[vote_cols])
   unpolled <- district_id(house) %in% c("12-20", "40-03")
   missing <- rowSums(is.na(office_count))
@@ -159,6 +176,7 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   house$total_votes <- rowSums(house[vote_cols])
   old <- attach_fields(old, house, c(vote_cols, "source_status", "status", "total_votes"), c("STATEFP","CDFP"))
   old <- add_slate(old, file.path(mid, "08_house_slates_2024.csv"), complete = TRUE)
+  old <- mark_unpolled_house_scenarios(old, file.path(out, "08_house_slate_nominees.csv"))
   ok <- old$status == "observed"
   stopifnot(!anyNA(ok), setequal(district_id(old)[!ok], c("12-20","40-03")),
             all(old$status[!ok] == "unopposed_not_on_ballot"),
@@ -170,9 +188,13 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   if (any(residual[ok] < 0)) stop("Candidate votes exceed the PUMS CVAP in ",
     paste(district_id(old)[which(ok & residual < 0)], collapse = ", "), ". Review the district inputs.")
   old$without_house_vote <- residual
-  old$none_fit <- round(old$cvap) - old$total_votes
   totals <- as.matrix(old[c(vote_cols, "without_house_vote")])
-  old[paste0("observed_", choice_names)] <- as.data.frame(sweep(totals, 1L, old$cvap, "/"))
+  old[house_columns$shares] <- as.data.frame(sweep(totals, 1L, old$cvap, "/"))
+  training_districts <- eligible_house_rows(old)
+  stage_write(dirichlet_zero_audit(training_districts),
+              file.path(out, "09_dirichlet_zero_audit.csv"))
+  message(sprintf("Full fit: %.2f House candidate votes per district (%d districts).",
+                  mean(training_districts$total_votes), nrow(training_districts)))
   old$candidate_structure <- ifelse(rowSums(old[c("n_dem","n_rep","n_other")]) == 1L,
                                     "one_nominee", ifelse(old$same_party_multiple == 1L,
                                     "multiple_in_one_party_group", "multiple_party_groups"))
@@ -195,6 +217,7 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   new$matching_cd119 <- eq$CDFP119[match(district_id(new), paste(eq$STATEFP,eq$CDFP120,sep="-"))]
   new <- prepare_house_prediction_scope(new, old, file.path(mid, "08_house_slates_2026.csv"))
   stage_write(new, file.path(mid, "09_house_target_cd120.csv"))
+  stage_write(house_party_covariates(old, new), file.path(mid, "09_house_party_inputs.csv"))
   list(old = old, new = new)
 }
 
@@ -245,23 +268,23 @@ fit_and_validate <- function(old, mid, out, seed) {
   selection$holdout_selection <- ifelse(hold %in% forced, "at_large_state", "sampled")
   selection$holdout_selection[selection$STATEFP == "11"] <- "dc_delegate"
   stage_write(selection, file.path(out,"09_holdout_districts.csv"))
-  audit <- fit_house_dm(train, house_columns, seed = seed)
+  audit <- fit_house_dirichlet(train, house_columns, seed = seed)
   check_house_chains(audit, "holdout", out)
-  prediction <- predict_house_dm(audit, test, seed = seed + 1L)
+  prediction <- predict_house_dirichlet(audit, test, seed = seed + 1L)
   get <- function(draws, stat, ...) {
     m <- apply(draws, c(2L,3L), stat, ...)
     colnames(m) <- choice_names
     m
   }
   # Score direct predictions on the held-out districts before the full refit.
-  y <- paste0("observed_", choice_names)
+  y <- house_columns$shares
   validate_house_predictions(score_matrix(train,y), score_matrix(train,house_columns$president),
     score_matrix(test,y), score_matrix(test,house_columns$president),
     get(prediction$mean_share, mean), get(prediction$predictive_share, quantile, probs=.05),
     get(prediction$predictive_share, quantile, probs=.95), district_id(test), out)
   rm(audit, prediction)
   gc()
-  fit <- fit_house_dm(eligible, house_columns, seed = seed + 2L)
+  fit <- fit_house_dirichlet(eligible, house_columns, seed = seed + 2L)
   check_house_chains(fit, "full", out)
   # A saved fit is valid only for this set of predictors, observations and IDs.
   stage_write(list(fit=fit, trained_on=eligible, schema=house_columns, seed=seed,
@@ -279,24 +302,39 @@ project_house <- function(tables, mid, out) {
   }
   target <- tables$new
   point <- predict_or_carry_house(saved$fit, target, old, seed = saved$seed + 3L, ndraws = 800L)
+  historical <- predict_unpolled_2024(saved$fit, old, seed = saved$seed + 3L, ndraws = 800L)
+  party_covariates <- final_house_party_covariates(old, target, historical, point)
   flags <- c("STATEFP", "CDFP", "matching_cd119", "needs_prediction", "prediction_source",
-             "lineup_year", "slate", "ballot_group", house_columns$incumbent)
+             "lineup_year", "slate", "ballot_group", "unopposed_party", house_columns$incumbent)
   status <- target[flags]
 
-  # Publish the share matrix and the corresponding record of how each district
-  # was filled together. Retain the previous pair if a file cannot be replaced.
+  # Publish the long covariate table alongside the district summaries used
+  # to build it. A failed write restores the previous products.
   staging <- tempfile("09_projection_", tmpdir = dirname(mid))
   dir.create(staging)
   on.exit(unlink(staging, recursive = TRUE), add = TRUE)
   destinations <- c(file.path(mid, "09_house_final_shares_cd120.csv"),
-                    file.path(out, "09_house_district_status.csv"))
+                    file.path(out, "09_house_district_status.csv"),
+                    file.path(mid, "09_house_unopposed_shares_cd119.csv"),
+                    file.path(mid, "09_house_party_covariates.csv"))
   staged <- file.path(staging, basename(destinations))
   stage_write(point, staged[1])
   stage_write(status, staged[2])
+  stage_write(historical, staged[3])
+  stage_write(party_covariates, staged[4])
   # Check keys and share precision after serialization as well as in memory.
   on_disk <- read_table09(staged[1])
   on_disk_status <- read_table09(staged[2])
   choices <- c("dem", "rep", "other", "did_not_vote")
+  original <- read_table09(staged[3])
+  parties_on_disk <- read_table09(staged[4])
+  party_key <- c("congress", "STATEFP", "CDFP", "party")
+  stopifnot(identical(parties_on_disk[party_key], party_covariates[party_key]),
+            identical(parties_on_disk$outcome_source, party_covariates$outcome_source),
+            max(abs(parties_on_disk$house_share - party_covariates$house_share)) < 1e-12)
+  stopifnot(setequal(district_id(original), c("12-20", "40-03")),
+            identical(district_id(original), district_id(historical)),
+            max(abs(as.matrix(original[choices]) - as.matrix(historical[choices]))) < 1e-12)
   shares <- as.matrix(on_disk[choices])
   stopifnot(identical(names(on_disk), c("STATEFP", "CDFP", choices)),
             identical(district_id(on_disk), district_id(target)),

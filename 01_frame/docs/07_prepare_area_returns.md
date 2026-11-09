@@ -142,18 +142,20 @@ An eventual Did not vote residual on these data means no candidate vote
 credited in the selected tabulation. It cannot establish that the voter
 left the office blank.
 
-**How the House counts enter the later model.** [Step 08](08_build_district_predictors.md)
-compares the actual district boundaries using Census blocks. Under the
-[Step 09 projection rules](09_model_house_votes.md), 290 districts with
-identical territory and observed returns carry their 2024 candidate counts
-forward. The four shares use the target district's citizen-adult population.
-For each of the 145 redrawn districts, including new FL-20, the model predicts
-all four shares from the whole district's new demographics, its state's 2024
-presidential shares and its 2026 candidate lineup. Unchanged OK-03 also needs
-a prediction because it has no observed count. It uses its 2024 Republican-only
-lineup. Modelled districts keep their predicted shares, so aggregating
-them can give a different state total from the 2024 House count. The Step 09
-guide records the status of the national fit.
+**How the House counts enter the model.** For the 434 tabulated contests,
+Step 09 divides each party’s count by the original district’s unrounded PUMS
+citizen-adult population. The remaining share is the fourth outcome, citizens
+without a counted House candidate vote. FL-20 and OK-03 get estimates after the model has learned from the tabulated contests.
+[House model outcome and predictors](09_model_house_votes.md#outcome-and-predictors)
+
+Step 08 compares the two maps using Census blocks. On the new map, Step 09
+carries candidate counts for the 290 tabulated districts whose footprints
+match and divides by the target district’s population. It predicts 144
+redrawn districts with their 2026 lineups. For FL-20 and OK-03 it models
+a hypothetical election with the sole declared 2024 winner standing
+unopposed on each map. FL-20 uses the demographics of the whole district
+on the selected map. The model estimates enter the output directly, so state
+aggregates can differ from the 2024 House returns. [District projection rules](09_model_house_votes.md#districts-on-the-2026-map)
 
 ## Outputs and source reconciliation
 

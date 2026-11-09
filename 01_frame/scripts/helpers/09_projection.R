@@ -13,49 +13,128 @@ house_projection_matches <- function(target, old) {
   old_row
 }
 
+# Identify each unpolled 2024 seat from the member who actually took office.
+# Compare the official winner record with the included nominees and the party
+# flags from Step 08. The model needs the winning party, not a candidate ID.
+mark_unpolled_house_scenarios <- function(old, nominee_path) {
+  winners <- read_table09("01_frame/docs/09_unpolled_house_winners_2024.csv")
+  unpolled <- old$status == "unopposed_not_on_ballot"
+  seats <- old[unpolled, ]
+  keys <- district_id(seats)
+  if (anyDuplicated(district_id(winners)) || !setequal(keys, district_id(winners))) {
+    stop("The unpolled 2024 districts differ from the verified House winners.")
+  }
+  winners <- winners[match(keys, district_id(winners)), ]
+
+  audit <- read_table09(nominee_path)
+  eligible <- audit$year == 2024L & audit$included == 1L & district_id(audit) %in% keys
+  nominees <- audit[eligible, ]
+  if (anyDuplicated(district_id(nominees)) || !setequal(keys, district_id(nominees))) {
+    stop("Expected exactly one eligible 2024 nominee per unpolled House contest.")
+  }
+  nominees <- nominees[match(keys, district_id(nominees)), ]
+  stopifnot(identical(winners$winner, nominees$candidate),
+            identical(winners$party_group, nominees$party_group),
+            identical(winners$incumbent, nominees$incumbent),
+            all(winners$party_group %in% c("D", "R")), all(winners$incumbent %in% 0:1),
+            all(rowSums(seats[c("n_dem", "n_rep", "n_other")]) == 1L),
+            all(seats$slate == winners$party_group))
+  for (party in names(house_columns$incumbent)) {
+    expected <- as.integer(winners$party_group == party) * winners$incumbent
+    if (any(seats[[house_columns$incumbent[[party]]]] != expected)) {
+      stop("The district incumbency flag disagrees with the verified unpolled winner.")
+    }
+  }
+
+  old$unopposed_party <- NA_character_
+  old$unopposed_party[unpolled] <- winners$party_group
+  old
+}
+
 prepare_house_prediction_scope <- function(target, old, roster_path) {
   old_row <- house_projection_matches(target, old)
   redrawn <- is.na(old_row)
-  unpolled <- !redrawn & old$status[old_row] == "unopposed_not_on_ballot"
-  target$needs_prediction <- redrawn | unpolled
-  target$prediction_source <- ifelse(redrawn, "model_redrawn",
-                               ifelse(unpolled, "model_unpolled_2024", "observed_same_footprint"))
-  target$lineup_year <- ifelse(redrawn, 2026L, ifelse(unpolled, 2024L, NA_integer_))
 
-  # Copy only the lineup from the original contest on an identical unpolled
-  # footprint. Every input describing the population belongs to the target map.
+  # Both named districts get the historical winner's sole-party ballot. FL-20
+  # changed shape. Matching the label here selects a scenario only; its PUMS
+  # demographics and population still come from the new Florida district.
+  unpolled <- which(!is.na(old$unopposed_party))
+  scenario_row <- match(district_id(old[unpolled, ]), district_id(target))
+  if (anyNA(scenario_row) || anyDuplicated(scenario_row) ||
+      any(!redrawn[scenario_row] & old_row[scenario_row] != unpolled)) {
+    stop("Check the target district labels for the two unopposed 2024 scenarios.")
+  }
+  original_lineup <- old_row
+  original_lineup[scenario_row] <- unpolled
+  current_lineup <- is.na(original_lineup)
+
+  target$unopposed_party <- old$unopposed_party[original_lineup]
+  if (sum(!is.na(target$unopposed_party)) != length(unpolled)) {
+    stop("An unpolled district was assigned to more than one projection scenario.")
+  }
+  target$prediction_source <- "observed_same_footprint"
+  target$prediction_source[current_lineup] <- "model_redrawn"
+  target$prediction_source[scenario_row] <- "model_unopposed_2024"
+  target$needs_prediction <- target$prediction_source != "observed_same_footprint"
+  target$lineup_year <- ifelse(current_lineup, 2026L, 2024L)
+
+  # Carry the historical lineup with every identical observed footprint for
+  # the covariate table. Those districts' final shares use their actual votes.
   lineup_fields <- c("slate", "n_dem", "n_rep", "n_other", "ballot_dem", "ballot_rep",
                      "ballot_other", "same_party_multiple", "ballot_group", "major_party_direction",
                      house_columns$incumbent)
-  lineup_row <- old_row
-  lineup_row[!unpolled] <- NA_integer_
-  target[lineup_fields] <- old[lineup_row, lineup_fields, drop = FALSE]
-  if (any(unpolled)) {
-    # The 2024 Clerk nominee roster lists a single Republican for intact OK-03.
-    seat <- target[unpolled, , drop = FALSE]
-    if (!isTRUE(all(district_id(old[old_row[unpolled], ]) == "40-03" &
-                    seat$n_dem == 0L & seat$n_rep == 1L & seat$n_other == 0L &
-                    seat$slate == "R" & seat$ballot_group == "main_party_uncontested" &
-                    seat$major_party_direction == -1L))) {
-      stop("Review the 2024 lineup of the unpolled contest on an identical footprint.")
-    }
-  }
-  if (any(redrawn)) {
-    lineup <- add_slate(target[redrawn, c("STATEFP", "CDFP"), drop = FALSE], roster_path)
-    target[redrawn, lineup_fields] <- lineup[lineup_fields]
+  target[lineup_fields] <- old[original_lineup, lineup_fields, drop = FALSE]
+  if (any(current_lineup)) {
+    lineup <- add_slate(target[current_lineup, c("STATEFP", "CDFP"), drop = FALSE], roster_path)
+    target[current_lineup, lineup_fields] <- lineup[lineup_fields]
   }
   unsupported <- target$needs_prediction & is.na(target$ballot_group)
   if (any(unsupported)) stop("No fitted ballot group for ", paste(district_id(target)[unsupported], collapse = ", "))
   target
 }
 
-# Each modeled district receives one posterior mean per choice. For identical
-# tabulated footprints, retain the official candidate counts and use CD120 CVAP
-# as the denominator for all four shares.
+# For the two counterfactual elections, predict how much of CVAP would cast
+# a House vote. The sole nominee receives that entire share. In all other
+# modeled contests each party keeps its own fitted share.
+modeled_house_shares <- function(fit, districts, seed, ndraws) {
+  draws <- predict_house_dirichlet(fit, districts, seed = seed, ndraws = ndraws)$mean_share
+  choices <- c("D", "R", "Other", "DidNotVote")
+  stopifnot(length(dim(draws)) == 3L, dim(draws)[1L] > 0L,
+            dim(draws)[2L] == nrow(districts), setequal(dimnames(draws)[[3]], choices),
+            all(is.finite(draws)), all(draws >= 0), all(draws <= 1),
+            all(abs(apply(draws, c(1L, 2L), sum) - 1) < 1e-8))
+  means <- apply(draws[, , choices, drop = FALSE], c(2L, 3L), mean)
+  for (row in which(!is.na(districts$unopposed_party))) {
+    winner <- districts$unopposed_party[row]
+    stopifnot(winner %in% c("D", "R"), winner == districts$slate[row])
+    means[row, c("D", "R", "Other")] <- 0
+    means[row, winner] <- 1 - means[row, "DidNotVote"]
+  }
+  colnames(means) <- c("dem", "rep", "other", "did_not_vote")
+  means
+}
+
+# The original FL-20 and OK-03 had no tabulated House vote. These estimates
+# describe those two original districts independently of their CD120 versions.
+predict_unpolled_2024 <- function(fit, old, seed, ndraws = 800L) {
+  seats <- old[!is.na(old$unopposed_party), ]
+  stopifnot(nrow(seats) == 2L, all(seats$congress == 119L),
+            all(seats$status == "unopposed_not_on_ballot"))
+  shares <- modeled_house_shares(fit, seats, seed, ndraws)
+  label <- seats[c("congress", "STATEFP", "CDFP")]
+  label$lineup_year <- 2024L
+  label$unopposed_party <- seats$unopposed_party
+  label$winner_incumbent <- rowSums(seats[unname(house_columns$incumbent)])
+  cbind(label, as.data.frame(shares))
+}
+
+# On each identical tabulated footprint, preserve the official candidate
+# counts and use CD120 CVAP as the denominator for all four shares.
 predict_or_carry_house <- function(fit, target, old, seed, ndraws = 800L) {
   old_row <- house_projection_matches(target, old)
-  carry <- !is.na(old_row) & old$status[old_row] == "observed"
+  carry <- target$prediction_source == "observed_same_footprint"
   stopifnot(identical(!carry, target$needs_prediction),
+            all(!is.na(old_row[carry])), all(old$status[old_row[carry]] == "observed"),
             all(is.finite(target$cvap) & target$cvap > 0))
   choices <- c("dem", "rep", "other", "did_not_vote")
   shares <- matrix(NA_real_, nrow(target), length(choices), dimnames = list(NULL, choices))
@@ -69,14 +148,9 @@ predict_or_carry_house <- function(fit, target, old, seed, ndraws = 800L) {
     shares[carry, ] <- cbind(votes, remainder) / population
   }
   if (any(!carry)) {
-    districts <- target[!carry, , drop = FALSE]
-    p <- predict_house_dm(fit, districts, seed = seed, ndraws = ndraws)$mean_share
-    labels <- c("D", "R", "Other", "DidNotVote")
-    stopifnot(length(dim(p)) == 3L, dim(p)[1L] > 0L, dim(p)[2L] == nrow(districts),
-              dim(p)[3L] == 4L, setequal(dimnames(p)[[3L]], labels),
-              all(is.finite(p)), all(p >= 0), all(abs(apply(p, c(1L, 2L), sum) - 1) < 1e-8))
-    shares[!carry, ] <- apply(p[, , labels, drop = FALSE], c(2L, 3L), mean)
+    shares[!carry, ] <- modeled_house_shares(fit, target[!carry, ], seed, ndraws)
   }
-  stopifnot(all(is.finite(shares)), all(shares >= 0), all(abs(rowSums(shares) - 1) < 1e-8))
+  stopifnot(all(is.finite(shares)), all(shares >= 0), all(shares <= 1),
+            all(abs(rowSums(shares) - 1) < 1e-8))
   cbind(target[c("STATEFP", "CDFP")], as.data.frame(shares))
 }
