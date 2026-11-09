@@ -16,6 +16,12 @@ data and variable metadata against the project's tracked source manifest.
 It then prepares the citizen-adult population. The download step itself
 only acquires and validates the source files.
 
+To follow [the downloader](../scripts/00_download_pums.R), start at `main()`.
+An ordinary run with both files already verified on disk finishes in
+“Reuse a completed download.” For a new or incomplete snapshot, continue to
+“Resume or submit the IPUMS request.” The functions below `main()` contain
+the detailed receipt, submission, API-definition and file checks.
+
 ## Status and execution
 
 Status: validated. Acquisition, the 24-column checks and offline reuse passed.
