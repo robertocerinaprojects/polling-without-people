@@ -1,4 +1,10 @@
-"""Build regular November House candidate configurations for CD119 and CD120."""
+"""Count named candidates in each regular November House contest, including DC.
+
+The 2024 roster uses 119th Congress districts and the 2026 roster uses the 120th.
+Read the pinned Clerk lists, apply the documented ballot corrections, then
+write both district tables and the candidate-by-candidate audit.
+"""
+
 from collections import Counter
 import csv
 import hashlib
@@ -31,7 +37,9 @@ def csv_rows(path):
         return list(csv.DictReader(f))
 
 
-def nominees(year, states):
+# Source PDFs and roster parsing ------------------------------------------------
+def nominee_pdf(year):
+    """Reuse or download the reviewed Clerk PDF and return its path and source URL."""
     congress = {2024: 119, 2026: 120}[year]
     url = f"https://clerk.house.gov/member_info/electionInfo/{year}/{congress}-nominations.pdf"
     path = FRAME / "data" / "input" / f"{congress}-nominations.pdf"
@@ -48,16 +56,18 @@ def nominees(year, states):
             staged = Path(d) / path.name
             staged.write_bytes(content)
             staged.replace(path)
-    result = subprocess.run(
-        ["pdftotext", "-enc", "UTF-8", "-layout", str(path), "-"],
-        capture_output=True, check=True, encoding="utf-8"
-    )
+    return path, url
 
+
+def read_nominee_rows(text, year, states, url):
+    """Follow state, office and district headings while reading the Clerk's layout."""
     roster = {}
     state = district = None
     reading_house = False
-    for raw in result.stdout.splitlines():
+    for raw in text.splitlines():
         line = raw.strip()
+        # Ignore footnote digits and the text after the dash in a heading.
+        # A continued page keeps the current district. A new state resets it.
         heading = re.sub(r"\d+$", "", line.partition("—")[0])
         if heading in states or heading in TERRITORIES:
             state = states.get(heading)
@@ -70,10 +80,9 @@ def nominees(year, states):
                     district = "98"
             continue
         if line.startswith("FOR "):
-            reading_house = bool(state and (
-                heading == "FOR UNITED STATES REPRESENTATIVE" or
-                (state["STUSAB"] == "DC" and heading == "FOR DELEGATE")
-            ))
+            house_heading = heading == "FOR UNITED STATES REPRESENTATIVE"
+            dc_delegate_heading = state and state["STUSAB"] == "DC" and heading == "FOR DELEGATE"
+            reading_house = bool(state and (house_heading or dc_delegate_heading))
             continue
         if not reading_house:
             continue
@@ -87,20 +96,34 @@ def nominees(year, states):
         if district_prefix:
             district = f"{int(district_prefix[1]):02d}"
             label = district_prefix[2]
-        terms = [x.strip() for x in re.sub("[*†‡]", "", label).split(",")]
+        # A suffix such as “Jr.” belongs to the name. Keep the remaining
+        # comma-separated party labels together for cross-endorsed nominees.
+        terms = [part.strip() for part in re.sub("[*†‡]", "", label).split(",")]
         if not district or len(terms) < 2:
             raise ValueError(f"Unexpected {year} House nominee row: {line}")
-        split = 2 if terms[1] in {"Jr.", "Sr.", "Jr", "Sr", "II", "III", "IV"} else 1
-        name = ", ".join(terms[:split])
+        party_start = 2 if terms[1] in {"Jr.", "Sr.", "Jr", "Sr", "II", "III", "IV"} else 1
+        name = ", ".join(terms[:party_start])
+        party_labels = terms[party_start:]
         key = (state["STATEFP"], district, name)
-        if key in roster or not terms[split:]:
+        if key in roster or not party_labels:
             raise ValueError(f"Duplicate or incomplete {year} nominee: {key}")
-        roster[key] = dict(party=", ".join(terms[split:]), included=1,
+        roster[key] = dict(party=", ".join(party_labels), included=1,
                            decision="clerk_nominee", source=url)
     return roster
 
 
+def nominees(year, states):
+    path, url = nominee_pdf(year)
+    result = subprocess.run(
+        ["pdftotext", "-enc", "UTF-8", "-layout", str(path), "-"],
+        capture_output=True, check=True, encoding="utf-8"
+    )
+    return read_nominee_rows(result.stdout, year, states, url)
+
+
+# Reviewed corrections and district counts --------------------------------------
 def apply_reviews(roster, decisions):
+    """Apply the ballot review table; keep removed nominees in the audit."""
     for row in decisions:
         key = (row["STATEFP"], row["CDFP"], row["candidate"])
         action = row["action"]
@@ -118,7 +141,8 @@ def apply_reviews(roster, decisions):
 
 
 def summarize(year, roster):
-    groups = {}
+    """Count each included nominee once, even if they carry multiple party labels."""
+    counts_by_district = {}
     audit = []
     for (state, district, name), nominee in sorted(roster.items()):
         parties = set(nominee["party"].split(", "))
@@ -126,19 +150,44 @@ def summarize(year, roster):
         is_rep = "Republican" in parties
         if is_dem and is_rep:
             raise ValueError(f"Both major party labels on one candidate: {name}")
-        group = "D" if is_dem else ("R" if is_rep else "O")
+        if is_dem:
+            group = "D"
+        elif is_rep:
+            group = "R"
+        else:
+            group = "O"
         audit.append(dict(year=year, STATEFP=state, CDFP=district, candidate=name,
                           party_group=group, **nominee))
         if nominee["included"]:
-            groups.setdefault((state, district), Counter())[group] += 1
+            counts_by_district.setdefault((state, district), Counter())[group] += 1
+
+    # The slate string records which groups are present. “D” can mean either
+    # one unopposed Democrat or a choice between two or more Democrats.
     slates = []
-    for (state, district), counts in sorted(groups.items()):
-        slate = "".join(c for c in "DRO" if counts[c])
-        size = sum(counts.values())
+    for (state, district), counts in sorted(counts_by_district.items()):
+        slate = "".join(party for party in "DRO" if counts[party])
+        candidate_count = sum(counts.values())
         slates.append(dict(STATEFP=state, CDFP=district, n_dem=counts["D"], n_rep=counts["R"],
-                           n_other=counts["O"], slate=slate, unopposed=int(size == 1),
-                           same_party_multiple=int(len(slate) == 1 and size > 1)))
+                           n_other=counts["O"], slate=slate, unopposed=int(candidate_count == 1),
+                           same_party_multiple=int(len(slate) == 1 and candidate_count > 1)))
     return audit, slates
+
+
+def check_district_roster(year, slates, manifest):
+    districts = {(row["STATEFP"], row["CDFP"]) for row in slates}
+    actual_states = {state for state, district in districts}
+    expected_states = {row["STATEFP"] for row in manifest}
+    if len(districts) != 436 or actual_states != expected_states or ("11", "98") not in districts:
+        raise ValueError(f"Expected 435 voting districts plus the DC delegate in {year}")
+
+    # Match the reviewed counts for each district. National totals could
+    # still match if two districts' candidates were exchanged.
+    fields = ("STATEFP", "CDFP", "n_dem", "n_rep", "n_other")
+    lines = [",".join(str(row[field]) for field in fields) for row in slates]
+    fingerprint = hashlib.sha256(("\n".join(lines) + "\n").encode("ascii")).hexdigest()
+    if fingerprint != REVIEWED_CONFIGURATIONS[year]:
+        raise ValueError(f"District party counts differ from the independently reviewed {year} slate.")
+    return districts
 
 
 def save(path, rows):
@@ -163,17 +212,10 @@ def main():
     district_sets = []
     for year in SOURCE_DIGEST:
         roster = nominees(year, states)
-        apply_reviews(roster, [r for r in reviews if r["year"] == str(year)])
+        year_reviews = [row for row in reviews if row["year"] == str(year)]
+        apply_reviews(roster, year_reviews)
         evidence, slates = summarize(year, roster)
-        districts = {(r["STATEFP"], r["CDFP"]) for r in slates}
-        if (len(districts) != 436 or {s for s, d in districts} != {r["STATEFP"] for r in manifest}
-                or ("11", "98") not in districts):
-            raise ValueError(f"Expected 435 voting districts plus the DC delegate in {year}")
-        fields = ("STATEFP", "CDFP", "n_dem", "n_rep", "n_other")
-        lines = (",".join(str(row[key]) for key in fields) for row in slates)
-        digest = hashlib.sha256(("\n".join(lines) + "\n").encode("ascii")).hexdigest()
-        if digest != REVIEWED_CONFIGURATIONS[year]:
-            raise ValueError(f"District party counts differ from the independently reviewed {year} slate.")
+        districts = check_district_roster(year, slates, manifest)
         district_sets.append(districts)
         tables[year] = slates
         audit.extend(evidence)
@@ -182,7 +224,8 @@ def main():
     for year, slates in tables.items():
         target = FRAME / "data" / "intermediate" / f"08_house_slates_{year}.csv"
         save(target, slates)
-        print(f"{year}: {len(slates)} seats including DC; configurations {dict(Counter(r['slate'] for r in slates))}")
+        configurations = dict(Counter(row["slate"] for row in slates))
+        print(f"{year}: {len(slates)} seats including DC; configurations {configurations}")
     save(FRAME / "data" / "output" / "08_house_slate_nominees.csv", audit)
 
 

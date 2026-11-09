@@ -36,6 +36,8 @@ Run individual steps from the repository root, following their companion documen
 | 05 | `scripts/05_prepare_ces.R` | national demographics and vote run passed | [2024 CES preparation](docs/05_prepare_ces.md) |
 | 06 | `scripts/06_build_pums_cells.R` | national cell totals and CES coverage checked | [Population cells and CES coverage](docs/06_build_pums_cells.md) |
 | 07 | `scripts/07_prepare_area_returns.py` | 2024 candidate votes by state for president and by original district for House | [2024 area-level returns](docs/07_prepare_area_returns.md) |
+| 08 | `scripts/08_build_district_predictors.R` | 436 districts per map, with a common state population check | [District populations and shares](docs/08_build_district_predictors.md) |
+| 08 | `scripts/08_prepare_house_slates.py` | 2024 and 2026 nominee counts checked for all 436 districts | [House candidate rosters](docs/08_house_slates.md) |
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census

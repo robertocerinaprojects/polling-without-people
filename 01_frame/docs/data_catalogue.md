@@ -1,6 +1,6 @@
 # Frame data catalogue
 
-The [district frame inventory](08_build_district_predictors.md#inputs-and-products) lists the original and new map inputs, crosswalks, cells and audits. The [House slate inventory](08_house_slates.md) records candidate sources for both years. The [district model inventory](09_model_house_votes.md#files-and-lineage) lists the held-out districts and scores, the sources of observed and predicted district rows, and the final four-share matrix for the 2026 map.
+For district predictors and candidate rosters, see [Step 08 inputs and products](#district-populations-and-candidate-rosters). The [district model inventory](09_model_house_votes.md#files-and-lineage) lists the held-out districts and scores, the sources of observed and predicted district rows, and the final four-share matrix for the 2026 map.
 
 ## Plain-language summary
 
@@ -49,6 +49,8 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 05 | [05_prepare_ces.R](../scripts/05_prepare_ces.R) | [CES download and harmonization](05_prepare_ces.md) |
 | Script 06 | [06_build_pums_cells.R](../scripts/06_build_pums_cells.R) | [PUMS cell sizes and CES coverage](06_build_pums_cells.md) |
 | Script 07 | [07_prepare_area_returns.py](../scripts/07_prepare_area_returns.py) | [Area-level returns](07_prepare_area_returns.md) |
+| Script 08, district populations | [08_build_district_predictors.R](../scripts/08_build_district_predictors.R) | [Two-map CVAP predictors](08_build_district_predictors.md) |
+| Script 08, candidate rosters | [08_prepare_house_slates.py](../scripts/08_prepare_house_slates.py) | [House candidate lineups](08_house_slates.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
@@ -339,7 +341,7 @@ district and county for the harmonized CES RDS and respondent-level audits. [Rel
 | `data/intermediate/hispanic_race_by_district_profile.rds` | Script 05 donor helper using `pums_cd_allocation.rds`, `pums_demographics.rds` and the national totals in `04_pums_hispanic_race_probabilities.csv` | Script 05 reads three tables of race counts, weights, probabilities and effective donor counts by demographic profile, with district, state and national coverage. A donor can contribute to several districts. The broader pools recombine every person's weight before counting support. |
 | `data/intermediate/ces_demographics_harmonized.rds` | Script 05 using the CES CSV, district lookup and conditional donor tables | One row per eligible citizen `caseid` with source fields, harmonized demographics, original and assigned geography, imputation flags, 2024 party outcomes, source of each outcome and House contest type. Script 06 checks the seven matching keys. |
 | `data/intermediate/ces_analysis.rds` | Script 05 export helper, reading `ces_demographics_harmonized.rds` | One row per retained `caseid` in the same order. Provides the survey weight, seven frame keys and two 2024 vote outcomes. See the [11-column schema and export command](05_prepare_ces.md#analysis-file). |
-| `data/intermediate/pums_cd_cells.rds` | Script 06, district-weighted person rows from 03, categories from 04 and the Step 03 state conservation audit | One row per positive population cell. The seven keys are `STATEFP, CDFP120, age_cat, gender_cat, race_cat, hispanic_cat, educ_cat`. Sum `N` to obtain estimated citizen-adult totals. |
+| `data/intermediate/pums_cd_cells.rds` | Script 06, district-weighted person rows from 03, categories from 04 and the Step 03 state conservation audit | One row per positive population cell. The seven keys are `STATEFP, CDFP120, age_cat, gender_cat, race_cat, hispanic_cat, educ_cat`. Step 08 sums `N` by district and demographic category for the 2026 map. |
 
 ### Cleaned person schema
 
@@ -627,6 +629,18 @@ from Step 06 use `STATEFP` and `CDFP120`. A same-numbered district can
 cover different voters in the two elections. Step 08 identifies exact matches
 by their Census blocks. For redrawn districts, Step 09 estimates shares using
 the target district's composition and candidate lineup.
+
+## District populations and candidate rosters
+
+Step 08 has two independent entry points. One produces district population estimates from the 2020–2024 PUMS on each map. The other counts eligible named House nominees in each election. Step 09 joins the district tables by state and district on the corresponding map. The detailed population inventory gives the Census archive names and the treatment of each geographic exception. [District population inputs and products](08_build_district_predictors.md#inputs-and-products) · [House roster sources](08_house_slates.md#sources-and-review)
+
+| Product under `data/` | Producer and direct inputs | Use |
+|---|---|---|
+| `intermediate/08_puma_cd119_weights.csv` and `output/08_cd119_allocation_exceptions.csv` | The district predictors script compares the CD119 and CD120 block assignments. It reuses Step 02 weights in states with identical footprints and rebuilds weights elsewhere from Step 02 block-group tables and 2020 Census block adult counts. | The weights assign a fraction of each PUMA to each original district. The audit records exceptional block groups in the rebuilt states. |
+| `output/08_district_overlap.csv` | The same script counts blocks in each assigned CD119 and CD120 intersection. | Step 09 uses the shared block counts and footprint match flag to identify districts eligible to retain observed 2024 counts. |
+| `intermediate/08_pums_cd119_cells.rds` | The district predictors script joins Step 01 person weights and PUMAs to Step 04 demographics by `SAMPLE + SERIAL + PERNUM`, then applies the CD119 PUMA weights. | Population by district and demographic cell for the 2024 map. |
+| `intermediate/08_district_demographics.csv` and `output/08_cd119_cvap_benchmark.csv` | The district predictors script summarizes CD119 cells and Step 06 CD120 cells. It checks state totals against Step 03 and compares CD119 totals to the Census CVAP archive’s `CD.csv`. | The first table supplies Step 09 with district CVAP and 29 demographic shares. The second records the CD119 comparison in people. |
+| `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026.csv` and `output/08_house_slate_nominees.csv` | The candidate roster script reads the House Clerk’s `input/119-nominations.pdf` and `input/120-nominations.pdf`, plus the tracked state manifest and reviewed amendments. | Step 09 uses the annual district counts. The nominee audit traces those counts to individual inclusions and removals. [State manifest](02_pl_2020_sources.csv) · [Roster amendments](08_house_slate_corrections.csv) |
 
 ## Validation, reruns and preservation
 

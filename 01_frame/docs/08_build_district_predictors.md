@@ -27,16 +27,34 @@ Rscript 01_frame/scripts/08_build_district_predictors.R
 
 The R script calls the Python standard-library helper
 [08_cd119_weights.py](../scripts/helpers/08_cd119_weights.py).
-Step 05 already caches the Census `cd119.zip` file; the geographic helper
-can fetch this one input if necessary. The other source archives and the
+Step 05 already caches the Census `cd119.zip` file. The geographic helper
+can fetch it if needed. The other source archives and the
 Step 02, 03, 04 and 06 products must be available locally.
+The [separate roster script](08_house_slates.md) prepares the candidate
+counts for each election. Either Step 08 entry point can run first.
+
+## Follow one share from PUMS to a district
+
+Suppose the PUMS weights of people with a two-year degree in one PUMA add
+up to 100. If that PUMA's CD119 district weights are 0.70 and 0.30, these
+people contribute 70 to one district and 30 to the other. We add the
+contributions from every PUMA in each district. In a district with 12,000
+citizen adults in the two-year category and 100,000 citizen adults overall,
+`educ_two_year` is 0.12. For CD120, Step 06 already supplied the cell
+populations, and the same division gives the new-map share.
+
+In the [R script](../scripts/08_build_district_predictors.R), `column_for_label`
+shows which Step 04 answer feeds each predictor, `build_old_cells` applies
+the CD119 weights, and `district_shares` calculates the shares on both maps.
+The Census district CVAP estimate goes into a separate comparison file.
 
 ## Geography and the two frames
 
 1. Join the two pinned national Census block-equivalency files by their
    15-character block GEOID. Count blocks for every pair of assigned old and new
-   districts. Call a footprint identical only if those joint blocks exhaust
-   **both** district footprints. This also detects identical, renumbered areas.
+   districts. Two districts have the same footprint if **every assigned block
+   of each district belongs to the other**. An old district wholly inside a
+   larger new one fails this test. A renumbered district can pass it.
    Unassigned `ZZ` water blocks have no voting district. The Census tabulates
    split blocks using a designated whole-block assignment. [119th Congress block
    equivalency files](https://www.census.gov/geographies/mapping-files/2025/dec/rdo/119-congressional-district-bef.html)
@@ -65,6 +83,12 @@ Step 02, 03, 04 and 06 products must be available locally.
    this gives the same cell totals as splitting the weight of every person
    into separate person/district rows. Save the CD119 frame and derive its
    margins. Use the existing Step 06 cells for the CD120 margins.
+
+On the pinned Census maps, 291 of the 436 target districts have exactly
+the same assigned blocks as a CD119 district. The other 145 have changed
+boundaries. An exact boundary match can still have a missing 2024 vote
+count, as OK-03 does. [Step 09](09_model_house_votes.md) handles vote
+availability after Step 08 has established the geography.
 
 ### Old-map zero-adult decisions
 
