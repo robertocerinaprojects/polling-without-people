@@ -34,6 +34,12 @@ record count. [IPUMS person weights](https://usa.ipums.org/usa-action/variables/
 
 ## Categories
 
+In the [Step 04 script](../scripts/04_harmonize_pums.R), the
+`education_codes` and `race_codes` lists put each saved label beside its
+source codes. For example, someone with `EDUCD = 64`, `RACE = 8` and
+`hispanic_flag = 1` receives **HS grad**, **Other/Multi** and **Hispanic**.
+Their original person weight contributes once to the Other/Multi donor total.
+
 | PUMS field | Harmonized field | Coding |
 |---|---|---|
 | `AGE` at observation | `age_cat` | Five-year bands beginning 18–22, ending 78–82, followed by 83+. |
@@ -85,9 +91,12 @@ weight of 33,794,882.
 
 `Other/Multi` combines 10,704,572 weighted people recorded as other race
 alone, 13,968,480 recorded with two races and 793,919 with three or more.
+The national Other/Multi share is therefore 25,466,971 / 33,794,882 = 75.36%
+after rounding. Step 05 uses the national counts to check its donor tables
+before drawing from the distribution for a CES respondent's profile.
+
 Of the two-race group, 12,821,909 were coded “White and other race write-in”
-(`RACED = 826`). Step 05 checks that its district-specific donor weights sum to these
-national totals for each race.
+(`RACED = 826`).
 
 A separate 108-record test with unequal person weights matched independently
 calculated shares. It also covered a distribution with four zero-count groups.
