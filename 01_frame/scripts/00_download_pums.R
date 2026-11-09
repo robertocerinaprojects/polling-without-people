@@ -1,7 +1,8 @@
 # Download the full IPUMS 2020-2024 ACS five-year person extract.
 # Plain-language summary and recovery: 01_frame/docs/00_download_pums.md
 # Run from repository root: Rscript 01_frame/scripts/00_download_pums.R
-# Reuse a verified local download; --refresh requests a separate new snapshot.
+# By default, verify and reuse the saved extract.
+# With --refresh, request a new extract in its own folder.
 # Outputs: 01_frame/data/input/ipums_pums/ (ignored source files and receipts).
 # Script 01 checks this snapshot against 01_frame/docs/00_pums_source.json.
 
@@ -11,27 +12,32 @@ check <- function(condition, message) {
 
 main <- function() {
   args <- commandArgs(trailingOnly = TRUE)
-  check(length(args) == 0L || identical(args, "--refresh"),
-        "Usage: Rscript 01_frame/scripts/00_download_pums.R [--refresh]")
   refresh <- identical(args, "--refresh")
-  root <- here::here()
-  check(normalizePath(root) == normalizePath(getwd()),
+
+  check(length(args) == 0L || refresh,
+        "Usage: Rscript 01_frame/scripts/00_download_pums.R [--refresh]")
+
+  project_root <- here::here()
+  check(normalizePath(getwd()) == normalizePath(project_root),
         "Run this script from the repository root.")
 
-  # API sample ID (different from the numeric SAMPLE column in the CSV):
-  # https://usa.ipums.org/usa-action/samples/sample_ids
-  # Variables reproduce the reviewed 24-column source schema; no case filters.
+  # Request these 24 columns for everyone in the sample.
+  # Script 01 later selects citizens aged 18 and over.
   variables <- c(
     "YEAR", "MULTYEAR", "SAMPLE", "SERIAL", "CBSERIAL", "HHWT", "CLUSTER",
     "STATEFIP", "PUMA", "CPUMA1020", "STRATA", "GQ", "HHINCOME", "PERNUM",
     "PERWT", "SEX", "AGE", "RACE", "RACED", "HISPAN", "HISPAND", "CITIZEN",
     "EDUC", "EDUCD"
   )
-  # Person-rectangular CSV attaches household fields to each person record.
+
+  # Ask for one CSV row per person, with household fields repeated on each person's row.
   # https://tech.popdata.org/ipumsr/reference/define_extract_micro.html
   definition <- ipumsr::define_extract_micro(
     collection = "usa",
     description = "polling-without-people: full 2020-2024 ACS five-year PUMS",
+    # The API identifies the 2020-2024 ACS five-year sample as us2024c.
+    # The downloaded SAMPLE column uses a numeric code.
+    # https://usa.ipums.org/usa-action/samples/sample_ids
     samples = "us2024c",
     variables = variables,
     data_format = "csv",
@@ -44,7 +50,7 @@ main <- function() {
   fingerprint <- function(path) digest::digest(file = path, algo = "sha256")
   request_sha256 <- fingerprint(request_tmp)
 
-  store <- file.path(root, "01_frame", "data", "input", "ipums_pums")
+  store <- file.path(project_root, "01_frame", "data", "input", "ipums_pums")
   dir.create(store, recursive = TRUE, showWarnings = FALSE)
   pointer <- file.path(store, "current_snapshot.txt")
   # Only acquisition and recovery mutate the selected snapshot. A complete
