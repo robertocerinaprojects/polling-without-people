@@ -207,13 +207,13 @@ example <- coverage |>
   arrange(positive_districts, STATEFP, PUMA5CE) |>
   slice_head(n = 1L)
 
-state_indices <- split(seq_len(nrow(people)), people$STATEFIP)
+pums_rows_by_state <- split(seq_len(nrow(people)), people$STATEFIP)
 allocate_state <- function(i) {
   plan <- state_plan[i, ]
   state <- as.integer(plan$STATEFP)
-  source_rows <- state_indices[[as.character(state)]]
-  residents <- people[source_rows, , drop = FALSE]
-  residents$person_row <- seq_len(nrow(residents))
+  pums_rows_in_state <- pums_rows_by_state[[as.character(state)]]
+  residents <- people[pums_rows_in_state, , drop = FALSE]
+  residents$state_person_row <- seq_len(nrow(residents))
   weights <- filter(districts, STATEFIP == state)
   pairs <- inner_join(
     residents, weights, by = c("STATEFIP", "PUMA"), relationship = "many-to-many"
@@ -228,7 +228,7 @@ allocate_state <- function(i) {
   ]
   check(
     nrow(pairs) == plan$expected_rows && nrow(residents) == plan$person_records &&
-      all(tabulate(pairs$person_row, nbins = nrow(residents)) == district_counts),
+      all(tabulate(pairs$state_person_row, nbins = nrow(residents)) == district_counts),
     paste("Unexpected person/district row counts for state", plan$STATEFP)
   )
 
@@ -237,8 +237,8 @@ allocate_state <- function(i) {
   tolerance <- 1e-12
   totals <- rowsum(cbind(probability = pairs$allocation_weight,
                          weight = pairs$allocated_person_weight),
-                   group = pairs$person_row, reorder = TRUE)
-  check(identical(as.integer(rownames(totals)), residents$person_row),
+                   group = pairs$state_person_row, reorder = TRUE)
+  check(identical(as.integer(rownames(totals)), residents$state_person_row),
         paste("Missing or misordered person totals for state", plan$STATEFP))
   error <- abs(totals[, "weight"] - residents$PERWT)
   allocated_weight <- sum(pairs$allocated_person_weight)
@@ -251,10 +251,10 @@ allocate_state <- function(i) {
   )
 
   if (nrow(example) == 1L && plan$STATEFP == example$STATEFP) {
-    example_person <- match(as.integer(example$PUMA5CE), residents$PUMA)
+    example_state_person_row <- match(as.integer(example$PUMA5CE), residents$PUMA)
     cat("\nOne person in a split PUMA:\n")
     pairs |>
-      filter(person_row == example_person) |>
+      filter(state_person_row == example_state_person_row) |>
       select(STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight) |>
       tibble::as_tibble() |>
       print(n = Inf, width = Inf)
@@ -264,7 +264,7 @@ allocate_state <- function(i) {
                      allocated_weight = allocated_weight,
                      max_person_weight_error = max(error))
   list(
-    person_row = source_rows[pairs$person_row],
+    pums_row = pums_rows_in_state[pairs$state_person_row],
     district_row = pairs$district_row,
     contribution = pairs$allocated_person_weight,
     audit = audit
@@ -276,16 +276,16 @@ state_audit <- bind_rows(lapply(parts, "[[", "audit"))
 # Keep only the checked weights and row indices from each state in memory.
 # Gather the output columns once, after the temporary state joins have finished.
 collect_column <- function(name) unlist(lapply(parts, "[[", name), use.names = FALSE)
-person_rows <- collect_column("person_row")
+pums_rows <- collect_column("pums_row")
 district_rows <- collect_column("district_row")
 contributions <- collect_column("contribution")
 rm(parts)
-allocation <- people[person_rows, , drop = FALSE] |>
+allocation <- people[pums_rows, , drop = FALSE] |>
   mutate(CDFP = districts$CDFP[district_rows],
          allocation_weight = districts$allocation_weight[district_rows],
          allocated_person_weight = contributions) |>
   relocate(CDFP, .before = PERWT)
-rm(person_rows, district_rows, contributions)
+rm(pums_rows, district_rows, contributions)
 input_weight <- sum(people$PERWT)
 national_weight <- sum(allocation$allocated_person_weight)
 check(

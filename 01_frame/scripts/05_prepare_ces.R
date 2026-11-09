@@ -154,6 +154,8 @@ stopifnot(
   ),
   sum(race_audit$imputed_respondents) == sum(before$race_imputed)
 )
+# Each 2024 survey wave has five House candidate slots for decoding its own ballots,
+# while the assigned 2026 district locates the respondent's residence for analysis.
 ces <- derive_ces_votes(ces)
 stopifnot(identical(ces$caseid, before$caseid))
 # The 2024 ballot's state and district must form a valid 119th Congress pair,

@@ -199,7 +199,11 @@ while their complete CVAP totals remain unknown. No missing population
 estimate is filled in.
 
 A PUMA requiring proportional allocation must have a complete, finite,
-positive denominator. Otherwise the script stops for review.
+positive denominator. If Section 11 finds a PUMA without usable inputs,
+it writes the affected PUMAs to `data/output/02_puma_allocation_blocked.csv`
+and stops. This file shows their district coverage, missing block groups
+and available CVAP totals so the input gap can be traced. A successful run
+removes any diagnostic left by an earlier run.
 
 The output retains valid geographic intersections with weight zero.
 It excludes district code ZZ. Geographic identifiers remain character
@@ -225,6 +229,9 @@ Outputs:
   separately labelled known subtotals.
 - `data/output/02_puma_allocation_audit.csv`: PUMA coverage, complete
   CVAP totals, known subtotals, missingness, methods and weight sums.
+  The script replaces the complete audit after validating and saving the
+  crosswalk. If input validation fails, an audit from an earlier successful
+  run can still be present.
 
 The crosswalk columns are STATEFP, PUMA5CE, CDFP, allocation_weight and
 weight_method. The [Script 03 guide](03_apply_puma_cd_crosswalk.md) documents how these weights are applied to PUMS records.

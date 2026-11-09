@@ -2153,21 +2153,15 @@ puma_allocation_audit <- puma_geography |>
     )
   )
 
-readr::write_csv(
-  puma_allocation_audit,
-  file.path(output_dir, "02_puma_allocation_audit.csv")
-)
-
 blocked_pumas <- puma_allocation_audit |>
   filter(weight_method == "review_required" | is.na(missing_block_groups))
+blocked_path <- file.path(output_dir, "02_puma_allocation_blocked.csv")
 
 if (nrow(blocked_pumas) > 0L) {
+  readr::write_csv(blocked_pumas, blocked_path)
   print(blocked_pumas, n = Inf, width = Inf)
+  stop("Some PUMAs lack usable allocation inputs. See ", blocked_path, call. = FALSE)
 }
-check(
-  nrow(blocked_pumas) == 0L,
-  "Some PUMAs lack usable allocation inputs; inspect 02_puma_allocation_audit.csv."
-)
 
 weight_work <- puma_cd_backbone |>
   left_join(
@@ -2280,10 +2274,6 @@ readr::write_csv(
   file.path(output_dir, "02_puma_cd_cvap.csv")
 )
 readr::write_csv(
-  puma_allocation_audit,
-  file.path(output_dir, "02_puma_allocation_audit.csv")
-)
-readr::write_csv(
   puma_cd_crosswalk,
   file.path(output_dir, "02_puma_cd_weights.csv")
 )
@@ -2302,6 +2292,19 @@ check(
   file.rename(temporary_crosswalk, crosswalk_path),
   "Could not move the completed crosswalk to its final filename."
 )
+
+# Replace the last complete audit only after the validated crosswalk is saved.
+audit_path <- file.path(output_dir, "02_puma_allocation_audit.csv")
+temporary_audit <- tempfile("puma_allocation_audit_", tmpdir = output_dir)
+readr::write_csv(puma_allocation_audit, temporary_audit)
+check(
+  file.rename(temporary_audit, audit_path),
+  "Could not move the completed PUMA allocation audit to its final filename."
+)
+
+if (file.exists(blocked_path)) {
+  check(file.remove(blocked_path), paste("Could not remove the old diagnostic:", blocked_path))
+}
 
 cat("\nPUMA allocation methods:\n")
 puma_allocation_audit |>

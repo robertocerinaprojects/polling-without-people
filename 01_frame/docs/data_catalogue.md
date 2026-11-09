@@ -448,6 +448,7 @@ the PL manifest are required for a completed Script 02 run.
 | `02_bg_cvap_contributions.csv` | Section 10 | Intersection counts + allocation readiness | Target block-group/PUMA/district intersection; estimated citizen-adult contribution |
 | `02_bg_cvap_conservation.csv` | Section 10 | Contributions aggregated by block group + readiness | Target block group; contribution sum versus adjusted input |
 | `02_puma_cd_cvap.csv` | Section 11 | Contributions aggregated by state/PUMA/assigned district | PUMA/district; complete CVAP contribution and separately labelled known subtotal |
+| `02_puma_allocation_blocked.csv` | Section 11, on failure of the PUMA input check | Original block geography + contribution totals | One PUMA with unusable allocation inputs |
 | `02_puma_allocation_audit.csv` | Section 11 | Original block geography + contribution totals + final weight summaries | PUMA; containment, missing CVAP, chosen method and weight-sum checks |
 | `02_puma_cd_weights.csv` | Section 11 | Original assigned intersections + CVAP totals + containment rule | PUMA/district; export of the final crosswalk RDS |
 
@@ -488,11 +489,13 @@ these products; later interfaces have not yet been implemented.
 | `02_bg_cvap_contributions.csv` | `STATEFP, bg_cvap, PUMA5CE, CDFP, source_block_links, pop20, vap20, coverage_only, allocation_case, cvap_contribution` |
 | `02_bg_cvap_conservation.csv` | `STATEFP, bg_cvap, cell_rows, cell_adults, unknown_cells, contributed_cvap, intersections, pumas, has_unassigned, wholly_unassigned, pop20, vap20, unassigned_vap20, coverage_only, cvap_est, allocation_case, structural_zero_override, cvap_structural_zero_adjustment, cvap_geographic_exclusion, cvap_for_allocation, cvap_difference, allocation_check_passed` |
 | `02_puma_cd_cvap.csv` | `STATEFP, PUMA5CE, CDFP, known_cvap_subtotal, district_cvap` |
+| `02_puma_allocation_blocked.csv` | `STATEFP, PUMA5CE, source_blocks, unassigned_blocks, assigned_districts, structural_containment, known_puma_cvap_subtotal, puma_cvap, missing_block_groups, weight_method` |
 | `02_puma_allocation_audit.csv` | `STATEFP, PUMA5CE, source_blocks, unassigned_blocks, assigned_districts, structural_containment, known_puma_cvap_subtotal, puma_cvap, missing_block_groups, weight_method, weight_rows, weight_sum, zero_weight_rows` |
 | `02_puma_cd_weights.csv` | `STATEFP, PUMA5CE, CDFP, allocation_weight, weight_method` |
 
-The PUMA audit schema above is its final successful-run schema. The script
-also writes it earlier without the final three weight-summary columns.
+The final PUMA audit is published after weight validation and the crosswalk
+save. On a failed PUMA input check, the diagnostic lists only the blocked
+PUMAs. A successful run removes any earlier diagnostic.
 
 ### Interpretation rules
 
@@ -641,8 +644,8 @@ It prints a cross-file validation summary and writes no data products.
   06 records population conservation and the overlap of the two saved files.
 - Audits can be written before a script stops. This applies to NY/CT
   exception evidence, allocation-readiness/contribution audits and the
-  early PUMA audit. A failed rerun can leave early products from the new
-  attempt alongside retained final products.
+  diagnostic listing blocked PUMAs. A failed rerun can leave these files
+  alongside final products from the last successful run.
 - Script 02 writes final weights only after their crosswalk checks pass.
   The RDS files are saved through temporary files and renamed on success;
   an interrupted save may leave a temporary file.
