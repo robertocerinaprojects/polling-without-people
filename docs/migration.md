@@ -191,6 +191,5 @@ votes only for House is included in the presidential residual. This decision
 supersedes the draft that used election-wide counted ballots.
 
 The presidential results use states and DC. The observed House results use
-the 2024 election districts, including DC's delegate. Step 09 uses their counts
-on matching district footprints and predicts shares for redrawn or unpolled districts. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
+the 2024 election districts, including DC's delegate. On the 2026 map, Step 09 carries tabulated counts across matching footprints and predicts the redrawn or unpolled districts. Florida’s 20th and Oklahoma’s 3rd retain missing shares on the 2024 map. On the 2026 map each receives a four-share prediction under its verified 2024 single-incumbent lineup. The [Step 07 guide](../01_frame/docs/07_prepare_area_returns.md)
 records the sources, reconciliation and rules for interpreting missing counts.

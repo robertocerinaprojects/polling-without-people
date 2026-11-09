@@ -12,7 +12,7 @@ $$
 r_i = \frac{1}{N_i}(D_i, R_i, O_i, N_i-D_i-R_i-O_i).
 $$
 
-The residual estimates the share of citizen adults without a classified House candidate vote. The published returns supply no composition for FL-20 or OK-03. Their simulated results are separate from the 434 districts available for fitting and scoring.
+The residual estimates the share of citizen adults without a classified House candidate vote. The published returns supply no composition for FL-20 or OK-03. All four shares stay missing on CD119, so these districts are excluded from fitting and scoring. On CD120 their population, presidential and one-incumbent lineup predictors feed the same four-share equation as for the other modeled districts.
 
 The Dirichlet likelihood requires positive components. Hanretty (2021, section 3.2) gives an exact zero the share of one vote in an average election. We apply that convention to U.S. House races. Let $T$ be the districts used for this fit and $V_j=D_j+R_j+O_j$ the classified House candidate votes in district $j$. Each district in $T$ contributes once to the average. The replacement share is
 

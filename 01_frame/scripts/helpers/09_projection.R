@@ -93,9 +93,9 @@ prepare_house_prediction_scope <- function(target, old, roster_path) {
   target
 }
 
-# For the two counterfactual elections, predict how much of CVAP would cast
-# a House vote. The sole nominee receives that entire share. In all other
-# modeled contests each party keeps its own fitted share.
+# Each target uses the four fitted shares for its demographics and lineup.
+# An unopposed nominee changes the predictors in exactly the same way as
+# in a tabulated one-nominee race, where write-ins can still receive votes.
 modeled_house_shares <- function(fit, districts, seed, ndraws) {
   draws <- predict_house_dirichlet(fit, districts, seed = seed, ndraws = ndraws)$mean_share
   choices <- c("D", "R", "Other", "DidNotVote")
@@ -104,28 +104,8 @@ modeled_house_shares <- function(fit, districts, seed, ndraws) {
             all(is.finite(draws)), all(draws >= 0), all(draws <= 1),
             all(abs(apply(draws, c(1L, 2L), sum) - 1) < 1e-8))
   means <- apply(draws[, , choices, drop = FALSE], c(2L, 3L), mean)
-  for (row in which(!is.na(districts$unopposed_party))) {
-    winner <- districts$unopposed_party[row]
-    stopifnot(winner %in% c("D", "R"), winner == districts$slate[row])
-    means[row, c("D", "R", "Other")] <- 0
-    means[row, winner] <- 1 - means[row, "DidNotVote"]
-  }
   colnames(means) <- c("dem", "rep", "other", "did_not_vote")
   means
-}
-
-# The original FL-20 and OK-03 had no tabulated House vote. These estimates
-# describe those two original districts independently of their CD120 versions.
-predict_unpolled_2024 <- function(fit, old, seed, ndraws = 800L) {
-  seats <- old[!is.na(old$unopposed_party), ]
-  stopifnot(nrow(seats) == 2L, all(seats$congress == 119L),
-            all(seats$status == "unopposed_not_on_ballot"))
-  shares <- modeled_house_shares(fit, seats, seed, ndraws)
-  label <- seats[c("congress", "STATEFP", "CDFP")]
-  label$lineup_year <- 2024L
-  label$unopposed_party <- seats$unopposed_party
-  label$winner_incumbent <- rowSums(seats[unname(house_columns$incumbent)])
-  cbind(label, as.data.frame(shares))
 }
 
 # On each identical tabulated footprint, preserve the official candidate

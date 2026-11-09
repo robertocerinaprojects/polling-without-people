@@ -8,7 +8,7 @@ Step 09 fits a Dirichlet regression to the four House shares in 434 tabulated
 covers both maps. Read each district's four rows together for Democratic,
 Republican, Other and citizens without a counted House candidate vote.
 `house_share` gives the share of district citizen adults and `outcome_source`
-says whether it comes from a return, a carried count or a model estimate.
+records whether the share is observed, missing, carried or predicted. The original FL-20 and OK-03 each have four missing shares.
 
 This component produces the two inputs for modeling the 2024 survey and
 poststratifying on the 2026 congressional map.
@@ -86,8 +86,7 @@ citizen-adult population. The remainder estimates how many citizens had no
 counted vote for a presidential candidate. The House table retains votes on
 the original 2024 districts, including DC's delegate. On the new map, Step 09
 carries counts for 290 identical districts, predicts 144 redrawn districts
-using their 2026 rosters, and treats FL-20 and OK-03 as single-candidate
-races with their verified 2024 winners. The [area-level returns guide](docs/07_prepare_area_returns.md)
+using their 2026 rosters, and predicts four shares for FL-20 and OK-03 with each district’s 2024 incumbent as the sole named nominee. The [area-level returns guide](docs/07_prepare_area_returns.md)
 documents the ballot categories and denominators.
 
 ## Review of the November 8 checkpoint

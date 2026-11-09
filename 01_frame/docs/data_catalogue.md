@@ -652,11 +652,10 @@ Step 09 joins the Step 07 House returns and state presidential shares with the S
 | Product under `data/intermediate/` | What it contains |
 |---|---|
 | `09_house_party_inputs.csv` | Available after `prepare`. One row per `congress, STATEFP, CDFP, party`, with four choices for each of 436 districts (including DC) on each map. The 3,488 rows include the district’s CVAP and 29 demographic shares, the matching statewide presidential share, the party’s nominee count and incumbency, the roster year and the outcome source. |
-| `09_house_party_covariates.csv` | Available after `predict` or `all`. Adds `house_share` for every choice. On CD119, 434 districts have raw observed shares and two have simulated shares. On CD120, 290 carry observed counts, 144 use a redrawn district prediction with the 2026 roster, and two use the verified unopposed 2024 winner. |
-| `09_house_unopposed_shares_cd119.csv` | Estimates for the unpolled FL-20 and OK-03 elections on their original footprints. These simulations are excluded from fitting and validation. |
+| `09_house_party_covariates.csv` | Available after `predict` or `all`. Adds `house_share`. On CD119, 434 districts have raw observed shares. All eight rows for unpolled FL-20 and OK-03 retain missing shares. On CD120, 290 districts carry observed counts, 144 use predictions with the 2026 roster, and two receive ordinary four-choice predictions with their verified 2024 incumbent as the sole named nominee. |
 | `09_house_final_shares_cd120.csv` | One row per 2026 district and one column per choice for the four shares. The numbers agree with the CD120 rows of the final district-by-party file. |
 
-Read `STATEFP` and `CDFP` as text to preserve leading zeros. The four choices are `D`, `R`, `Other` and `DidNotVote` (no counted House candidate vote). Their shares sum to one for each district and map. Count the repeated district CVAP only once per district and map. Nominee count, presence and incumbency are inapplicable for `DidNotVote`. [Outcome definition and treatment of exact zeros when fitting](09_model_house_votes.md#outcome-and-predictors)
+Read `STATEFP` and `CDFP` as text to preserve leading zeros. The four choices are `D`, `R`, `Other` and `DidNotVote` (no counted House candidate vote). Their shares sum to one for each tabulated CD119 district and every CD120 district. Count the repeated district CVAP only once per district and map. Nominee count, presence and incumbency are inapplicable for `DidNotVote`. [Outcome definition and treatment of exact zeros when fitting](09_model_house_votes.md#outcome-and-predictors)
 
 ## Validation, reruns and preservation
 

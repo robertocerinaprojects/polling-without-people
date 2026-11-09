@@ -302,8 +302,7 @@ project_house <- function(tables, mid, out) {
   }
   target <- tables$new
   point <- predict_or_carry_house(saved$fit, target, old, seed = saved$seed + 3L, ndraws = 800L)
-  historical <- predict_unpolled_2024(saved$fit, old, seed = saved$seed + 3L, ndraws = 800L)
-  party_covariates <- final_house_party_covariates(old, target, historical, point)
+  party_covariates <- final_house_party_covariates(old, target, point)
   flags <- c("STATEFP", "CDFP", "matching_cd119", "needs_prediction", "prediction_source",
              "lineup_year", "slate", "ballot_group", "unopposed_party", house_columns$incumbent)
   status <- target[flags]
@@ -315,26 +314,22 @@ project_house <- function(tables, mid, out) {
   on.exit(unlink(staging, recursive = TRUE), add = TRUE)
   destinations <- c(file.path(mid, "09_house_final_shares_cd120.csv"),
                     file.path(out, "09_house_district_status.csv"),
-                    file.path(mid, "09_house_unopposed_shares_cd119.csv"),
                     file.path(mid, "09_house_party_covariates.csv"))
   staged <- file.path(staging, basename(destinations))
   stage_write(point, staged[1])
   stage_write(status, staged[2])
-  stage_write(historical, staged[3])
-  stage_write(party_covariates, staged[4])
+  stage_write(party_covariates, staged[3])
   # Check keys and share precision after serialization as well as in memory.
   on_disk <- read_table09(staged[1])
   on_disk_status <- read_table09(staged[2])
   choices <- c("dem", "rep", "other", "did_not_vote")
-  original <- read_table09(staged[3])
-  parties_on_disk <- read_table09(staged[4])
+  parties_on_disk <- read_table09(staged[3])
+  known <- !is.na(party_covariates$house_share)
   party_key <- c("congress", "STATEFP", "CDFP", "party")
   stopifnot(identical(parties_on_disk[party_key], party_covariates[party_key]),
             identical(parties_on_disk$outcome_source, party_covariates$outcome_source),
-            max(abs(parties_on_disk$house_share - party_covariates$house_share)) < 1e-12)
-  stopifnot(setequal(district_id(original), c("12-20", "40-03")),
-            identical(district_id(original), district_id(historical)),
-            max(abs(as.matrix(original[choices]) - as.matrix(historical[choices]))) < 1e-12)
+            identical(!is.na(parties_on_disk$house_share), known),
+            max(abs(parties_on_disk$house_share[known] - party_covariates$house_share[known])) < 1e-12)
   shares <- as.matrix(on_disk[choices])
   stopifnot(identical(names(on_disk), c("STATEFP", "CDFP", choices)),
             identical(district_id(on_disk), district_id(target)),
@@ -348,11 +343,19 @@ project_house <- function(tables, mid, out) {
   if (any(previous) && !all(file.copy(destinations[previous], backups[previous]))) {
     stop("Could not back up existing Step 09 projections.")
   }
+  # An earlier release also published simulated outcomes on the original map.
+  # Retire that generated file with this batch; restore it if publication fails.
+  superseded <- file.path(mid, "09_house_unopposed_shares_cd119.csv")
+  old_simulations <- file.path(staging, basename(superseded))
+  if (file.exists(superseded) && !file.rename(superseded, old_simulations)) {
+    stop("Could not retire the superseded original-map predictions: ", superseded)
+  }
   for (i in seq_along(staged)) {
     if (!file.rename(staged[i], destinations[i])) {
       for (j in seq_len(i - 1L)) {
         if (previous[j]) file.rename(backups[j], destinations[j]) else unlink(destinations[j])
       }
+      if (file.exists(old_simulations)) file.rename(old_simulations, superseded)
       stop("Could not publish ", destinations[i])
     }
   }
