@@ -1,5 +1,5 @@
 # Validate the sequential beta regressions on 2024 House districts (CD119).
-# From the repository root, run with 'plan' to inspect the split or 'validate' to fit.
+# Use 'plan' to inspect the split, 'validate' to fit, or 'report' to redraw a completed run.
 source("01_frame/scripts/09_model_house_votes.R")
 source("01_frame/scripts/helpers/09_beta_model.R")
 
@@ -60,11 +60,67 @@ beta_run_key <- function(input_file, plan) {
   substr(digest::digest(signature, algo = "sha256"), 1L, 20L)
 }
 
+# Write the same figures, scores and sampler labels for a fresh fit or a saved run.
+write_beta_holdout_report <- function(out, report, audit) {
+  stopifnot(is.data.frame(audit), identical(as.character(audit$stage), c("none", "rep", "dem")),
+            is.logical(audit$passed), !anyNA(audit$passed))
+  audit_path <- file.path(out, "09_beta_sampler_diagnostics.csv")
+  if (!all(audit$passed[audit$stage %in% c("none", "rep")])) {
+    stop("Required sampler checks failed. Review ", audit_path)
+  }
+  provisional <- if (!audit$passed[audit$stage == "dem"]) c("dem", "other") else character()
+  if (length(provisional)) {
+    beta_message("D-versus-Other diagnostics flagged; publishing Democratic and Other results as provisional.")
+  }
+  # The last stage divides only the Democratic/Other remainder. The fixed
+  # presidential benchmark has no sampler and therefore has no sampler status.
+  status <- function(rows) {
+    value <- rep(NA_character_, nrow(rows))
+    model <- rows$method == "model"
+    value[model] <- "passed"
+    value[model & rows$choice %in% provisional] <- "provisional"
+    value
+  }
+  report$scores$sampler_status <- status(report$scores)
+  report$predictions$sampler_status <- status(report$predictions)
+  beta_message("Drawing the four-page validation PDF.")
+  plot_tmp <- tempfile(tmpdir = out, fileext = ".pdf")
+  on.exit(unlink(plot_tmp), add = TRUE)
+  house_validation_plots(plot_tmp, report$predictions, report$scores,
+                         model_label = "Sequential beta", provisional_choices = provisional)
+  if (!file.rename(plot_tmp, file.path(out, "09_beta_holdout_plots.pdf"))) {
+    stop("Could not publish the holdout figure in ", out)
+  }
+
+  stage_write(report$scores, file.path(out, "09_beta_holdout_scores.csv"))
+  stage_write(report$predictions, file.path(out, "09_beta_holdout_predictions.csv"))
+  print(report$scores, row.names = FALSE)
+  beta_message("Plots: ", file.path(out, "09_beta_holdout_plots.pdf"))
+  invisible(out)
+}
+
+# Read the completed run's published district predictions. Its key still
+# identifies the fits that made those predictions after reporting code changes.
+refresh_beta_holdout_report <- function(output_root) {
+  pointer <- file.path(output_root, "latest_complete.txt")
+  if (!file.exists(pointer)) stop("No completed holdout recorded in ", output_root)
+  key <- readLines(pointer, warn = FALSE)
+  if (length(key) != 1L || !grepl("^[0-9a-f]{20}$", key)) {
+    stop("Invalid completed run identifier in ", pointer)
+  }
+  out <- file.path(output_root, key)
+  beta_message("Refreshing reports from saved predictions in ", out)
+  predictions <- read_table09(file.path(out, "09_beta_holdout_predictions.csv"))
+  audit <- read_table09(file.path(out, "09_beta_sampler_diagnostics.csv"))
+  write_beta_holdout_report(out, summarise_house_holdout(predictions), audit)
+}
+
 run_beta_holdout <- function(mode = "validate",
     input_file = "01_frame/data/intermediate/09_house_training_cd119.csv",
     output_root = "01_frame/data/output/09_beta_holdout",
     cache_root = "01_frame/data/intermediate/09_beta_holdout_cache") {
-  mode <- match.arg(mode, c("plan", "validate"))
+  mode <- match.arg(mode, c("plan", "validate", "report"))
+  if (mode == "report") return(refresh_beta_holdout_report(output_root))
   started <- Sys.time()
   plan <- beta_sampler_plan()
   beta_message("CPU budget on this machine: ", plan$available, " available; ",
@@ -101,67 +157,32 @@ run_beta_holdout <- function(mode = "validate",
   prediction <- beta_fit_predict(train, test[predictors], seed = 20243000L,
                                  fit_dir = fit_dir, plan = plan)
   audit <- prediction$diagnostics
-  stopifnot(is.data.frame(audit), identical(as.character(audit$stage), c("none", "rep", "dem")),
-            is.logical(audit$passed), !anyNA(audit$passed))
-  audit_path <- file.path(out, "09_beta_sampler_diagnostics.csv")
-  stage_write(audit, audit_path)
-  if (!all(audit$passed[audit$stage %in% c("none", "rep")])) {
-    stop("Required sampler checks failed. Review ", audit_path)
-  }
-  provisional <- if (!audit$passed[audit$stage == "dem"]) c("dem", "other") else character()
-  if (length(provisional)) {
-    beta_message("D-versus-Other diagnostics flagged; publishing Democratic and Other results as provisional.")
-  }
+  stage_write(audit, file.path(out, "09_beta_sampler_diagnostics.csv"))
   beta_message("Scoring four House choices against the state presidential baseline on 30 districts.")
   report <- score_house_holdout(
-    train_observed = score_matrix(train, house_columns$shares),
-    train_pres = score_matrix(train, house_columns$president),
     test_observed = score_matrix(test, house_columns$shares),
     test_pres = score_matrix(test, house_columns$president),
     model_point = prediction$point, model_lower = prediction$lower,
     model_upper = prediction$upper, district_ids = district_id(test)
   )
-  # The last stage divides only the Democratic/Other remainder. The fixed
-  # presidential benchmark has no sampler and therefore has no sampler status.
-  status <- function(rows) {
-    value <- rep(NA_character_, nrow(rows))
-    model <- rows$method == "model"
-    value[model] <- "passed"
-    value[model & rows$choice %in% provisional] <- "provisional"
-    value
-  }
-  report$scores$sampler_status <- status(report$scores)
-  report$predictions$sampler_status <- status(report$predictions)
-  stage_write(report$scores, file.path(out, "09_beta_holdout_scores.csv"))
-  stage_write(report$predictions, file.path(out, "09_beta_holdout_predictions.csv"))
-  beta_message("Saved the scores and district predictions. Drawing the four-page validation PDF.")
-  plot_tmp <- tempfile(tmpdir = out, fileext = ".pdf")
-  pointer_tmp <- tempfile(tmpdir = output_root)
-  on.exit(unlink(c(plot_tmp, pointer_tmp)), add = TRUE)
-  house_validation_plots(plot_tmp, report$predictions, report$scores,
-                         model_label = "Sequential beta", provisional_choices = provisional)
-  if (!file.rename(plot_tmp, file.path(out, "09_beta_holdout_plots.pdf"))) {
-    stop("Could not publish the holdout figure in ", out)
-  }
+  write_beta_holdout_report(out, report, audit)
 
   # "Complete" means every report was written. Its per-choice status is in both CSVs.
+  pointer_tmp <- tempfile(tmpdir = output_root)
+  on.exit(unlink(pointer_tmp), add = TRUE)
   writeLines(key, pointer_tmp)
   if (!file.rename(pointer_tmp, file.path(output_root, "latest_complete.txt"))) {
     stop("Could not publish the completed run identifier in ", output_root)
   }
-  print(report$scores, row.names = FALSE)
   elapsed_minutes <- as.numeric(difftime(Sys.time(), started, units = "mins"))
   beta_message("Completed in ", round(elapsed_minutes, 1), " min. Reports: ", out)
-  if (length(provisional)) {
-    beta_message("Democratic and Other model scores are provisional. Diagnostics: ", audit_path)
-  }
   invisible(out)
 }
 
 if (sys.nframe() == 0L) {
   args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) > 1L || (length(args) && !args %in% c("plan", "validate"))) {
-    stop("Usage: Rscript 01_frame/scripts/09_validate_house_beta.R [plan|validate]")
+  if (length(args) > 1L || (length(args) && !args %in% c("plan", "validate", "report"))) {
+    stop("Usage: Rscript 01_frame/scripts/09_validate_house_beta.R [plan|validate|report]")
   }
   run_beta_holdout(if (length(args)) args[[1L]] else "validate")
 }

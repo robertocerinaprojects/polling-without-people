@@ -137,16 +137,15 @@ effective sample sizes before the fit can supply predictions.
    mean as the point estimate and the 5th and 95th percentiles of posterior
    predictive district outcomes as the 90% interval. The interval conditions
    on the estimated district population and demographics.
-3. For a benchmark, predict each district's House share using just the state's
-   matching presidential share. For each choice, the 365th smallest absolute
-   benchmark error among the 404 training districts sets its 90% interval
-   radius. Clip the endpoints to [0, 1].
+3. For the presidential benchmark, use each state's 2024 presidential share
+   for the corresponding choice as the point prediction for all its districts.
 4. Score both sets of predictions separately for each choice. Report bias
    (mean predicted minus observed) and RMSE in percentage points, Spearman
-   rank correlation, and the count and percentage inside the 90% predictive
-   interval. Each of the four plots puts predictions on the x-axis, observed
-   shares on the y-axis and displays both methods' horizontal intervals and
-   scores. The seven fixed jurisdictions are deliberately overrepresented.
+   rank correlation, and, for the fitted model only, the count and percentage
+   inside its 90% predictive interval. Each of the four plots puts predictions
+   on the x-axis and observed shares on the y-axis. Points show both methods'
+   predictions, and horizontal bars show the fitted model's intervals.
+   The seven fixed jurisdictions are deliberately overrepresented.
    Every held-out district gets equal weight in these scores. Both methods use the raw observed shares, including exact zeros. The two unpolled seats contribute no validation outcomes.
 5. Refit on **all 434 observed contests**, including the 30 validation
    districts. Use this fit for the final estimates.
@@ -193,7 +192,7 @@ Paths are relative to `01_frame/data/`.
 | `intermediate/09_house_training_cd119.csv`, `intermediate/09_house_target_cd120.csv` | Inspectable inputs on each map. The 2024 table retains the two flagged missing contests. |
 | `output/09_dirichlet_zero_audit.csv` | Records raw zeros and their fitting replacements. The replacement is estimated again from 404 districts when fitting the validation model. |
 | `output/09_training_slate_counts.csv` | Grouped and original 2024 configurations by candidate structure and tabulation status. |
-| `output/09_holdout_districts.csv`, `output/09_holdout_predictions.csv`, `output/09_holdout_scores.csv`, `output/09_holdout_plots.pdf` | The 30-district test roster, both methods' predictions and intervals, eight rows of scores and four plots. |
+| `output/09_holdout_districts.csv`, `output/09_holdout_predictions.csv`, `output/09_holdout_scores.csv`, `output/09_holdout_plots.pdf` | The 30-district test roster, point predictions for both methods, the fitted model's intervals, eight rows of scores and four plots. |
 | `output/09_holdout_sampler_diagnostics.csv`, `output/09_full_sampler_diagnostics.csv` | Sampler checks for each fit. |
 | `intermediate/09_house_full_fit.rds` | Full fitted model, training inputs, seed and model-source fingerprints. |
 | `intermediate/09_house_final_shares_cd120.csv` | One row per district keyed by `STATEFP,CDFP`, with shares `dem,rep,other,did_not_vote` that sum to one. |
