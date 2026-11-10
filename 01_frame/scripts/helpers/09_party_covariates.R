@@ -61,36 +61,3 @@ house_party_covariates <- function(old, new) {
             identical(!is.na(result$observed_share_2024), result$outcome_source == "observed_2024"))
   result
 }
-
-# CD119 retains the reported shares, including zeros and the missing returns
-# for FL-20 and OK-03. Only the CD120 rows receive values from the final matrix.
-final_house_party_covariates <- function(old, new, point) {
-  result <- house_party_covariates(old, new)
-  result$house_share <- result$observed_share_2024
-  target <- result$congress == 120L
-  share_column <- c(D = "dem", R = "rep", Other = "other", DidNotVote = "did_not_vote")
-
-  district_key <- paste(result$STATEFP, result$CDFP, sep = "/")
-  point_key <- paste(point$STATEFP, point$CDFP, sep = "/")
-  if (anyDuplicated(point_key) || !setequal(point_key, district_key[target])) {
-    stop("The CD120 share matrix and the district-by-party covariates have different district keys.")
-  }
-  stopifnot(all(unname(share_column) %in% names(point)))
-  point_row <- match(district_key, point_key)
-  for (party in names(share_column)) {
-    fill <- target & result$party == party
-    result$house_share[fill] <- point[[share_column[[party]]]][point_row[fill]]
-  }
-
-  # Check each published composition separately. The two unpolled historical
-  # contests must still have all four shares missing, even after prediction.
-  unpolled <- result$congress == 119L & result$outcome_source == "unpolled_2024"
-  stopifnot(identical(is.na(result$house_share), unpolled),
-            sum(unpolled) == 2L * 4L)
-  known <- result[!unpolled, ]
-  groups <- paste(known$congress, known$STATEFP, known$CDFP, sep = "/")
-  district_sum <- rowsum(known$house_share, groups, reorder = FALSE)
-  stopifnot(all(is.finite(known$house_share) & known$house_share >= 0 & known$house_share <= 1),
-            all(abs(district_sum - 1) <= 1e-8))
-  result
-}

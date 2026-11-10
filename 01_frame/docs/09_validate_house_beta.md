@@ -142,7 +142,7 @@ For each of H, R, D and Other, let $e_i=\hat p_i-p_i$ for the 30 held-out distri
 | Spearman correlation | Correlation of observed and predicted ranks, averaging ties. |
 | 90% predictive interval coverage (model only) | Fraction of observed shares inside the model's predictive interval, including its endpoints. |
 
-The presidential baseline gives every district in a state the state's 2024 presidential share for that choice. Its three scores are bias, RMSE and Spearman correlation. The four-page PDF plots predicted share on the horizontal axis and observed House share on the vertical axis. A district on the equality line was predicted exactly. Horizontal bars show the beta model's 90% predictive intervals.
+The presidential baseline gives every district in a state the state's 2024 presidential share for that choice. Its three scores are bias, RMSE and Spearman correlation. The one-page, four-panel PDF plots predicted share on the horizontal axis and observed House share on the vertical axis. A district on the equality line was predicted exactly. Horizontal bars show the beta model's 90% predictive intervals.
 
 The lineup shifts the predicted shares continuously. A party with no named nominee can receive a small positive prediction. In this holdout, 11 districts recorded **exactly zero** Other votes. A continuous beta model gives strictly interior central predictive intervals. The model's Other interval can therefore cover at most 19 of these 30 observations (63.3%), even if its point predictions for the zeros are very close. The CSV preserves those zeros so the plot and coverage score show this limitation.
 
@@ -173,7 +173,7 @@ Rscript 01_frame/scripts/09_validate_house_beta.R validate
 
 `plan` prints the CPU allocation and sampling budget on the machine running R, checks the district data and writes the split. `validate` runs the three regressions in order. The input is `01_frame/data/intermediate/09_house_training_cd119.csv`.
 
-To refresh the reports for the latest completed run from its saved predictions and open the four-page PDF in Codespaces, run the following from the repository root. This works with a completed run created under the earlier reporting rules and requires no sampling.
+To refresh the reports for the latest completed run from its saved predictions and open the four-panel PDF in Codespaces, run the following from the repository root. The report command reads the completed district predictions and requires no sampling.
 
 ```bash
 Rscript 01_frame/scripts/09_validate_house_beta.R report
@@ -193,15 +193,13 @@ For this analysis a parameter passes when its R-hat is **at most 1.05** and its 
 
 A failed check on the no-House-vote or Republican stage triggers one retry with the same iterations and a higher target acceptance. The retry replaces the first attempt. If it also fails, the run reports the diagnostics and keeps the stage checkpoints for inspection.
 
-The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in both CSVs and their plot titles. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
+The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in both CSVs and in the figure. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
 
-Results go under `01_frame/data/output/09_beta_holdout/<run-key>/`; the parent directory's `latest_complete.txt` names the latest run that published all reports, including one with a provisional final stage. The matching cache is under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. An earlier run's files remain available under their original key.
+Results go under `01_frame/data/output/09_beta_holdout/<run-key>/`; the parent directory's `latest_complete.txt` names the latest run that published all reports, including one with a provisional final stage. The matching cache is under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. The identifier connects the figure and its scored districts to the matching fit checkpoints.
 
 Each fitted stage writes two small files alongside its checkpoint, for example `stage_1_none.stan` and `stage_1_none_parameters.csv`. Stages 2 and 3 use the stems `stage_2_rep` and `stage_3_dem`. The Stan file contains the program RStan stored with that fit. The CSV gives the parameter name, R-hat, both effective sample sizes and the pass flag. These files remain available after a successful run removes its large fit objects. Open a Stan file in the editor or run `less path/to/stage_1_none.stan` to read it in the terminal.
 
 The [complete generated Stan program](stan/09_sequential_beta.stan) is available for reading before a fit. We generated it with the stage formulas, priors and static threading from the driver, using brms 2.23.0 and example district inputs. All three stages produced identical Stan text. In the likelihood, `Y` holds the stage-specific response, `Xc` holds the centered fixed predictors, and `Xs` and `Zs_1_1` supply the linear and penalized parts of the presidential curve. The three groups of random effects implement the age walk, education walk and state intercepts. Each stage receives its own data and estimates its own coefficients and precision. Use the checkpoint’s exported program to inspect a particular run.
-
-**Continuing the November 10 run.** On the four-core Codespace, `Rscript 01_frame/scripts/helpers/09_reuse_stage_one.R` checks the existing stage-one retry from commit `c48df55` against the current fit specification, inputs and sampler settings. It writes the Stan program, rechecks the parameters and prints the paths and diagnostic results. Once the fit passes, `Rscript 01_frame/scripts/09_validate_house_beta.R validate` reuses its draws and proceeds to the Republican stage.
 
 | Run output | What it contains |
 |---|---|
@@ -209,6 +207,6 @@ The [complete generated Stan program](stan/09_sequential_beta.stan) is available
 | `09_beta_sampler_diagnostics.csv` | Per-stage sample size, endpoint adjustment and sampler checks. |
 | `09_beta_holdout_predictions.csv` | Observed shares, point predictions and errors for both methods. Model rows also record interval endpoints, coverage indicators and sampler status. |
 | `09_beta_holdout_scores.csv` | Bias, RMSE and Spearman correlation by choice and method. Model rows also record 90% predictive interval coverage and sampler status. |
-| `09_beta_holdout_plots.pdf` | One page for each choice, with the model and presidential benchmark plotted against the 2024 results. |
+| `09_beta_holdout_plots.pdf` | One page with four panels comparing the model and presidential baseline with the 2024 House results. |
 
 Validation ends with the 2024 holdout. A refit on all tabulated districts and projections onto a new map belong to a later step.

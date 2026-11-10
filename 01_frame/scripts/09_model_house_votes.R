@@ -1,20 +1,16 @@
-# Estimate 2024 House voting on the 2026 map. Run from the repository root.
-# Modes: prepare, fit, predict, or all (default). See ../docs/09_model_house_votes.md.
-for (helper in c("09_ballot_groups.R", "09_model.R", "09_validate.R", "09_projection.R",
+# Prepare the district outcomes and covariates used by the House beta regressions.
+# Run from the repository root: Rscript 01_frame/scripts/09_model_house_votes.R prepare
+for (helper in c("09_ballot_groups.R", "09_projection.R",
                  "09_party_covariates.R")) {
   source(file.path("01_frame", "scripts", "helpers", helper))
 }
 
 house_columns <- list(
   age = c(paste0("age_", seq(18, 78, 5), "_", seq(22, 82, 5)), "age_83_plus"),
-  demographic = c("sex_female", "educ_no_hs", "educ_some_college", "educ_two_year",
-                  "educ_four_year", "educ_postgrad", "race_black", "race_native",
-                  "race_asian", "race_other_multi", "eth_hispanic"),
   president = c("pres_dem", "pres_rep", "pres_other", "pres_none"),
   slate = c("ballot_dem", "ballot_rep", "ballot_other"),
   incumbent = c(D = "incumbent_dem", R = "incumbent_rep", Other = "incumbent_other"),
-  shares = c("observed_dem", "observed_rep", "observed_other", "observed_none"),
-  state = "STATEFP", cvap = "cvap"
+  shares = c("observed_dem", "observed_rep", "observed_other", "observed_none")
 )
 choice_names <- c("dem", "rep", "other", "none")
 district_id <- function(x) paste(x$STATEFP, x$CDFP, sep = "-")
@@ -79,6 +75,30 @@ stage_write <- function(object, destination, rds = FALSE) {
   if (!file.rename(temp, destination)) stop("Could not publish ", destination)
 }
 
+house_matrix <- function(data, columns, n, label) {
+  if (length(columns) != n || anyDuplicated(columns) || !all(columns %in% names(data))) {
+    stop("Invalid ", label, " columns: ", paste(columns, collapse = ", "))
+  }
+  selected <- data[columns]
+  if (!all(vapply(selected, function(x) is.numeric(x) || is.logical(x), logical(1)))) {
+    stop(label, " columns must be numeric")
+  }
+  values <- as.matrix(selected)
+  storage.mode(values) <- "double"
+  if (any(!is.finite(values))) stop("Missing or non-finite ", label)
+  values
+}
+
+# Each flag describes a candidate on this particular ballot. A sitting member
+# running against another nominee of the same party still counts just once.
+house_incumbency_flags <- function(data, columns, nominees) {
+  flags <- house_matrix(data, columns, 3L, "party incumbency")
+  if (any(!flags %in% c(0, 1)) || any(flags == 1 & nominees == 0)) {
+    stop("Incumbency must be 0 or 1, and a party with no nominee must have 0.")
+  }
+  flags
+}
+
 add_slate <- function(x, path, complete = FALSE) {
   roster <- read_table09(path)
   if (complete && !setequal(district_id(x), district_id(roster))) {
@@ -101,23 +121,7 @@ add_slate <- function(x, path, complete = FALSE) {
   x
 }
 
-# Record each zero that moves inside the simplex for fitting. The district
-# tables, carried results and holdout scores keep the raw shares.
-dirichlet_zero_audit <- function(observed) {
-  raw <- as.matrix(observed[house_columns$shares])
-  replacement <- house_zero_share(observed)
-  adjusted <- dirichlet_fit_shares(raw, replacement)
-  zeros <- which(raw == 0, arr.ind = TRUE)
-  district <- zeros[, "row"]
-  data.frame(STATEFP = observed$STATEFP[district], CDFP = observed$CDFP[district],
-             party = house_choices[zeros[, "col"]], cvap = observed$cvap[district],
-             observed_share = raw[zeros], share_for_fit = adjusted[zeros],
-             reference_districts = rep(nrow(observed), nrow(zeros)),
-             mean_house_votes = rep(mean(observed$total_votes), nrow(zeros)),
-             row.names = NULL)
-}
-
-prepare_house_tables <- function(mid, out, need_target = TRUE) {
+prepare_house_tables <- function(mid, out) {
   demos <- read_table09(file.path(mid, "08_district_demographics.csv"))
   state_file <- file.path(mid, "07_state_presidential_covariates_2024.csv")
   pres <- office_fields(read_table09(state_file), list(
@@ -190,11 +194,6 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   old$without_house_vote <- residual
   totals <- as.matrix(old[c(vote_cols, "without_house_vote")])
   old[house_columns$shares] <- as.data.frame(sweep(totals, 1L, old$cvap, "/"))
-  training_districts <- eligible_house_rows(old)
-  stage_write(dirichlet_zero_audit(training_districts),
-              file.path(out, "09_dirichlet_zero_audit.csv"))
-  message(sprintf("Full fit: %.2f House candidate votes per district (%d districts).",
-                  mean(training_districts$total_votes), nrow(training_districts)))
   old$candidate_structure <- ifelse(rowSums(old[c("n_dem","n_rep","n_other")]) == 1L,
                                     "one_nominee", ifelse(old$same_party_multiple == 1L,
                                     "multiple_in_one_party_group", "multiple_party_groups"))
@@ -203,7 +202,6 @@ prepare_house_tables <- function(mid, out, need_target = TRUE) {
   census$ballot_group <- ifelse(is.na(old$ballot_group), "excluded_other_only", as.character(old$ballot_group))
   freq <- as.data.frame(xtabs(~ ballot_group + slate + candidate_structure + status, data = census))
   stage_write(freq[freq$Freq > 0, ], file.path(out, "09_training_slate_counts.csv"))
-  if (!need_target) return(list(old = old))
   overlay <- read_table09(file.path(out, "08_district_overlap.csv"))
   flag <- tolower(as.character(overlay$same_footprint))
   stopifnot(all(flag %in% c("true", "false")))
@@ -227,137 +225,22 @@ score_matrix <- function(x, columns) {
   m
 }
 
-check_house_chains <- function(fit, label, out) {
-  report <- house_sampler_diagnostics(fit)
-  path <- file.path(out, paste0("09_", label, "_sampler_diagnostics.csv"))
-  stage_write(report, path)
-  if (!isTRUE(report$passed)) {
-    stop("Sampler diagnostics require review before publishing predictions. See ", path)
-  }
-}
-
 eligible_house_rows <- function(old) {
   eligible <- old[old$status == "observed" & !is.na(old$ballot_group), , drop = FALSE]
   eligible[order(district_id(eligible)), , drop = FALSE]
 }
 
-model_source_hashes <- function() {
-  helpers <- c("09_ballot_groups.R", "09_model.R")
-  tools::md5sum(file.path("01_frame", "scripts", "helpers", helpers))
-}
-
-fit_and_validate <- function(old, mid, out, seed) {
-  split <- house_holdout_split(old, seed)
-  eligible <- split$eligible
-  train <- split$train
-  test <- split$test
-  stage_write(split$selection, file.path(out, "09_holdout_districts.csv"))
-  audit <- fit_house_dirichlet(train, house_columns, seed = seed)
-  check_house_chains(audit, "holdout", out)
-  prediction <- predict_house_dirichlet(audit, test, seed = seed + 1L)
-  get <- function(draws, stat, ...) {
-    m <- apply(draws, c(2L,3L), stat, ...)
-    colnames(m) <- choice_names
-    m
+if (sys.nframe() == 0L) {
+  args <- commandArgs(trailingOnly = TRUE)
+  if (length(args) && !identical(args, "prepare")) {
+    stop("Usage: Rscript 01_frame/scripts/09_model_house_votes.R [prepare]")
   }
-  # Score direct predictions on the held-out districts before the full refit.
-  y <- house_columns$shares
-  validate_house_predictions(score_matrix(test,y), score_matrix(test,house_columns$president),
-    get(prediction$mean_share, mean), get(prediction$predictive_share, quantile, probs=.05),
-    get(prediction$predictive_share, quantile, probs=.95), district_id(test), out)
-  rm(audit, prediction)
-  gc()
-  fit <- fit_house_dirichlet(eligible, house_columns, seed = seed + 2L)
-  check_house_chains(fit, "full", out)
-  # A saved fit is valid only for this set of predictors, observations and IDs.
-  stage_write(list(fit=fit, trained_on=eligible, schema=house_columns, seed=seed,
-                   source_md5=model_source_hashes()),
-              file.path(mid, "09_house_full_fit.rds"), rds=TRUE)
-}
-
-project_house <- function(tables, mid, out) {
-  saved <- readRDS(file.path(mid,"09_house_full_fit.rds"))
-  old <- tables$old
-  eligible <- eligible_house_rows(old)
-  if (!identical(saved$trained_on, eligible) || !identical(saved$schema, house_columns) ||
-      !identical(saved$source_md5, model_source_hashes())) {
-    stop("The saved model and training inputs differ. Run fit before predict.")
-  }
-  target <- tables$new
-  point <- predict_or_carry_house(saved$fit, target, old, seed = saved$seed + 3L, ndraws = 800L)
-  party_covariates <- final_house_party_covariates(old, target, point)
-  flags <- c("STATEFP", "CDFP", "matching_cd119", "needs_prediction", "prediction_source",
-             "lineup_year", "slate", "ballot_group", "unopposed_party", house_columns$incumbent)
-  status <- target[flags]
-
-  # Publish the long covariate table alongside the district summaries used
-  # to build it. A failed write restores the previous products.
-  staging <- tempfile("09_projection_", tmpdir = dirname(mid))
-  dir.create(staging)
-  on.exit(unlink(staging, recursive = TRUE), add = TRUE)
-  destinations <- c(file.path(mid, "09_house_final_shares_cd120.csv"),
-                    file.path(out, "09_house_district_status.csv"),
-                    file.path(mid, "09_house_party_covariates.csv"))
-  staged <- file.path(staging, basename(destinations))
-  stage_write(point, staged[1])
-  stage_write(status, staged[2])
-  stage_write(party_covariates, staged[3])
-  # Check keys and share precision after serialization as well as in memory.
-  on_disk <- read_table09(staged[1])
-  on_disk_status <- read_table09(staged[2])
-  choices <- c("dem", "rep", "other", "did_not_vote")
-  parties_on_disk <- read_table09(staged[3])
-  known <- !is.na(party_covariates$house_share)
-  party_key <- c("congress", "STATEFP", "CDFP", "party")
-  stopifnot(identical(parties_on_disk[party_key], party_covariates[party_key]),
-            identical(parties_on_disk$outcome_source, party_covariates$outcome_source),
-            identical(!is.na(parties_on_disk$house_share), known),
-            max(abs(parties_on_disk$house_share[known] - party_covariates$house_share[known])) < 1e-12)
-  shares <- as.matrix(on_disk[choices])
-  stopifnot(identical(names(on_disk), c("STATEFP", "CDFP", choices)),
-            identical(district_id(on_disk), district_id(target)),
-            identical(district_id(on_disk_status), district_id(target)),
-            identical(on_disk_status$prediction_source, status$prediction_source),
-            all(is.finite(shares) & shares >= 0 & shares <= 1),
-            max(abs(rowSums(shares) - 1)) < 1e-8,
-            max(abs(shares - as.matrix(point[choices]))) < 1e-12)
-  backups <- file.path(staging, paste0("previous_", basename(destinations)))
-  previous <- file.exists(destinations)
-  if (any(previous) && !all(file.copy(destinations[previous], backups[previous]))) {
-    stop("Could not back up existing Step 09 projections.")
-  }
-  # An earlier release also published simulated outcomes on the original map.
-  # Retire that generated file with this batch; restore it if publication fails.
-  superseded <- file.path(mid, "09_house_unopposed_shares_cd119.csv")
-  old_simulations <- file.path(staging, basename(superseded))
-  if (file.exists(superseded) && !file.rename(superseded, old_simulations)) {
-    stop("Could not retire the superseded original-map predictions: ", superseded)
-  }
-  for (i in seq_along(staged)) {
-    if (!file.rename(staged[i], destinations[i])) {
-      for (j in seq_len(i - 1L)) {
-        if (previous[j]) file.rename(backups[j], destinations[j]) else unlink(destinations[j])
-      }
-      if (file.exists(old_simulations)) file.rename(old_simulations, superseded)
-      stop("Could not publish ", destinations[i])
-    }
-  }
-  message("Saved four shares for ", nrow(point), " districts: ",
-          sum(!target$needs_prediction), " carried from observed returns and ",
-          sum(target$needs_prediction), " predicted.")
-}
-
-main_house09 <- function(args = commandArgs(trailingOnly = TRUE)) {
-  # The active beta validation reads the prepared district tables. The explicit
-  # fit, predict and all modes reproduce the earlier Dirichlet analysis.
-  mode <- if (length(args) == 0L) "prepare" else match.arg(args, c("prepare","fit","predict","all"))
   mid <- "01_frame/data/intermediate"
   out <- "01_frame/data/output"
-  dir.create(mid, recursive=TRUE, showWarnings=FALSE)
-  dir.create(out, recursive=TRUE, showWarnings=FALSE)
-  tables <- prepare_house_tables(mid, out, need_target = mode != "fit")
-  if (mode %in% c("fit","all")) fit_and_validate(tables$old, mid, out, seed=20241105L)
-  if (mode %in% c("predict","all")) project_house(tables, mid, out)
-  invisible(tables)
+  dir.create(mid, recursive = TRUE, showWarnings = FALSE)
+  dir.create(out, recursive = TRUE, showWarnings = FALSE)
+  tables <- prepare_house_tables(mid, out)
+  message("Prepared ", nrow(tables$old), " CD119 districts (",
+          nrow(eligible_house_rows(tables$old)), " eligible contests) and ",
+          nrow(tables$new), " CD120 districts.")
 }
-if (sys.nframe() == 0L) main_house09()

@@ -1,9 +1,9 @@
 # Frame data catalogue
 
-To inspect the observed House response and its predictors together, open `data/intermediate/09_house_party_inputs.csv`. The [sequential House beta regression](09_validate_house_beta.md#inspect-the-district-by-party-data) derives its three conditional responses from the counts in `data/intermediate/09_house_training_cd119.csv`. For each fitted stage it saves the Stan program and per-parameter diagnostics in `data/intermediate/09_beta_holdout_cache/<run-key>/`. The district split, stage summaries, holdout predictions, scores and four-page figure are in `data/output/09_beta_holdout/<run-key>/`.
+To inspect the observed House response and its predictors together, open `data/intermediate/09_house_party_inputs.csv`. The [sequential House beta regression](09_validate_house_beta.md#inspect-the-district-by-party-data) derives its three conditional responses from the counts in `data/intermediate/09_house_training_cd119.csv`. For each fitted stage it saves the Stan program and per-parameter diagnostics in `data/intermediate/09_beta_holdout_cache/<run-key>/`. The district split, stage summaries, holdout predictions, scores and four-panel figure are in `data/output/09_beta_holdout/<run-key>/`.
 
 
-To find a district's House shares, use the [district-by-party products](#district-by-party-house-shares). The [Step 08 inventory](#district-populations-and-candidate-rosters) describes the two-map populations and rosters behind these products. The [Step 09 inventory](09_model_house_votes.md#files-and-lineage) also lists the holdout, scores and projection audits.
+To find a district's House shares, use the [district-by-party products](#district-by-party-house-shares). The [Step 08 inventory](#district-populations-and-candidate-rosters) describes the two-map populations and rosters behind these products. The [holdout guide](09_validate_house_beta.md) describes the model, scoring and validation outputs.
 
 ## Plain-language summary
 
@@ -56,7 +56,7 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 | Script 07 | [07_prepare_area_returns.py](../scripts/07_prepare_area_returns.py) | [Area-level returns](07_prepare_area_returns.md) |
 | Script 08, district populations | [08_build_district_predictors.R](../scripts/08_build_district_predictors.R) | [Two-map CVAP predictors](08_build_district_predictors.md) |
 | Script 08, candidate rosters | [08_prepare_house_slates.py](../scripts/08_prepare_house_slates.py) | [House candidate lineups](08_house_slates.md) |
-| Script 09 | [09_model_house_votes.R](../scripts/09_model_house_votes.R) | [Input preparation and earlier Dirichlet specification](09_model_house_votes.md) |
+| Script 09 | [09_model_house_votes.R](../scripts/09_model_house_votes.R) | [District input preparation](09_model_house_votes.md) |
 | Script 09 | [09_validate_house_beta.R](../scripts/09_validate_house_beta.R) | [Conditional beta models, holdout and output inventory](09_validate_house_beta.md) |
 
 Scripts 00 and 01 passed the complete download-to-preparation run, including
@@ -656,12 +656,26 @@ Step 09 joins the Step 07 House returns and state presidential shares with the S
 | Product under `data/intermediate/` | What it contains |
 |---|---|
 | `09_house_party_inputs.csv` | Available after `prepare`. One row per `congress, STATEFP, CDFP, party`, with four choices for each of 436 districts (including DC) on each map. The 3,488 rows include the district’s CVAP and 29 demographic shares, the matching statewide presidential share, the party’s nominee count and incumbency, the roster year and the outcome source. |
-| `09_house_party_covariates.csv` | Available after `predict` or `all`. Adds `house_share`. On CD119, 434 districts have raw observed shares. All eight rows for unpolled FL-20 and OK-03 retain missing shares. On CD120, 290 districts carry observed counts, 144 use predictions with the 2026 roster, and two receive ordinary four-choice predictions with their verified 2024 incumbent as the sole named nominee. |
-| `09_house_final_shares_cd120.csv` | One row per 2026 district and one column per choice for the four shares. The numbers agree with the CD120 rows of the final district-by-party file. |
+| `09_house_training_cd119.csv` | One row per district on the 2024 map. The beta models use vote counts, CVAP, demographic shares, state presidential shares, lineup and incumbency to train and evaluate the conditional shares. |
+| `09_house_target_cd120.csv` | One row of predictors per district on the 2026 map, including the roster year and district-boundary match. |
 
-Read `STATEFP` and `CDFP` as text to preserve leading zeros. The four choices are `D`, `R`, `Other` and `DidNotVote` (no counted House candidate vote). Their shares sum to one for each tabulated CD119 district and every CD120 district. Count the repeated district CVAP only once per district and map. Nominee count, presence and incumbency are inapplicable for `DidNotVote`. [Outcome definition and treatment of exact zeros when fitting](09_model_house_votes.md#outcome-and-predictors)
+Read `STATEFP` and `CDFP` as text to preserve leading zeros. The four choices
+are `D`, `R`, `Other` and `DidNotVote` (no counted House candidate vote).
+The observed shares sum to one in each of the 434 tabulated 2024 districts.
+All four outcomes are missing for FL-20, OK-03 and the 2026 map. Count the
+repeated CVAP only once per district and map. The nominee count, presence
+and incumbency fields apply to the three candidate choices.
+[House input preparation](09_model_house_votes.md) · [Fitted conditional shares](09_validate_house_beta.md)
+
+Step 09 also writes `data/output/09_training_slate_counts.csv` to show how
+many districts on the 2024 map had each ballot configuration, candidate structure
+and election status.
 
 ## Validation, reruns and preservation
+
+The [November 10 frame rebuild](../../docs/validation/e393b7f2-frame-rebuild/README.md)
+records input and product fingerprints, including the 2024 House district
+training table.
 
 The [saved-file check](06_build_pums_cells.md#check-the-saved-analysis-files)
 reads both CES files, the population frame and the Step 03 and 06 audit tables.
@@ -683,10 +697,11 @@ It prints a cross-file validation summary and writes no data products.
 - The current pipeline does not clear existing outputs at startup or attach a
   shared run identifier to every file. Check the run result and its
   recorded inputs rather than relying solely on a filename's existence.
-- Downloaded and generated data are ignored by Git. Commits and pushes
-  preserve scripts, source metadata and documentation, not these local
-  data files. The generated Markdown notes and population manifest are
-  tracked exceptions because they reside in `docs/`.
+- Downloaded inputs, working datasets and model fits stay local. Git records
+  the source manifests, population manifest and generated Markdown notes in
+  `docs/`. For the House validation, `data/output/09_beta_holdout/latest_complete.txt`
+  identifies the published run. Its directory holds the PDF, district split,
+  sampler diagnostics, predictions and scores included in Git.
 - Numbered scripts recreate current products after their prerequisites
   are available. Script 00 acquires and verifies IPUMS snapshots; Script 01
   separately enforces the tracked source approval. Script 05 acquires and

@@ -35,21 +35,17 @@ Independent and No Party Preference, give Other. A missing slot label
 (including empty, `-1` and `__NA__`) cannot establish a party. In that case
 the search continues. Skipped and not-asked answers also fall through.
 
-The questionnaires define the response codes. The ordering is a project
-decision. We follow the original House rule's order for both offices. The
-original House implementation used three slots for pre-election responses and
-the pre-election party roster for post responses. The V9 release and data
-guide include fourth and fifth pre-election slots. Reading them resolves eight
-additional outcomes. Reading the correct post-election roster changes two
-additional House party classifications. Post House code 12 appears in the
-questionnaire and has zero responses in the reviewed CSV. Post presidential
-code 7 appears in neither the questionnaire nor the reviewed CSV.
+The questionnaires define the response codes. The project uses the same
+order of sources for both offices. In the V9 release, eight House outcomes
+come from the fourth and fifth pre-election candidate slots. House code 12
+appears in the post-election questionnaire and has zero responses in the
+reviewed CSV. Presidential code 7 appears in neither the post-election
+questionnaire nor the reviewed CSV.
 
-The previous project had no equivalent respondent-level presidential rule.
-The table above defines the corresponding rule for this office. We skip the
-post-election `CC24_410_nv` and `CC24_412_nv` hypothetical choices for
-nonvoters. Each office uses first choices and the survey responses listed
-above. Validated turnout is used separately in the election benchmark.
+The hypothetical `CC24_410_nv` and `CC24_412_nv` questions ask nonvoters
+whom they would have chosen. The vote outcome uses the reported choices and
+preferences listed above. Validated turnout is used separately in the
+election benchmark.
 
 ## District and District of Columbia
 
@@ -95,7 +91,6 @@ citizens in the harmonized sample.
 
 The source questionnaires, data guide and pinned CSV are published together in
 [CES 2024 Common Content, V9](https://doi.org/10.7910/DVN/X11EP6).
-[Original House implementation at the reviewed commit](https://github.com/robertocerinaprojects/polling-without-people/blob/e6373a8/legacy/frame/scripts/Script13_CES_vote2024_waterfall.R).
 
 ## Comparison with 2024 election returns
 
