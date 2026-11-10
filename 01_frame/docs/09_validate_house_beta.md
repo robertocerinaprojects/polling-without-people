@@ -146,6 +146,23 @@ The benchmark uses each district's corresponding **state presidential** share. F
 
 The lineup shifts the predicted shares continuously. A party with no named nominee can receive a small positive prediction. In this holdout, 11 districts recorded **exactly zero** Other votes. A continuous beta model gives strictly interior central predictive intervals. The model's Other interval can therefore cover at most 19 of these 30 observations (63.3%), even if its point predictions for the zeros are very close. The CSV preserves those zeros so the plot and coverage score show this limitation.
 
+## Inspect the district-by-party data
+
+Step 09 preparation writes **`01_frame/data/intermediate/09_house_party_inputs.csv`**. Each district has four rows per map, one for each of `D`, `R`, `Other` and `DidNotVote`. The response column, `observed_share_2024`, is the choice’s share of district CVAP. The same row contains the district’s 29 demographic shares, the matching state presidential share and the ballot lineup. The three candidate choices also have party-specific nominee counts and incumbency. The 434 tabulated districts on the 2024 map (CD119) have observed shares. FL-20, OK-03 and all 2026-map rows (CD120) have missing outcomes in this input.
+
+From the repository root, this shows the four choices for the first tabulated district and keeps the leading zeros in its geographic codes. Use `names(parties)` to see all demographic columns.
+
+```r
+parties <- read.csv("01_frame/data/intermediate/09_house_party_inputs.csv",
+                    colClasses = c(STATEFP = "character", CDFP = "character"))
+observed <- subset(parties, congress == 119 & !is.na(observed_share_2024))
+head(observed[c("STATEFP", "CDFP", "party", "observed_share_2024", "cvap",
+                "sex_female", "eth_hispanic", "state_presidential_share",
+                "ballot_group", "incumbent")], 4)
+```
+
+For fitting, the driver reads the companion file `01_frame/data/intermediate/09_house_training_cd119.csv`, which keeps the vote counts on one row per district. On the training split, `beta_stage_targets()` calculates the no-candidate-vote share of CVAP, the Republican share of all counted candidate votes, and the Democratic share of Democratic plus Other votes. A zero remaining pool omits that district from the corresponding fit. The endpoint adjustment and predictor standardization happen during fitting. Other is the remainder after these three stages. The split CSV identifies the 404 training districts, 30 held-out districts and two unpolled districts.
+
 ## Run from the repository root
 
 ```bash
@@ -164,11 +181,19 @@ Stan prints the chain, iteration and phase every **10 iterations**, including wa
 
 ### Reading diagnostics and provisional results
 
-The sampler checks R-hat (<1.01), bulk and tail effective sample sizes (at least 400 each across four chains), divergences and tree-depth-limit hits (zero each). A failed check on the no-House-vote or Republican stage triggers one retry with the same iterations and a higher target acceptance. The retry replaces the first attempt. If it also fails, the run reports the diagnostics and keeps the stage checkpoints for inspection.
+For this analysis a parameter passes when its R-hat is **at most 1.05** and its bulk and tail effective sample sizes are **each greater than 100** across the four chains. Apply the cutoffs to the full-precision values. The check includes the fixed coefficients, state and random-walk effects and their scales, beta precision, and both the linear and penalized parts of the presidential spline. Each stage also needs 500 finite draws from the four chains, zero divergent transitions and zero hits at the maximum tree depth of 13.
+
+A failed check on the no-House-vote or Republican stage triggers one retry with the same iterations and a higher target acceptance. The retry replaces the first attempt. If it also fails, the run reports the diagnostics and keeps the stage checkpoints for inspection.
 
 The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in both CSVs and their plot titles. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
 
 Results go under `01_frame/data/output/09_beta_holdout/<run-key>/`; the parent directory's `latest_complete.txt` names the latest run that published all reports, including one with a provisional final stage. The matching cache is under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. An earlier run's files remain available under their original key.
+
+Each fitted stage writes two small files alongside its checkpoint, for example `stage_1_none.stan` and `stage_1_none_parameters.csv`. Stages 2 and 3 use the stems `stage_2_rep` and `stage_3_dem`. The Stan file contains the program RStan stored with that fit. The CSV gives the parameter name, R-hat, both effective sample sizes and the pass flag. These files remain available after a successful run removes its large fit objects. Open a Stan file in the editor or run `less path/to/stage_1_none.stan` to read it in the terminal.
+
+The [complete generated Stan program](stan/09_sequential_beta.stan) is available for reading before a fit. We generated it with the stage formulas, priors and static threading from the driver, using brms 2.23.0 and example district inputs. All three stages produced identical Stan text. In the likelihood, `Y` holds the stage-specific response, `Xc` holds the centered fixed predictors, and `Xs` and `Zs_1_1` supply the linear and penalized parts of the presidential curve. The three groups of random effects implement the age walk, education walk and state intercepts. Each stage receives its own data and estimates its own coefficients and precision. Use the checkpoint’s exported program to inspect a particular run.
+
+**Continuing the November 10 run.** On the four-core Codespace, `Rscript 01_frame/scripts/helpers/09_reuse_stage_one.R` checks the existing stage-one retry from commit `c48df55` against the current fit specification, inputs and sampler settings. It writes the Stan program, rechecks the parameters and prints the paths and diagnostic results. Once the fit passes, `Rscript 01_frame/scripts/09_validate_house_beta.R validate` reuses its draws and proceeds to the Republican stage.
 
 | Run output | What it contains |
 |---|---|

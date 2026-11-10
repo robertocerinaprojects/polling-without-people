@@ -1,6 +1,6 @@
 # Frame data catalogue
 
-The [sequential House beta regression](09_validate_house_beta.md) reads `data/intermediate/09_house_training_cd119.csv` from Step 09 preparation. It saves the 2024 district split, sampler diagnostics, predictions for the 30 held-out districts, scores for each of four vote choices and a four-page validation plot under `data/output/09_beta_holdout/`.
+To inspect the observed House response and its predictors together, open `data/intermediate/09_house_party_inputs.csv`. The [sequential House beta regression](09_validate_house_beta.md#inspect-the-district-by-party-data) derives its three conditional responses from the counts in `data/intermediate/09_house_training_cd119.csv`. For each fitted stage it saves the Stan program and per-parameter diagnostics in `data/intermediate/09_beta_holdout_cache/<run-key>/`. The district split, stage summaries, holdout predictions, scores and four-page figure are in `data/output/09_beta_holdout/<run-key>/`.
 
 
 To find a district's House shares, use the [district-by-party products](#district-by-party-house-shares). The [Step 08 inventory](#district-populations-and-candidate-rosters) describes the two-map populations and rosters behind these products. The [Step 09 inventory](09_model_house_votes.md#files-and-lineage) also lists the holdout, scores and projection audits.

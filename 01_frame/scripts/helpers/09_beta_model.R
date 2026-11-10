@@ -115,23 +115,74 @@ beta_stage_priors <- function() {
     brms::set_prior("lognormal(3, 1.5)", class = "phi"))
 }
 
-# Extend the common sampler checks to the presidential spline. Its curvature
-# scale and basis coefficients are separate from the state and walk effects.
-beta_sampler_diagnostics <- function(model) {
-  audit <- house_sampler_diagnostics(list(model = model))
-  smooth <- posterior::as_draws_array(model, variable = "^(sds_|s_)", regex = TRUE)
-  variables <- posterior::variables(smooth)
-  if (!any(startsWith(variables, "sds_")) || !any(startsWith(variables, "s_"))) {
-    stop("Missing presidential spline parameters in the saved fit.")
+# The beta fits have their own acceptance rule. ESS is the number of effective
+# draws across all chains, measured separately in the bulk and in the tails.
+beta_parameter_pass <- function(rhat, ess_bulk, ess_tail) {
+  is.finite(rhat) & is.finite(ess_bulk) & is.finite(ess_tail) &
+    rhat <= 1.05 & ess_bulk > 100 & ess_tail > 100
+}
+
+# rstan stores the program used by the fitted model. Copy its text verbatim
+# before evaluating convergence, including on resume and on the final retry.
+beta_write_fitted_stan <- function(model, destination) {
+  code <- rstan::get_stancode(model$fit)
+  if (!is.character(code) || length(code) != 1L || is.na(code) || !nzchar(code)) {
+    stop("The fitted rstan model contains no Stan source.")
   }
-  stats <- posterior::summarise_draws(smooth, "rhat", "ess_bulk", "ess_tail")
-  audit$parameters <- audit$parameters + nrow(stats)
-  audit$max_rhat <- max(audit$max_rhat, stats$rhat)
-  audit$min_bulk_ess <- min(audit$min_bulk_ess, stats$ess_bulk)
-  audit$min_tail_ess <- min(audit$min_tail_ess, stats$ess_tail)
-  audit$passed <- isTRUE(audit$passed && audit$max_rhat < 1.01 &&
-                         audit$min_bulk_ess >= 100 * audit$chains &&
-                         audit$min_tail_ess >= 100 * audit$chains)
+  temp <- tempfile(tmpdir = dirname(destination))
+  on.exit(unlink(temp), add = TRUE)
+  writeBin(charToRaw(code), temp)
+  if (!file.rename(temp, destination)) stop("Could not publish ", destination)
+}
+
+beta_stage_inspection <- function(model, choice, j, cache_dir = NULL, plan = beta_sampler_plan()) {
+  parameter_path <- NULL
+  if (!is.null(cache_dir)) {
+    stem <- file.path(cache_dir, sprintf("stage_%d_%s", j, choice))
+    beta_write_fitted_stan(model, paste0(stem, ".stan"))
+    parameter_path <- paste0(stem, "_parameters.csv")
+  }
+  beta_sampler_diagnostics(model, choice, parameter_path, plan)
+}
+
+beta_sampler_diagnostics <- function(model, choice = NA_character_, parameter_path = NULL,
+                                     plan = beta_sampler_plan()) {
+  draws <- posterior::as_draws_array(model)
+  if (posterior::nchains(draws) != plan$chains || posterior::niterations(draws) != plan$sampling ||
+      !all(is.finite(draws))) {
+    stop("Stage ", choice, " did not return the planned number of complete, finite draws.")
+  }
+  # Mean-model coefficients, group scales and effects, beta precision, and
+  # all three parts of the spline (its fixed coefficient, scale and weights).
+  variables <- posterior::variables(draws)
+  parameters <- grep("^(b_|sd_|r_|phi$|bs_|sds_|s_)", variables, value = TRUE)
+  if (!all(c("b_Intercept", "phi") %in% parameters) ||
+      !all(vapply(c("sd_", "r_", "bs_", "sds_", "s_"), function(prefix) {
+        any(startsWith(parameters, prefix))
+      }, logical(1)))) {
+    stop("Missing beta regression, group or presidential spline parameters in stage ", choice, ".")
+  }
+  monitored <- posterior::subset_draws(draws, variable = parameters)
+  stats <- posterior::summarise_draws(monitored, "rhat", "ess_bulk", "ess_tail")
+  detail <- data.frame(stage = choice, parameter = stats$variable, rhat = stats$rhat,
+                       ess_bulk = stats$ess_bulk, ess_tail = stats$ess_tail)
+  detail$passed <- with(detail, beta_parameter_pass(rhat, ess_bulk, ess_tail))
+  if (!is.null(parameter_path)) stage_write(detail, parameter_path)
+
+  sampler <- brms::nuts_params(model)
+  divergent <- sampler$Value[sampler$Parameter == "divergent__"]
+  depth <- sampler$Value[sampler$Parameter == "treedepth__"]
+  n <- posterior::ndraws(draws)
+  if (length(divergent) != n || length(depth) != n ||
+      any(!divergent %in% 0:1) || any(!is.finite(depth) | depth < 0)) {
+    stop("Incomplete post-warmup NUTS diagnostics in stage ", choice, ".")
+  }
+  audit <- data.frame(chains = posterior::nchains(draws), postwarmup_draws = n,
+                      parameters = nrow(detail), max_rhat = max(detail$rhat),
+                      min_bulk_ess = min(detail$ess_bulk), min_tail_ess = min(detail$ess_tail),
+                      divergences = sum(divergent), max_depth_hits = sum(depth >= 13))
+  audit$passed <- all(detail$passed) && audit$chains >= 4L &&
+    audit$divergences == 0 && audit$max_depth_hits == 0
   audit
 }
 
@@ -225,13 +276,7 @@ fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_samp
       }
 
       beta_message(label, ": checking draws and convergence.")
-      if (posterior::nchains(model) != plan$chains ||
-          posterior::niterations(model) != plan$sampling ||
-          !all(is.finite(posterior::as_draws_matrix(model)))) {
-        stop(label, " did not return the planned number of complete, finite draws. ",
-             "Check the Stan output", if (!is.null(path)) paste0(" and ", path), ".")
-      }
-      audit <- beta_sampler_diagnostics(model)
+      audit <- beta_stage_inspection(model, choice, j, cache_dir, plan)
       passed <- isTRUE(audit$passed)
       status <- if (passed) "passed" else if (choice == "dem") "provisional" else "failed"
       diagnostics[[j]] <- data.frame(stage = choice, districts = sum(keep),
@@ -322,6 +367,13 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 500L) {
 beta_fit_predict <- function(training, assessment, seed, fit_dir, plan = beta_sampler_plan()) {
   completed <- file.path(fit_dir, "predictions.rds")
   if (file.exists(completed)) {
+    # The draws may have been retired after a successful run. Its Stan source
+    # and parameter checks must still be available for each reported stage.
+    stage_names <- file.path(fit_dir, c("stage_1_none", "stage_2_rep", "stage_3_dem"))
+    records <- c(paste0(stage_names, ".stan"), paste0(stage_names, "_parameters.csv"))
+    missing <- records[!file.exists(records) | file.size(records) == 0]
+    if (length(missing)) stop("Missing fit-inspection files in the completed run: ",
+                              paste(missing, collapse = ", "))
     beta_message("Reusing completed holdout predictions from ", completed)
     result <- readRDS(completed)
     if (!all(result$diagnostics$passed)) {
