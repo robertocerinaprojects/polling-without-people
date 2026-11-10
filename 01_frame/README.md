@@ -40,10 +40,11 @@ Run individual steps from the repository root, following their companion documen
 | 09 | `scripts/09_model_house_votes.R prepare` | Prepare district inputs with the observed CD119 House shares | [Source tables and outcomes](docs/09_model_house_votes.md) |
 | 09 | `scripts/09_validate_house_beta.R validate` | Fit the no-House-vote, Republican and Democratic shares in sequence and score the holdout | [Model equations, predictors and outputs](docs/09_validate_house_beta.md) |
 
-To find the published House validation figure, open
-`data/output/09_beta_holdout/latest_complete.txt` and use the directory named
-there. It contains the four-panel PDF, the held-out district predictions and
-scores, the district split and the sampler diagnostics.
+Open the [four-panel House validation figure](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_plots.pdf)
+or the [scores for both methods](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_scores.csv).
+The same directory contains the held-out district predictions, the district split and
+the sampler diagnostics. Each completed validation publishes its directory name in
+`data/output/09_beta_holdout/latest_complete.txt`.
 
 On a fresh checkout, restore the R packages at the repository root with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
