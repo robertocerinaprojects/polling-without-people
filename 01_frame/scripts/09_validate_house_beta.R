@@ -1,6 +1,7 @@
 # Validate the sequential beta regressions on 2024 House districts (CD119).
 # Use 'plan' to inspect the split, 'validate' to fit, or 'report' to redraw a completed run.
 source("01_frame/scripts/09_model_house_votes.R")
+source("01_frame/scripts/helpers/09_validate.R")
 source("01_frame/scripts/helpers/09_beta_model.R")
 
 # Check the contract with Step 09 preparation. In particular, two districts
@@ -49,7 +50,8 @@ beta_run_key <- function(input_file, plan) {
   scripts <- "01_frame/scripts"
   sources <- c(file.path(scripts, c("09_validate_house_beta.R", "09_model_house_votes.R")),
                file.path(scripts, "helpers", c("09_beta_model.R", "09_ballot_groups.R",
-                                               "09_model.R", "09_validate.R")))
+                                               "09_projection.R", "09_party_covariates.R",
+                                               "09_validate.R")))
   packages <- c("brms", "rstan", "StanHeaders", "posterior", "mgcv", "parallelly")
   versions <- vapply(packages, function(p) as.character(utils::packageVersion(p)), character(1))
   files <- c(training_data = input_file, setNames(sources, basename(sources)))
@@ -83,11 +85,11 @@ write_beta_holdout_report <- function(out, report, audit) {
   }
   report$scores$sampler_status <- status(report$scores)
   report$predictions$sampler_status <- status(report$predictions)
-  beta_message("Drawing the four-page validation PDF.")
+  beta_message("Drawing the four-panel validation figure.")
   plot_tmp <- tempfile(tmpdir = out, fileext = ".pdf")
   on.exit(unlink(plot_tmp), add = TRUE)
   house_validation_plots(plot_tmp, report$predictions, report$scores,
-                         model_label = "Sequential beta", provisional_choices = provisional)
+                         model_label = "Sequential beta")
   if (!file.rename(plot_tmp, file.path(out, "09_beta_holdout_plots.pdf"))) {
     stop("Could not publish the holdout figure in ", out)
   }

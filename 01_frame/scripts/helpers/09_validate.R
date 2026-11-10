@@ -23,81 +23,131 @@ house_holdout_split <- function(districts, seed = 20241105L) {
        selection = selection)
 }
 
-house_validation_plots <- function(path, predictions, scores, model_label = "District model",
-                                   provisional_choices = character()) {
-  labels <- c(dem = "Democratic", rep = "Republican", other = "Other",
-              none = "Did not vote for a House candidate")
-  method_names <- c(model = model_label, baseline = "State presidential baseline")
-  colors <- c(model = "#116789", baseline = "#AE5217")
-  symbols <- c(model = 16L, baseline = 2L)
+# Position district labels in physical inches so the same padding works for
+# a 2% Other share and a 60% Democratic share. A short leader connects any
+# label that has to move away from a cluster of points.
+house_district_labels <- function(model, baseline, labels, cex = 0.66) {
+  usr <- graphics::par("usr")
+  size <- graphics::par("pin")
+  xscale <- diff(usr[1:2]) / size[1]
+  yscale <- diff(usr[3:4]) / size[2]
+  x <- (model$predicted - usr[1]) / xscale
+  y <- (model$observed - usr[3]) / yscale
+  h <- graphics::strheight("MA-08", units = "inches", cex = cex) / 2 + 0.012
+  w <- graphics::strwidth(labels, units = "inches", cex = cex) / 2 + 0.015
 
-  grDevices::pdf(path, width = 8.3, height = 8.7, useDingbats = FALSE,
-                 title = "Raw held-out 2024 House vote shares")
+  # Start with the circles and baseline markers as small occupied rectangles.
+  point_x <- c(x, (baseline$predicted - usr[1]) / xscale)
+  point_y <- c(y, (baseline$observed - usr[3]) / yscale)
+  boxes <- data.frame(x = point_x, y = point_y, w = 0.028, h = 0.028)
+  offsets <- expand.grid(dx = seq(-12, 12) * 0.08, dy = seq(-10, 10) * 0.092)
+  label_x <- label_y <- numeric(length(labels))
+  for (i in order(y, x, labels)) {
+    cx <- pmax(w[i], pmin(size[1] - w[i], x[i] + offsets$dx))
+    cy <- pmax(h, pmin(size[2] - h, y[i] + offsets$dy))
+    # Prefer the closest free spot just above the model point.
+    cost <- (cx - x[i])^2 + (cy - y[i] - 0.075)^2
+    for (j in seq_len(nrow(boxes))) {
+      collision <- abs(cx - boxes$x[j]) < w[i] + boxes$w[j] &
+                   abs(cy - boxes$y[j]) < h + boxes$h[j]
+      cost[collision] <- cost[collision] + 10
+    }
+    best <- which.min(cost)
+    label_x[i] <- cx[best]
+    label_y[i] <- cy[best]
+    boxes[nrow(boxes) + 1L, ] <- c(label_x[i], label_y[i], w[i], h)
+  }
+  distant <- sqrt((label_x - x)^2 + (label_y - y)^2) > 0.19
+  text_x <- usr[1] + xscale * label_x
+  text_y <- usr[3] + yscale * label_y
+  graphics::segments(model$predicted[distant], model$observed[distant],
+                     text_x[distant], text_y[distant], col = "grey72", lwd = 0.45)
+  graphics::text(text_x, text_y, labels, cex = cex, col = "grey32")
+}
+
+house_validation_plots <- function(path, predictions, scores, model_label = "District model") {
+  titles <- c(dem = "Democratic", rep = "Republican", other = "Other", none = "No Vote")
+  model_color <- "#FA8072"
+  baseline_color <- "#406A7B"
+  states <- utils::read.csv("01_frame/docs/02_pl_2020_sources.csv", colClasses = "character")
+  state_names <- setNames(states$STUSAB, states$STATEFP)
+
+  grDevices::pdf(path, width = 11.6, height = 9.6, pointsize = 10.5, family = "Helvetica",
+                 useDingbats = FALSE, title = "Held-out 2024 House vote shares")
   on.exit(grDevices::dev.off(), add = TRUE)
-  graphics::layout(matrix(c(1L, 1L, 2L, 3L), nrow = 2L, byrow = TRUE),
-                   heights = c(5.4, 1.5))
+  graphics::par(mfrow = c(2, 2), oma = c(3.3, 3.4, 5.6, 1.2),
+                mar = c(1.8, 2.4, 4.15, 0.6), mgp = c(2, 0.40, 0), las = 1,
+                xaxs = "i", yaxs = "i", cex = 1, family = "sans")
 
-  for (choice in names(labels)) {
+  for (choice in names(titles)) {
     data <- predictions[predictions$choice == choice, ]
     model <- data[data$method == "model", ]
-    graphics::par(mar = c(4.3, 4.7, 3.8, 1.0), pty = "s", las = 1)
-    # The same limits on x and y preserve the 45-degree reference line.
+    baseline <- data[data$method == "baseline", ]
     endpoints <- range(data$predicted, data$observed, model$lower_90, model$upper_90)
-    if (diff(endpoints) < 0.01) {
-      endpoints <- c(max(0, endpoints[1] - 0.005), min(1, endpoints[2] + 0.005))
+    margin <- max(diff(endpoints), 0.01) * 0.055
+    limits <- endpoints + c(-margin, margin)
+    ticks <- pretty(limits, n = 5)
+    ticks <- ticks[ticks >= 0 & ticks <= 1 & ticks >= limits[1] & ticks <= limits[2]]
+    # White panels, light major/minor grids and a dashed equality line.
+    graphics::plot.new()
+    graphics::plot.window(limits, limits)
+    if (length(ticks) > 1L) {
+      minor <- c(ticks - diff(ticks[1:2]) / 2, tail(ticks, 1) + diff(ticks[1:2]) / 2)
+      graphics::abline(v = minor, h = minor, col = "grey94", lwd = 0.6)
     }
-    ticks <- pretty(endpoints * 100, n = 5)
-    ticks <- ticks[ticks >= 0 & ticks <= 100]
-    limits <- range(endpoints, ticks / 100)
-    # A small margin keeps points and intervals at exactly zero or one visible.
-    limits <- limits + c(-1, 1) * diff(limits) * 0.02
-    graphics::plot(NA_real_, NA_real_, xlim = limits, ylim = limits, axes = FALSE,
-                   xaxs = "i", yaxs = "i", xlab = "", ylab = "")
-    graphics::axis(1, at = ticks / 100, labels = paste0(ticks, "%"))
-    graphics::axis(2, at = ticks / 100, labels = paste0(ticks, "%"))
-    graphics::box(col = "grey75")
-    graphics::mtext("Predicted share of district citizen adults", side = 1, line = 2.8)
-    graphics::mtext("Observed share of district citizen adults", side = 2, line = 3.4, las = 0)
-    title <- labels[[choice]]
-    if (choice %in% provisional_choices) title <- paste0(title, " (model provisional)")
-    graphics::title(main = title, line = 2, adj = 0)
-    graphics::mtext("30 held-out districts   /   Horizontal bars show the model's 90% predictive intervals",
-                    side = 3, line = 0.5, adj = 0, cex = 0.8)
-    graphics::abline(a = 0, b = 1, col = "grey48", lty = 3, lwd = 1.4)
-    graphics::segments(model$lower_90, model$observed, model$upper_90, model$observed,
-                       col = grDevices::adjustcolor(colors[["model"]], 0.60), lwd = 1.15)
-    for (method in c("baseline", "model")) {
-      sel <- data$method == method
-      graphics::points(data$predicted[sel], data$observed[sel],
-                       pch = symbols[[method]], col = colors[[method]],
-                       cex = if (method == "baseline") 1.13 else 0.79, lwd = 1.35)
+    graphics::abline(v = ticks, h = ticks, col = "grey89", lwd = 0.8)
+    graphics::abline(0, 1, col = "grey50", lty = "44", lwd = 0.95)
+    for (side in c(1L, 2L)) {
+      graphics::axis(side, at = ticks, labels = format(ticks, trim = TRUE),
+                     tick = FALSE, col.axis = "grey32", cex.axis = 0.86)
     }
 
-    for (method in names(method_names)) {
+    # Plot intervals only for the model. Label each district once, at its
+    # model prediction; both markers have the same observed share.
+    graphics::segments(model$lower_90, model$observed, model$upper_90, model$observed,
+                       col = "#F4C4BE", lwd = 1.0)
+    graphics::points(baseline$predicted, baseline$observed, pch = 5,
+                     cex = 0.84, col = baseline_color, lwd = 1.05)
+    graphics::points(model$predicted, model$observed, pch = 16, cex = 0.83, col = model_color)
+    state <- unname(state_names[substr(model$district_id, 1, 2)])
+    seat <- as.integer(substr(model$district_id, 4, 5))
+    labels <- paste(state, ifelse(seat == 0L | state == "DC", "AL", seat), sep = "-")
+    house_district_labels(model, baseline, ifelse(is.na(state), model$district_id, labels))
+
+    # Score lines sit above the grid, so they cannot cover district labels.
+    # Use the same colors as the shared legend and the same units as the CSV.
+    graphics::mtext(titles[[choice]], side = 3, line = 2.75, cex = 1.00)
+    for (method in c("model", "baseline")) {
       score <- scores[scores$choice == choice & scores$method == method, ]
-      graphics::par(mar = c(0, 0.9, 0.4, 0.7), pty = "m")
-      graphics::plot.new()
-      graphics::plot.window(xlim = c(0, 1), ylim = c(0, 1), xaxs = "i", yaxs = "i")
-      color <- colors[[method]]
+      rho <- if (is.na(score$spearman)) "undefined" else sprintf("%.2f", score$spearman)
+      metrics <- sprintf("Bias %+.2f pp     RMSE %.2f pp     Spearman %s",
+                         score$bias_pp, score$rmse_pp, rho)
       if (method == "model") {
-        graphics::segments(0.02, 0.88, 0.15, 0.88, col = color, lwd = 1.4)
+        line <- paste0("Model     ", metrics, "     90% coverage ", score$covered, "/", score$districts)
+        graphics::mtext(line, side = 3, line = 1.33, adj = 0, cex = 0.77, col = "grey18")
+      } else {
+        graphics::mtext(paste("Baseline    ", metrics), side = 3, line = 0.30, adj = 0,
+                        cex = 0.77, col = baseline_color)
       }
-      graphics::points(0.085, 0.88, col = color, pch = symbols[[method]])
-      graphics::text(0.19, 0.88, method_names[[method]], adj = 0, font = 2,
-                     col = color, cex = 0.95)
-      rho <- if (is.na(score$spearman)) "undefined" else sprintf("%.3f", score$spearman)
-      metrics <- c("Bias (predicted - observed)", "RMSE", "Spearman correlation")
-      values <- c(sprintf("%+.2f pp", score$bias_pp), sprintf("%.2f pp", score$rmse_pp), rho)
-      if (method == "model") {
-        metrics <- c(metrics, "90% interval coverage")
-        values <- c(values, sprintf("%d/%d (%.1f%%)", score$covered, score$districts,
-                                     100 * score$coverage_90))
-      }
-      y <- seq(from = 0.65, by = -0.18, length.out = length(metrics))
-      graphics::text(0.02, y, metrics, adj = 0, cex = 0.81)
-      graphics::text(0.98, y, values, adj = 1, cex = 0.82)
     }
   }
+
+  n_held <- length(unique(predictions$district_id))
+  graphics::mtext(sprintf("Held-out predicted vs. actual (n = %d districts)", n_held),
+                  outer = TRUE, side = 3, line = 3.6, adj = 0, font = 2, cex = 1.38)
+  graphics::mtext("2024 House vote shares among citizen adults. District labels identify model predictions.",
+                  outer = TRUE, side = 3, line = 2.0, adj = 0, cex = 1.00)
+  graphics::mtext("Observed share", outer = TRUE, side = 2, line = 1.25, las = 0, cex = 1.04)
+  graphics::mtext("Predicted share", outer = TRUE, side = 1, line = 0.35, cex = 1.04)
+  # Add the shared key using page coordinates after drawing the four facets.
+  graphics::par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+  graphics::plot.new()
+  graphics::plot.window(c(0, 1), c(0, 1))
+  graphics::legend(0.057, 0.930, legend = c(paste0(model_label, " (90% predictive interval)"),
+                     "State presidential baseline"), horiz = TRUE, bty = "n",
+                   col = c(model_color, baseline_color), pch = c(16, 5),
+                   lty = c(1, 0), seg.len = 1.5, cex = 0.91,
+                   x.intersp = 0.55, text.col = "grey20")
 }
 
 # Score one choice across the held-out districts. A positive bias means the
@@ -108,8 +158,14 @@ house_prediction_metrics <- function(rows) {
   if (length(unique(rows$observed)) > 1L && length(unique(rows$predicted)) > 1L) {
     rho <- stats::cor(rows$predicted, rows$observed, method = "spearman")
   }
-  data.frame(districts = nrow(rows), bias_pp = mean(error), rmse_pp = sqrt(mean(error^2)),
-             spearman = rho, covered = sum(rows$covered_90), coverage_90 = mean(rows$covered_90))
+  metrics <- data.frame(districts = nrow(rows), bias_pp = mean(error),
+                        rmse_pp = sqrt(mean(error^2)), spearman = rho,
+                        covered = NA_integer_, coverage_90 = NA_real_)
+  if (rows$method[1L] == "model") {
+    metrics$covered <- sum(rows$covered_90)
+    metrics$coverage_90 <- metrics$covered / metrics$districts
+  }
+  metrics
 }
 
 score_house_holdout <- function(test_observed, test_pres,
@@ -147,8 +203,8 @@ score_house_holdout <- function(test_observed, test_pres,
   summarise_house_holdout(predictions)
 }
 
-# Score fresh predictions or refresh an existing district report. Older CSVs
-# supplied interval endpoints for the fixed presidential benchmark.
+# Score the same 30 observed compositions for both sets of point predictions.
+# Only the beta regressions produce predictive intervals.
 summarise_house_holdout <- function(predictions) {
   choices <- c("dem", "rep", "other", "none")
   methods <- c("model", "baseline")
@@ -184,7 +240,10 @@ summarise_house_holdout <- function(predictions) {
   if (any(abs(totals - 1) > 1e-9)) stop("District observed and predicted shares must sum to one.")
 
   predictions$error_pp <- 100 * (predictions$predicted - predictions$observed)
-  predictions$covered_90 <- with(predictions, lower_90 <= observed & observed <= upper_90)
+  # Coverage is defined only for the fitted model, which supplies both endpoints.
+  predictions$covered_90 <- NA
+  predictions$covered_90[model] <- with(predictions[model, ],
+                                        lower_90 <= observed & observed <= upper_90)
   groups <- split(predictions, list(predictions$choice, predictions$method), drop = TRUE)
   scores <- do.call(rbind, lapply(groups, function(group) {
     data.frame(choice = group$choice[1], method = group$method[1], house_prediction_metrics(group))
@@ -192,16 +251,4 @@ summarise_house_holdout <- function(predictions) {
   scores$prediction_stage <- "raw"
   rownames(scores) <- NULL
   list(scores = scores, predictions = predictions)
-}
-
-validate_house_predictions <- function(test_observed, test_pres,
-                                       model_point, model_lower, model_upper, district_ids,
-                                       output_dir) {
-  result <- score_house_holdout(test_observed, test_pres,
-                                model_point, model_lower, model_upper, district_ids)
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-  utils::write.csv(result$predictions, file.path(output_dir, "09_holdout_predictions.csv"), row.names = FALSE)
-  utils::write.csv(result$scores, file.path(output_dir, "09_holdout_scores.csv"), row.names = FALSE)
-  house_validation_plots(file.path(output_dir, "09_holdout_plots.pdf"), result$predictions, result$scores)
-  invisible(result)
 }

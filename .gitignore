@@ -1,13 +1,20 @@
-
 # Downloaded and generated data
 **/data/input/*
 **/data/intermediate/*
 **/data/output/*
 !**/data/**/README.md
 !**/data/**/.gitkeep
-/legacy/frame/Development_Script_Original/
-/legacy/frame/Final_Data_Original/
-/legacy/frame/Data_Processed/README.md
+
+# Published House validation (the run directory has a 20-digit hexadecimal key).
+!/01_frame/data/output/09_beta_holdout/
+/01_frame/data/output/09_beta_holdout/**
+!/01_frame/data/output/09_beta_holdout/latest_complete.txt
+!/01_frame/data/output/09_beta_holdout/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/
+!/01_frame/data/output/09_beta_holdout/*/09_beta_district_split.csv
+!/01_frame/data/output/09_beta_holdout/*/09_beta_sampler_diagnostics.csv
+!/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_predictions.csv
+!/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_scores.csv
+!/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_plots.pdf
 
 # R session artifacts
 .Renviron

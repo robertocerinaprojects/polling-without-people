@@ -148,10 +148,11 @@ citizen-adult population. The remaining share is the fourth outcome, citizens
 without a counted House candidate vote. The original FL-20 and OK-03 rows retain four missing shares because their House contests had no tabulated votes.
 [House model outcome and predictors](09_model_house_votes.md#outcome-and-predictors)
 
-Step 08 compares the two maps using Census blocks. On the new map, Step 09
-carries candidate counts for the 290 tabulated districts whose footprints
-match and divides by the target district’s population. It predicts 144
-redrawn districts with their 2026 lineups. For the new FL-20 and OK-03 it predicts all four shares using each target district’s population and the sole declared 2024 winner as the named incumbent nominee. The ordinary model allows write-in support in these contests and supplies the final estimates directly. State aggregates can differ from the 2024 House returns. [District projection rules](09_model_house_votes.md#districts-on-the-2026-map)
+Step 08 compares the maps using Census blocks. Step 09 records 290 target
+districts with an exact match and tabulated 2024 counts, 144 redrawn districts
+using their 2026 lineups, and the unopposed-winner scenarios for FL-20 and
+OK-03. Each target receives its own CD120 population and demographic margins.
+[District inputs on the 2026 map](09_model_house_votes.md#districts-on-the-2026-map)
 
 ## Outputs and source reconciliation
 
