@@ -65,8 +65,7 @@ house_district_labels <- function(model, baseline, labels, cex = 0.66) {
   graphics::text(text_x, text_y, labels, cex = cex, col = "grey32")
 }
 
-house_validation_plots <- function(path, predictions, scores, model_label = "District model",
-                                   provisional_choices = character()) {
+house_validation_plots <- function(path, predictions, scores, model_label = "District model") {
   titles <- c(dem = "Democratic", rep = "Republican", other = "Other", none = "No Vote")
   model_color <- "#FA8072"
   baseline_color <- "#406A7B"
@@ -117,9 +116,7 @@ house_validation_plots <- function(path, predictions, scores, model_label = "Dis
 
     # Score lines sit above the grid, so they cannot cover district labels.
     # Use the same colors as the shared legend and the same units as the CSV.
-    title <- titles[[choice]]
-    if (choice %in% provisional_choices) title <- paste0(title, "*")
-    graphics::mtext(title, side = 3, line = 2.75, cex = 1.00)
+    graphics::mtext(titles[[choice]], side = 3, line = 2.75, cex = 1.00)
     for (method in c("model", "baseline")) {
       score <- scores[scores$choice == choice & scores$method == method, ]
       rho <- if (is.na(score$spearman)) "undefined" else sprintf("%.2f", score$spearman)
@@ -142,11 +139,6 @@ house_validation_plots <- function(path, predictions, scores, model_label = "Dis
                   outer = TRUE, side = 3, line = 2.0, adj = 0, cex = 1.00)
   graphics::mtext("Observed share", outer = TRUE, side = 2, line = 1.25, las = 0, cex = 1.04)
   graphics::mtext("Predicted share", outer = TRUE, side = 1, line = 0.35, cex = 1.04)
-  if (length(provisional_choices)) {
-    names_flagged <- paste(unname(titles[provisional_choices]), collapse = " and ")
-    graphics::mtext(paste0("* ", names_flagged, " model results are provisional (sampler diagnostics)."),
-                    outer = TRUE, side = 1, line = 2.0, adj = 0, col = "grey35", cex = 0.82)
-  }
   # Add the shared key using page coordinates after drawing the four facets.
   graphics::par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
   graphics::plot.new()

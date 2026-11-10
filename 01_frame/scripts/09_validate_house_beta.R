@@ -89,7 +89,7 @@ write_beta_holdout_report <- function(out, report, audit) {
   plot_tmp <- tempfile(tmpdir = out, fileext = ".pdf")
   on.exit(unlink(plot_tmp), add = TRUE)
   house_validation_plots(plot_tmp, report$predictions, report$scores,
-                         model_label = "Sequential beta", provisional_choices = provisional)
+                         model_label = "Sequential beta")
   if (!file.rename(plot_tmp, file.path(out, "09_beta_holdout_plots.pdf"))) {
     stop("Could not publish the holdout figure in ", out)
   }

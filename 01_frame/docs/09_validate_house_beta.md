@@ -193,7 +193,7 @@ For this analysis a parameter passes when its R-hat is **at most 1.05** and its 
 
 A failed check on the no-House-vote or Republican stage triggers one retry with the same iterations and a higher target acceptance. The retry replaces the first attempt. If it also fails, the run reports the diagnostics and keeps the stage checkpoints for inspection.
 
-The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in both CSVs and in the figure. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
+The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in the predictions and scores CSVs. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
 
 Results go under `01_frame/data/output/09_beta_holdout/<run-key>/`; the parent directory's `latest_complete.txt` names the latest run that published all reports, including one with a provisional final stage. The matching cache is under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. The identifier connects the figure and its scored districts to the matching fit checkpoints.
 
@@ -222,7 +222,7 @@ The [four-panel figure](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_b
 | Other | 0.86 | 3.70 | 19/30 |
 | No counted House vote | 3.75 | 7.07 | 27/30 |
 
-The [sampler audit](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_sampler_diagnostics.csv) records the result for each stage. The no-House-vote and Republican stages passed the prespecified checks. The Democratic-versus-Other stage recorded 1 divergent transition, 0 maximum-depth hits, a maximum R-hat of 1.038 and minimum bulk/tail effective sample sizes of 123/193. Both outcomes that use this stage are marked provisional.
+The [sampler audit](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_sampler_diagnostics.csv) records the result for each stage. The no-House-vote and Republican stages passed the prespecified checks. The Democratic-versus-Other stage recorded 1 divergent transition, 0 maximum-depth hits, a maximum R-hat of 1.038 and minimum bulk/tail effective sample sizes of 123/193. The predictions and scores CSVs record the sampler status for each outcome.
 
 Run `3bf72b3e358bdf062b84` used R 4.3.3, mgcv 1.9-1 and brms 2.23.0. Each stage ran four chains with two threads apiece with 1,000 warmup and 125 retained iterations per chain. The training CSV’s SHA-256 matches the [independent preparation rebuild](../../docs/validation/e393b7f2-frame-rebuild/README.md).
 
