@@ -23,7 +23,8 @@ house_holdout_split <- function(districts, seed = 20241105L) {
        selection = selection)
 }
 
-house_validation_plots <- function(path, predictions, scores, model_label = "District model") {
+house_validation_plots <- function(path, predictions, scores, model_label = "District model",
+                                   provisional_choices = character()) {
   labels <- c(dem = "Democratic", rep = "Republican", other = "Other",
               none = "Did not vote for a House candidate")
   method_names <- c(model = model_label, baseline = "State presidential baseline")
@@ -57,7 +58,9 @@ house_validation_plots <- function(path, predictions, scores, model_label = "Dis
     graphics::box(col = "grey75")
     graphics::mtext("Predicted share of district citizen adults", side = 1, line = 2.8)
     graphics::mtext("Observed share of district citizen adults", side = 2, line = 3.4, las = 0)
-    graphics::title(main = labels[[choice]], line = 2, adj = 0)
+    title <- labels[[choice]]
+    if (choice %in% provisional_choices) title <- paste0(title, " (model provisional)")
+    graphics::title(main = title, line = 2, adj = 0)
     graphics::mtext("Raw predictions   /   30 held-out districts   /   Horizontal bars show 90% intervals",
                     side = 3, line = 0.5, adj = 0, cex = 0.8)
     graphics::abline(a = 0, b = 1, col = "grey48", lty = 3, lwd = 1.4)

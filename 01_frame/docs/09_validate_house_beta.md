@@ -129,7 +129,7 @@ p_H=a,\qquad p_R=(1-a)b,\qquad
 p_D=(1-a)(1-b)c,\qquad p_O=(1-a)(1-b)(1-c).
 $$
 
-The four shares sum to one in every draw. The script pairs 800 independently sampled posterior draws from each stage. For point predictions the script reconstructs shares from draws of the stage means and averages them. For each 90% predictive interval it reconstructs shares from draws of new **beta outcomes** and takes the 5th and 95th percentiles. Only covariates from a held-out district go into any of its three predictions.
+The four shares sum to one in every draw. The script pairs 500 independently sampled posterior draws from each stage. For point predictions the script reconstructs shares from draws of the stage means and averages them. For each 90% predictive interval it reconstructs shares from draws of new **beta outcomes** and takes the 5th and 95th percentiles. Only covariates from a held-out district go into any of its three predictions.
 
 The frozen holdout includes Alaska, Delaware, North Dakota, South Dakota, Vermont, Wyoming, DC and 23 sampled districts (seed 20241105). Including all six single-district states and DC tests prediction in states entirely absent from training. The remaining 404 tabulated districts train the single model sequence. All parameter choices are fixed before evaluation. The reported scores apply to this particular holdout.
 
@@ -148,22 +148,34 @@ The lineup shifts the predicted shares continuously. A party with no named nomin
 
 ## Run from the repository root
 
-~~~bash
+```bash
 Rscript 01_frame/scripts/09_model_house_votes.R prepare  # if the CD119 training CSV is absent
 Rscript 01_frame/scripts/09_validate_house_beta.R plan
 Rscript 01_frame/scripts/09_validate_house_beta.R validate
-~~~
+```
 
-`plan` checks the prepared dataset and writes the district split. `validate` fits the three regressions, checks their sampling diagnostics and evaluates the 30 held-out districts. The input is `01_frame/data/intermediate/09_house_training_cd119.csv`. This validation ends at the 2024 holdout. A refit on all tabulated districts and predictions on a new map belong to a later step.
+`plan` prints the CPU allocation and sampling budget on the machine running R, checks the district data and writes the split. `validate` runs the three regressions in order. The input is `01_frame/data/intermediate/09_house_training_cd119.csv`.
 
-The sampler uses four chains of 2,000 iterations each, including 1,000 warmup, with at most two chains running concurrently. Each stage must have R-hat below 1.01, bulk and tail effective sample sizes of at least 400, zero divergences and zero depth-13 hits. A failed stage gets one retry of 4,000 iterations with 2,000 warmup and a higher target acceptance (0.995 after 0.99). If it still fails, the console points to the diagnostic CSV and saved fit for inspection. The stage checks include the presidential spline and both random walks.
+Each stage has four chains. Each chain runs **1,000 warmup iterations and 125 sampling iterations** with no thinning. The four chains together supply **500 retained draws per stage**. These are raw draws. The effective sample sizes printed in the diagnostics measure how much independent information they contain. For each district the four point estimates and their 90% predictive intervals use the paired stage draws.
 
-Results are under `01_frame/data/output/09_beta_holdout/<run-key>/`. The filename `latest_complete.txt` in the parent output directory identifies the most recent successful run. The run key fingerprints the training data, fitting code and software versions. Fits in progress are saved under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. Rerun the validation command to resume after an interruption. Once all stages have passed and predictions are saved, the cache keeps the compact predictions and diagnostics and frees the three Stan fits. [Validation driver](../scripts/09_validate_house_beta.R) · [Model and priors](../scripts/helpers/09_beta_model.R) · [Scoring and plots](../scripts/helpers/09_validate.R)
+At startup, `parallelly::availableCores()` checks the CPUs available to the R process, including container limits. Up to four chains run concurrently. With one or two available cores the four chains run in batches. On larger machines with at least eight cores the sampler also assigns whole threads to each chain for the likelihood calculation, using static partitioning. For example, four cores run four chains with one thread apiece and eight cores run four chains with two threads apiece. The reported allocation is a CPU budget; actual utilization varies during compilation and sampling.
 
-| Run output | What to read it for |
+Stan prints the chain, iteration and phase every **10 iterations**, including warmup. Compilation precedes the first iteration. Timestamped messages identify the stage, eligible district count, cache reads, sampling attempts, diagnostics and report files. Running `validate` again under the same settings reuses completed checkpoints; an interrupted Stan chain starts again from the beginning of that stage. Sampling changes take effect when a new R process starts.
+
+### Reading diagnostics and provisional results
+
+The sampler checks R-hat (<1.01), bulk and tail effective sample sizes (at least 400 each across four chains), divergences and tree-depth-limit hits (zero each). A failed check on the no-House-vote or Republican stage triggers one retry with the same iterations and a higher target acceptance. The retry replaces the first attempt. If it also fails, the run reports the diagnostics and keeps the stage checkpoints for inspection.
+
+The last stage splits the Democratic-plus-Other remainder. If its fit supplies usable draws but misses a diagnostic threshold, the script finishes scoring and labels the **Democratic and Other model results provisional** in both CSVs and their plot titles. The first two model outcomes and the state presidential benchmark do not depend on that last fit. A compilation error, missing chain or unusable prediction is reported as an execution failure; inventing the missing split would give misleading shares.
+
+Results go under `01_frame/data/output/09_beta_holdout/<run-key>/`; the parent directory's `latest_complete.txt` names the latest run that published all reports, including one with a provisional final stage. The matching cache is under `01_frame/data/intermediate/09_beta_holdout_cache/<run-key>/`. An earlier run's files remain available under their original key.
+
+| Run output | What it contains |
 |---|---|
-| `09_beta_district_split.csv` | State, district, assignment to training or holdout, and reason for holding out or excluding a district. |
-| `09_beta_sampler_diagnostics.csv` | Convergence diagnostics for each stage. |
-| `09_beta_holdout_predictions.csv` | Observed and predicted shares, predictive interval endpoints and errors for each district and choice. |
-| `09_beta_holdout_scores.csv` | Bias, RMSE, rank correlation and 90% coverage for each choice and each method. |
-| `09_beta_holdout_plots.pdf` | Four observed-versus-predicted plots, one per choice. |
+| `09_beta_district_split.csv` | District identifiers and the training, holdout or excluded assignment. |
+| `09_beta_sampler_diagnostics.csv` | Per-stage sample size, endpoint adjustment and sampler checks. |
+| `09_beta_holdout_predictions.csv` | Observed and predicted shares, interval endpoints, errors and model diagnostic status. |
+| `09_beta_holdout_scores.csv` | Bias, RMSE, Spearman correlation and interval coverage by choice and method, with model diagnostic status. |
+| `09_beta_holdout_plots.pdf` | One page for each choice, with the model and presidential benchmark plotted against the 2024 results. |
+
+Validation ends with the 2024 holdout. A refit on all tabulated districts and projections onto a new map belong to a later step.

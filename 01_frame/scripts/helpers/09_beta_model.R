@@ -135,62 +135,136 @@ beta_sampler_diagnostics <- function(model) {
   audit
 }
 
-fit_beta_sequence <- function(training, seed, cache_dir = NULL, chains = 4L, iter = 2000L,
-                              cores = min(chains, 2L), warmup = iter %/% 2L, retry = FALSE) {
+# Four equal-length chains give comparable diagnostics with exactly 500 draws.
+# Count the CPUs allocated to this R process (including container limits).
+beta_sampler_plan <- function(available = parallelly::availableCores()) {
+  if (length(available) != 1L || !is.finite(available) ||
+      available < 1L || available != floor(available)) stop("Invalid CPU allocation.")
+  available <- as.integer(available)
+  chains <- 4L
+  workers <- min(available, chains)
+  warmup <- 1000L
+  sampling <- 125L
+  list(available = available, workers = workers, threads_per_chain = available %/% workers,
+       chains = chains, warmup = warmup, sampling = sampling, iter = warmup + sampling,
+       draws = chains * sampling, refresh = 10L)
+}
+
+beta_message <- function(...) {
+  message("[", format(Sys.time(), "%H:%M:%S %Z"), "] ", ...)
+  flush.console()
+}
+
+fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_sampler_plan()) {
   raw <- beta_stage_targets(training)
   replacement <- 1 / mean(training$total_votes)
   if (!is.finite(replacement) || replacement <= 0 || replacement >= 0.5) {
-    stop("The one-vote endpoint correction must lie strictly between zero and one half.")
+    stop("Endpoint correction is too large for a beta response.")
   }
-  prior <- beta_stage_priors()
-  previous <- NULL
   if (!is.null(cache_dir)) dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
-  stages <- vector("list", 3L)
-  diagnostics <- vector("list", 3L)
+  prior <- beta_stage_priors()
+  labels <- c(none = "No House candidate vote", rep = "Republican among voters",
+              dem = "Democratic among Democratic and Other voters")
+  stages <- diagnostics <- vector("list", ncol(raw))
+  previous <- NULL
 
-  for (j in seq_len(3L)) {
+  for (j in seq_len(ncol(raw))) {
     choice <- colnames(raw)[j]
-    y <- raw[, j]
-    keep <- !is.na(y)
+    keep <- !is.na(raw[, j])
+    label <- sprintf("Stage %d/%d (%s)", j, ncol(raw), labels[[choice]])
+    beta_message(label, ": preparing predictors for ", sum(keep), " training districts.")
     design <- beta_stage_design(training[keep, , drop = FALSE], choice)
-    y <- y[keep]
-    message("Stage ", choice, ": ", length(y), " eligible training districts.")
+    y <- raw[keep, j]
     y[y == 0] <- replacement
     y[y == 1] <- 1 - replacement
     design$frame$response <- y
 
     path <- if (!is.null(cache_dir)) file.path(cache_dir, sprintf("stage_%d.rds", j))
-    args <- list(seed = seed + j, chains = chains, iter = iter, warmup = warmup,
-                 cores = cores, refresh = 0, control = list(adapt_delta = 0.99, max_treedepth = 13L))
+    attempt <- 1L
+    model <- NULL
     if (!is.null(path) && file.exists(path)) {
-      model <- readRDS(path)
-    } else {
-      if (is.null(previous)) {
-        model <- do.call(brms::brm, c(list(formula = design$formula, data = design$frame,
-                         family = brms::Beta(link = "logit"), prior = prior, backend = "rstan"), args))
-      } else {
-        model <- do.call(stats::update, c(list(object = previous, formula. = design$formula,
-                         newdata = design$frame, prior = prior), args))
+      beta_message(label, ": loading checkpoint ", path)
+      checkpoint <- readRDS(path)
+      stopifnot(identical(checkpoint$choice, choice),
+                identical(checkpoint$plan, plan), checkpoint$attempt %in% 1:2)
+      attempt <- checkpoint$attempt
+      model <- checkpoint$model
+      rm(checkpoint)
+    }
+
+    # A checkpoint records which attempt produced the fit. Resuming a completed
+    # retry checks its diagnostics without starting a third attempt.
+    repeat {
+      if (is.null(model)) {
+        beta_message(label, ": starting attempt ", attempt, "; ", plan$chains,
+                     " chains, ", plan$warmup, " warmup + ", plan$sampling,
+                     " sampling iterations per chain. Stan prints every ", plan$refresh, ".")
+        args <- list(seed = seed + j + (attempt - 1L) * 1000L, chains = plan$chains,
+                     cores = plan$workers, warmup = plan$warmup, iter = plan$iter,
+                     thin = 1L, refresh = plan$refresh, future = FALSE, silent = 1L,
+                     control = list(adapt_delta = if (attempt == 1L) 0.99 else 0.995,
+                                    max_treedepth = 13L))
+        # With spare CPUs, split the district likelihood within each chain.
+        # Static scheduling preserves reproducibility for a given hardware plan.
+        nt <- plan$threads_per_chain
+        grain <- if (nt > 1L) max(1L, nrow(design$frame) %/% (2L * nt))
+        args$threads <- brms::threading(threads = nt, grainsize = grain, static = TRUE)
+        if (is.null(previous)) {
+          model <- do.call(brms::brm, c(list(formula = design$formula, data = design$frame,
+                          family = brms::Beta(link = "logit"), prior = prior, backend = "rstan"), args))
+        } else {
+          # brms can reuse compiled code when this stage has the same Stan program.
+          model <- do.call(stats::update, c(list(object = previous, formula. = design$formula,
+                          newdata = design$frame, prior = prior), args))
+        }
+        if (!is.null(path)) {
+          beta_message(label, ": saving fit to ", path)
+          stage_write(list(choice = choice, plan = plan, attempt = attempt, model = model),
+                      path, rds = TRUE)
+        }
       }
-      if (!is.null(path)) stage_write(model, path, rds = TRUE)
-    }
-    audit <- beta_sampler_diagnostics(model)
-    if (retry && !audit$passed && model$fit@sim$iter <= iter) {
-      message("Retrying stage ", choice, " with longer warmup and sampling.")
-      model <- stats::update(model, seed = seed + j + 1000L, iter = 2L * iter,
-                    warmup = 2L * warmup, chains = chains, cores = cores, refresh = 0,
-                    control = list(adapt_delta = 0.995, max_treedepth = 13L))
-      if (!is.null(path)) stage_write(model, path, rds = TRUE)
+
+      beta_message(label, ": checking draws and convergence.")
+      if (posterior::nchains(model) != plan$chains ||
+          posterior::niterations(model) != plan$sampling ||
+          !all(is.finite(posterior::as_draws_matrix(model)))) {
+        stop(label, " did not return the planned number of complete, finite draws. ",
+             "Check the Stan output", if (!is.null(path)) paste0(" and ", path), ".")
+      }
       audit <- beta_sampler_diagnostics(model)
+      passed <- isTRUE(audit$passed)
+      status <- if (passed) "passed" else if (choice == "dem") "provisional" else "failed"
+      diagnostics[[j]] <- data.frame(stage = choice, districts = sum(keep),
+                              omitted_empty_pool = sum(!keep), zero_share = replacement,
+                              adjusted_zeros = sum(raw[keep, j] == 0),
+                              adjusted_ones = sum(raw[keep, j] == 1),
+                              attempt = attempt, iterations = plan$iter, warmup = plan$warmup,
+                              sampling_per_chain = plan$sampling, workers = plan$workers,
+                              threads_per_chain = plan$threads_per_chain, status = status, audit)
+      beta_message(label, sprintf(paste0(": %s. Max R-hat %.3f, minimum ESS (bulk/tail) %.0f/%.0f, ",
+                   "divergences %d, tree-depth hits %d."), status, audit$max_rhat,
+                   audit$min_bulk_ess, audit$min_tail_ess, audit$divergences, audit$max_depth_hits))
+      if (!is.null(cache_dir)) {
+        stage_write(do.call(rbind, diagnostics[seq_len(j)]), file.path(cache_dir, "diagnostics.csv"))
+      }
+      if (passed || choice == "dem") break
+      if (attempt == 2L) {
+        stop(label, " failed convergence checks after its same-budget retry.",
+             if (!is.null(cache_dir)) paste0(" Review ", file.path(cache_dir, "diagnostics.csv"), "."))
+      }
+      beta_message(label, ": retrying once with a higher target acceptance (0.995) ",
+                   "and the same draw budget. The retry replaces the first fit.")
+      previous <- model
+      model <- NULL
+      attempt <- 2L
     }
+
+    if (!passed) {
+      beta_message(label, ": continuing with provisional Democratic and Other predictions. ",
+                   "No-House-vote and Republican predictions use the first two stages.")
+    }
+    stages[[j]] <- list(choice = choice, scaling = design$scaling, model = model)
     previous <- model
-    stages[[j]] <- list(choice = choice, scaling = design$scaling,
-                        model = model)
-    diagnostics[[j]] <- data.frame(stage = choice, districts = sum(keep),
-                                   omitted_empty_pool = sum(!keep), zero_share = replacement,
-                                   adjusted_zeros = sum(raw[keep, j] == 0),
-                                   adjusted_ones = sum(raw[keep, j] == 1),
-                                   iterations = model$fit@sim$iter, audit)
   }
   list(stages = stages, diagnostics = do.call(rbind, diagnostics))
 }
@@ -207,7 +281,7 @@ beta_unconditional_draws <- function(conditional) {
   list(dem = democratic, rep = republican, other = other, none = home)
 }
 
-predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
+predict_beta_sequence <- function(fit, newdata, seed, ndraws = 500L) {
   epred <- list()
   predictive <- list()
   for (j in seq_along(fit$stages)) {
@@ -243,20 +317,29 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 800L) {
 
 # The driver keys fit_dir on model inputs, source and sampler configuration.
 # Keep only the compact predictions once all three stage fits have succeeded.
-beta_fit_predict <- function(training, assessment, seed, fit_dir) {
+# A completed holdout prediction can be reused without sampling. Keep every
+# stage fit if D-versus-Other is provisional so its draws can be inspected.
+beta_fit_predict <- function(training, assessment, seed, fit_dir, plan = beta_sampler_plan()) {
   completed <- file.path(fit_dir, "predictions.rds")
-  if (file.exists(completed)) return(readRDS(completed))
-  fit <- fit_beta_sequence(training, seed, fit_dir, retry = TRUE)
-  stage_write(fit$diagnostics, file.path(fit_dir, "diagnostics.csv"))
-  if (!all(fit$diagnostics$passed)) {
-    failed <- which(!fit$diagnostics$passed)
-    stop("Sampling diagnostics failed after the longer retry. Review ",
-         file.path(fit_dir, "diagnostics.csv"), " before proceeding. Retained fit(s): ",
-         paste(file.path(fit_dir, sprintf("stage_%d.rds", failed)), collapse = ", "))
+  if (file.exists(completed)) {
+    beta_message("Reusing completed holdout predictions from ", completed)
+    result <- readRDS(completed)
+    if (!all(result$diagnostics$passed)) {
+      beta_message("The cached Democratic and Other predictions are provisional.")
+    }
+    return(result)
   }
-  result <- predict_beta_sequence(fit, assessment, seed = seed + 5L)
+  fit <- fit_beta_sequence(training, seed, fit_dir, plan)
+  beta_message("Predicting ", nrow(assessment), " held-out districts with ", plan$draws,
+               " joint draws and calculating 90% predictive intervals.")
+  result <- predict_beta_sequence(fit, assessment, seed = seed + 5L, ndraws = plan$draws)
   result$diagnostics <- fit$diagnostics
   stage_write(result, completed, rds = TRUE)
-  unlink(file.path(fit_dir, sprintf("stage_%d.rds", seq_len(3L))))
+  beta_message("Saved holdout predictions to ", completed)
+  if (all(fit$diagnostics$passed)) {
+    unlink(file.path(fit_dir, sprintf("stage_%d.rds", seq_len(nrow(fit$diagnostics)))))
+  } else {
+    beta_message("Retained all three fit checkpoints in ", fit_dir, " for diagnostic review.")
+  }
   result
 }
