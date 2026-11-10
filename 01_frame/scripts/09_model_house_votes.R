@@ -262,8 +262,7 @@ fit_and_validate <- function(old, mid, out, seed) {
   }
   # Score direct predictions on the held-out districts before the full refit.
   y <- house_columns$shares
-  validate_house_predictions(score_matrix(train,y), score_matrix(train,house_columns$president),
-    score_matrix(test,y), score_matrix(test,house_columns$president),
+  validate_house_predictions(score_matrix(test,y), score_matrix(test,house_columns$president),
     get(prediction$mean_share, mean), get(prediction$predictive_share, quantile, probs=.05),
     get(prediction$predictive_share, quantile, probs=.95), district_id(test), out)
   rm(audit, prediction)

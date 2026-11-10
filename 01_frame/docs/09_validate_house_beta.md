@@ -140,9 +140,9 @@ For each of H, R, D and Other, let $e_i=\hat p_i-p_i$ for the 30 held-out distri
 | Bias in percentage points | $100\,\operatorname{mean}(e_i)$. Positive bias means overprediction. |
 | RMSE in percentage points | $100\sqrt{\operatorname{mean}(e_i^2)}$. |
 | Spearman correlation | Correlation of observed and predicted ranks, averaging ties. |
-| 90% predictive interval coverage | Fraction of observed shares between their predictive endpoints, inclusive. |
+| 90% predictive interval coverage (model only) | Fraction of observed shares inside the model's predictive interval, including its endpoints. |
 
-The benchmark uses each district's corresponding **state presidential** share. For each choice, the script takes the 365th smallest absolute benchmark error among the 404 training districts, adds and subtracts it from the state share, and clips the endpoints to $[0,1]$. This is the finite-sample rank $\lceil0.9(404+1)\rceil$. Each of the four pages of the validation plot puts the observed share on the vertical axis and the prediction on the horizontal axis. It includes the equality line, horizontal 90% predictive intervals and the four scores for both methods.
+The presidential baseline gives every district in a state the state's 2024 presidential share for that choice. Its three scores are bias, RMSE and Spearman correlation. The four-page PDF plots predicted share on the horizontal axis and observed House share on the vertical axis. A district on the equality line was predicted exactly. Horizontal bars show the beta model's 90% predictive intervals.
 
 The lineup shifts the predicted shares continuously. A party with no named nominee can receive a small positive prediction. In this holdout, 11 districts recorded **exactly zero** Other votes. A continuous beta model gives strictly interior central predictive intervals. The model's Other interval can therefore cover at most 19 of these 30 observations (63.3%), even if its point predictions for the zeros are very close. The CSV preserves those zeros so the plot and coverage score show this limitation.
 
@@ -173,6 +173,14 @@ Rscript 01_frame/scripts/09_validate_house_beta.R validate
 
 `plan` prints the CPU allocation and sampling budget on the machine running R, checks the district data and writes the split. `validate` runs the three regressions in order. The input is `01_frame/data/intermediate/09_house_training_cd119.csv`.
 
+To refresh the reports for the latest completed run from its saved predictions and open the four-page PDF in Codespaces, run the following from the repository root. This works with a completed run created under the earlier reporting rules and requires no sampling.
+
+```bash
+Rscript 01_frame/scripts/09_validate_house_beta.R report
+reports=01_frame/data/output/09_beta_holdout
+code "$reports/$(cat "$reports/latest_complete.txt")/09_beta_holdout_plots.pdf"
+```
+
 Each stage has four chains. Each chain runs **1,000 warmup iterations and 125 sampling iterations** with no thinning. The four chains together supply **500 retained draws per stage**. These are raw draws. The effective sample sizes printed in the diagnostics measure how much independent information they contain. For each district the four point estimates and their 90% predictive intervals use the paired stage draws.
 
 At startup, `parallelly::availableCores()` checks the CPUs available to the R process, including container limits. Up to four chains run concurrently. With one or two available cores the four chains run in batches. On larger machines with at least eight cores the sampler also assigns whole threads to each chain for the likelihood calculation, using static partitioning. For example, four cores run four chains with one thread apiece and eight cores run four chains with two threads apiece. The reported allocation is a CPU budget; actual utilization varies during compilation and sampling.
@@ -199,8 +207,8 @@ The [complete generated Stan program](stan/09_sequential_beta.stan) is available
 |---|---|
 | `09_beta_district_split.csv` | District identifiers and the training, holdout or excluded assignment. |
 | `09_beta_sampler_diagnostics.csv` | Per-stage sample size, endpoint adjustment and sampler checks. |
-| `09_beta_holdout_predictions.csv` | Observed and predicted shares, interval endpoints, errors and model diagnostic status. |
-| `09_beta_holdout_scores.csv` | Bias, RMSE, Spearman correlation and interval coverage by choice and method, with model diagnostic status. |
+| `09_beta_holdout_predictions.csv` | Observed shares, point predictions and errors for both methods. Model rows also record interval endpoints, coverage indicators and sampler status. |
+| `09_beta_holdout_scores.csv` | Bias, RMSE and Spearman correlation by choice and method. Model rows also record 90% predictive interval coverage and sampler status. |
 | `09_beta_holdout_plots.pdf` | One page for each choice, with the model and presidential benchmark plotted against the 2024 results. |
 
 Validation ends with the 2024 holdout. A refit on all tabulated districts and projections onto a new map belong to a later step.
