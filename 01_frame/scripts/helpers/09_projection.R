@@ -51,6 +51,8 @@ mark_unpolled_house_scenarios <- function(old, nominee_path) {
   old
 }
 
+# Classify the CD120 targets and attach the corresponding ballot predictors.
+# roster_path supplies 2026 nominees with their November 2024 incumbency.
 prepare_house_prediction_scope <- function(target, old, roster_path) {
   old_row <- house_projection_matches(target, old)
   redrawn <- is.na(old_row)
@@ -79,7 +81,7 @@ prepare_house_prediction_scope <- function(target, old, roster_path) {
   target$lineup_year <- ifelse(current_lineup, 2026L, 2024L)
 
   # Carry the historical lineup with every identical observed footprint for
-  # the covariate table. Those districts' final shares use their actual votes.
+  # the covariate table. The footprint match identifies their 2024 vote counts.
   lineup_fields <- c("slate", "n_dem", "n_rep", "n_other", "ballot_dem", "ballot_rep",
                      "ballot_other", "same_party_multiple", "ballot_group", "major_party_direction",
                      house_columns$incumbent)

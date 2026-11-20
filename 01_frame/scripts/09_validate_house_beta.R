@@ -58,7 +58,7 @@ beta_run_key <- function(input_file, plan) {
   hashes <- vapply(files, digest::digest, character(1), algo = "sha256", file = TRUE)
   signature <- list(files = hashes, R = R.version.string, platform = R.version$platform,
                     packages = versions, sampler = plan[c("chains", "warmup", "sampling",
-                                                           "workers", "threads_per_chain")])
+                                                           "workers", "threads_per_chain", intersect("adapt_delta", names(plan)))])
   substr(digest::digest(signature, algo = "sha256"), 1L, 20L)
 }
 
@@ -81,6 +81,11 @@ write_beta_holdout_report <- function(out, report, audit) {
     model <- rows$method == "model"
     value[model] <- "passed"
     value[model & rows$choice %in% provisional] <- "provisional"
+    # The adjusted no-vote share can include mass from the final split.
+    if (length(provisional)) {
+      adjusted_none <- rows$prediction_stage == "ballot_adjusted" & rows$choice == "none"
+      value[model & adjusted_none] <- "provisional"
+    }
     value
   }
   report$scores$sampler_status <- status(report$scores)

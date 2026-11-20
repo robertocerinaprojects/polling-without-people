@@ -1,4 +1,4 @@
-# Prepare the district outcomes and covariates used by the House beta regressions.
+# Prepare observed CD119 outcomes and CD120 scenario inputs for the House model.
 # Run from the repository root: Rscript 01_frame/scripts/09_model_house_votes.R prepare
 for (helper in c("09_ballot_groups.R", "09_projection.R",
                  "09_party_covariates.R")) {
@@ -122,6 +122,12 @@ add_slate <- function(x, path, complete = FALSE) {
 }
 
 prepare_house_tables <- function(mid, out) {
+  # Use the scenario-specific roster so a member who first joined the House
+  # after the 2024 election cannot contribute to a target's incumbency flag.
+  scenario_roster <- file.path(mid, "08_house_slates_2026_incumbency_2024.csv")
+  if (!file.exists(scenario_roster)) {
+    stop("Missing 2026 lineup with 2024 incumbency. Run 08_prepare_house_slates.py.")
+  }
   demos <- read_table09(file.path(mid, "08_district_demographics.csv"))
   state_file <- file.path(mid, "07_state_presidential_covariates_2024.csv")
   pres <- office_fields(read_table09(state_file), list(
@@ -213,7 +219,7 @@ prepare_house_tables <- function(mid, out) {
   eq <- overlay[overlay$same_footprint, ]
   stopifnot(!anyDuplicated(eq[c("STATEFP","CDFP119")]), !anyDuplicated(eq[c("STATEFP","CDFP120")]))
   new$matching_cd119 <- eq$CDFP119[match(district_id(new), paste(eq$STATEFP,eq$CDFP120,sep="-"))]
-  new <- prepare_house_prediction_scope(new, old, file.path(mid, "08_house_slates_2026.csv"))
+  new <- prepare_house_prediction_scope(new, old, scenario_roster)
   stage_write(new, file.path(mid, "09_house_target_cd120.csv"))
   stage_write(house_party_covariates(old, new), file.path(mid, "09_house_party_inputs.csv"))
   list(old = old, new = new)

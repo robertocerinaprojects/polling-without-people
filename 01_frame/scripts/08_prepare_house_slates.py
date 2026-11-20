@@ -2,7 +2,9 @@
 
 The 2024 roster uses 119th Congress districts and the 2026 roster uses the 120th.
 Read the pinned Clerk lists, apply the documented ballot corrections, then
-write both district tables and the candidate-by-candidate audit.
+write both annual district tables and the candidate-by-candidate audit.
+Also build the counterfactual district table using 2026 nominees and
+November 4, 2024 House membership.
 """
 
 from collections import Counter
@@ -11,6 +13,7 @@ import hashlib
 from pathlib import Path
 import re
 import subprocess
+import unicodedata
 from tempfile import TemporaryDirectory
 from urllib.request import urlopen
 
@@ -199,6 +202,56 @@ def summarize(year, roster):
     return audit, slates
 
 
+# Counterfactual incumbency for the 2026 nominees -----------------------------
+def member_name_key(name):
+    """Allow Clerk variants in accents, punctuation, middle initials and suffixes."""
+    name = re.sub(r'“[^”]+”|"[^"]+"', " ", name)
+    name = unicodedata.normalize("NFKD", name.casefold())
+    name = "".join(char for char in name if not unicodedata.combining(char))
+    words = re.findall(r"[a-z]+", name.replace("’", "'").replace("'", ""))
+    return " ".join(word for word in words if len(word) > 1 and word not in {"jr", "sr", "ii", "iii", "iv"})
+
+
+def election_eve_members(districts):
+    path = FRAME / "docs" / "08_house_members_2024_election_eve.csv"
+    rows = csv_rows(path)
+    seats = {(row["STATEFP"], row["CDFP118"]) for row in rows}
+    # The three voting-seat vacancies on November 4 were NJ-09, TX-18 and WI-08.
+    if len(seats) != len(rows) or seats != districts - {("34", "09"), ("48", "18"), ("55", "08")}:
+        raise ValueError(f"Unexpected November 4 House seat coverage in {path}")
+    # Index the full House membership across districts within each state.
+    # A district key would miss incumbents who ran in a different seat.
+    # Keeping the state avoids joining nominees to out-of-state namesakes.
+    members = {}
+    for row in rows:
+        key = (row["STATEFP"], member_name_key(row["member"]))
+        if not key[1] or key in members:
+            raise ValueError(f"Missing or ambiguous November 4 member name: {row}")
+        members[key] = row
+    return members
+
+
+def counterfactual_slates(audit, roster, members):
+    """Use the 2026 ballot party and the nominee's House seat on November 4, 2024."""
+    scenario = {}
+    for row in audit:
+        member = members.get((row["STATEFP"], member_name_key(row["candidate"])))
+        incumbent = int(member is not None)
+        # The reviewed 2024 slate provides an independent check on the match
+        # for both sitting members and challengers.
+        if row["year"] == 2024 and row["included"] and incumbent != row["incumbent"]:
+            raise ValueError(f"November 4 membership disagrees with reviewed 2024 nominee: {row['candidate']}")
+        row.update(incumbent_2024=incumbent,
+                   member_name_2024=member["member"] if member else "",
+                   member_district_2024=member["CDFP118"] if member else "")
+        # Copy the 2026 nominee so the annual audit retains its own service flag.
+        if row["year"] == 2026:
+            key = (row["STATEFP"], row["CDFP"], row["candidate"])
+            scenario[key] = dict(roster[key], incumbent=incumbent)
+    _, slates = summarize(2026, scenario)
+    return slates
+
+
 def check_district_roster(year, slates, manifest):
     districts = {(row["STATEFP"], row["CDFP"]) for row in slates}
     actual_states = {state for state, district in districts}
@@ -237,10 +290,12 @@ def main():
     tables = {}
     audit = []
     district_sets = []
+    rosters = {}
     for year in SOURCE_DIGEST:
         roster = nominees(year, states)
         year_reviews = [row for row in reviews if row["year"] == str(year)]
         apply_reviews(roster, year_reviews)
+        rosters[year] = roster
         evidence, slates = summarize(year, roster)
         districts = check_district_roster(year, slates, manifest)
         district_sets.append(districts)
@@ -248,6 +303,9 @@ def main():
         audit.extend(evidence)
     if district_sets[0] != district_sets[1]:
         raise ValueError("District labels differ between election years; check apportionment.")
+    members = election_eve_members(district_sets[0])
+    scenario = counterfactual_slates(audit, rosters[2026], members)
+    save(FRAME / "data" / "intermediate" / "08_house_slates_2026_incumbency_2024.csv", scenario)
     for year, slates in tables.items():
         target = FRAME / "data" / "intermediate" / f"08_house_slates_{year}.csv"
         save(target, slates)

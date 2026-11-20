@@ -207,6 +207,12 @@ beta_message <- function(...) {
 }
 
 fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_sampler_plan()) {
+  # Production can start at a higher acceptance target while the historical
+  # holdout retains its original sampler settings.
+  adapt_delta <- plan$adapt_delta
+  if (is.null(adapt_delta)) adapt_delta <- c(0.99, 0.995)
+  stopifnot(length(adapt_delta) == 2L, all(is.finite(adapt_delta)),
+            0 < adapt_delta[1L], adapt_delta[1L] < adapt_delta[2L], adapt_delta[2L] < 1)
   raw <- beta_stage_targets(training)
   replacement <- 1 / mean(training$total_votes)
   if (!is.finite(replacement) || replacement <= 0 || replacement >= 0.5) {
@@ -253,7 +259,7 @@ fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_samp
         args <- list(seed = seed + j + (attempt - 1L) * 1000L, chains = plan$chains,
                      cores = plan$workers, warmup = plan$warmup, iter = plan$iter,
                      thin = 1L, refresh = plan$refresh, future = FALSE, silent = 1L,
-                     control = list(adapt_delta = if (attempt == 1L) 0.99 else 0.995,
+                     control = list(adapt_delta = adapt_delta[attempt],
                                     max_treedepth = 13L))
         # With spare CPUs, split the district likelihood within each chain.
         # Static scheduling preserves reproducibility for a given hardware plan.
@@ -283,7 +289,8 @@ fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_samp
                               omitted_empty_pool = sum(!keep), zero_share = replacement,
                               adjusted_zeros = sum(raw[keep, j] == 0),
                               adjusted_ones = sum(raw[keep, j] == 1),
-                              attempt = attempt, iterations = plan$iter, warmup = plan$warmup,
+                              attempt = attempt, adapt_delta = adapt_delta[attempt],
+                              iterations = plan$iter, warmup = plan$warmup,
                               sampling_per_chain = plan$sampling, workers = plan$workers,
                               threads_per_chain = plan$threads_per_chain, status = status, audit)
       beta_message(label, sprintf(paste0(": %s. Max R-hat %.3f, minimum ESS (bulk/tail) %.0f/%.0f, ",
@@ -297,7 +304,7 @@ fit_beta_sequence <- function(training, seed, cache_dir = NULL, plan = beta_samp
         stop(label, " failed convergence checks after its same-budget retry.",
              if (!is.null(cache_dir)) paste0(" Review ", file.path(cache_dir, "diagnostics.csv"), "."))
       }
-      beta_message(label, ": retrying once with a higher target acceptance (0.995) ",
+      beta_message(label, ": retrying once with a higher target acceptance (", adapt_delta[attempt + 1L], ") ",
                    "and the same draw budget. The retry replaces the first fit.")
       previous <- model
       model <- NULL
@@ -326,7 +333,36 @@ beta_unconditional_draws <- function(conditional) {
   list(dem = democratic, rep = republican, other = other, none = home)
 }
 
-predict_beta_sequence <- function(fit, newdata, seed, ndraws = 500L) {
+# Use the footprint match to identify redrawn prediction rows. FL-20 is
+# redrawn even though it uses the special 2024 ballot, while OK-03 is unchanged.
+beta_absent_parties <- function(newdata) {
+  absent <- matrix(FALSE, nrow(newdata), 3L, dimnames = list(NULL, c("dem", "rep", "other")))
+  if (!"prediction_source" %in% names(newdata)) return(absent)
+
+  stopifnot("matching_cd119" %in% names(newdata), !anyNA(newdata$prediction_source))
+  redrawn <- newdata$prediction_source %in% c("model_redrawn", "model_unopposed_2024") &
+    (is.na(newdata$matching_cd119) | newdata$matching_cd119 == "")
+  nominees <- house_matrix(newdata, c("n_dem", "n_rep", "n_other"), 3L, "nominees")
+  stopifnot(all(is.finite(nominees) & nominees >= 0 & nominees == floor(nominees)),
+            all(rowSums(nominees) > 0))
+  absent[,] <- nominees == 0 & redrawn
+  absent
+}
+
+# Move the absent parties' shares on each draw so the interval for no vote
+# reflects the combined shares from that draw. Keep the other parties as drawn.
+beta_move_absent_shares <- function(draws, absent) {
+  for (party in colnames(absent)) {
+    districts <- absent[, party]
+    draws$none[, districts] <- draws$none[, districts, drop = FALSE] +
+      draws[[party]][, districts, drop = FALSE]
+    draws[[party]][, districts] <- 0
+  }
+  draws
+}
+
+predict_beta_sequence <- function(fit, newdata, seed, ndraws = 500L,
+                                  absent = beta_absent_parties(newdata)) {
   epred <- list()
   predictive <- list()
   for (j in seq_along(fit$stages)) {
@@ -342,28 +378,31 @@ predict_beta_sequence <- function(fit, newdata, seed, ndraws = 500L) {
     predictive[[j]] <- brms::posterior_predict(prep)
   }
   expected <- beta_unconditional_draws(epred)
-  outcomes <- beta_unconditional_draws(predictive)
+  outcomes <- beta_move_absent_shares(beta_unconditional_draws(predictive), absent)
   collapse <- function(draws, statistic) {
     result <- do.call(cbind, lapply(draws, function(x) apply(x, 2L, statistic)))
     stopifnot(nrow(result) == nrow(newdata), all(is.finite(result) & result >= 0 & result <= 1))
     result
   }
-  point <- collapse(expected, mean)
+  raw_point <- collapse(expected, mean)
+  point <- collapse(beta_move_absent_shares(expected, absent), mean)
   stopifnot(all(abs(rowSums(point) - 1) < 1e-9))
-  # Beta predictive quantiles are strictly interior. The RNG can round a
-  # boundary-adjacent draw to 0 or 1. Keep the interval inside its support
-  # so that this rounding never credits the model for covering an exact zero.
-  interval <- function(p) collapse(outcomes, function(x) {
-    q <- stats::quantile(x, p, names = FALSE)
-    pmin(1 - .Machine$double.eps / 2, pmax(.Machine$double.xmin * .Machine$double.eps, q))
-  })
-  list(point = point, lower = interval(.05), upper = interval(.95))
+  # Preserve the interior interval convention for unconstrained beta shares.
+  # A structural zero is deterministic, so both interval endpoints are zero.
+  interval <- function(p) {
+    bounds <- collapse(outcomes, function(x) {
+      q <- stats::quantile(x, p, names = FALSE)
+      pmin(1 - .Machine$double.eps / 2, pmax(.Machine$double.xmin * .Machine$double.eps, q))
+    })
+    bounds[cbind(absent, FALSE)] <- 0
+    bounds
+  }
+  list(point = point, lower = interval(.05), upper = interval(.95), raw_point = raw_point)
 }
 
 # The driver keys fit_dir on model inputs, source and sampler configuration.
-# Keep only the compact predictions once all three stage fits have succeeded.
-# A completed holdout prediction can be reused without sampling. Keep every
-# stage fit if D-versus-Other is provisional so its draws can be inspected.
+# Keep the fitted draws so the holdout can also score ballot adjustments.
+# A completed raw holdout prediction can be reused without sampling.
 beta_fit_predict <- function(training, assessment, seed, fit_dir, plan = beta_sampler_plan()) {
   completed <- file.path(fit_dir, "predictions.rds")
   if (file.exists(completed)) {
@@ -388,10 +427,5 @@ beta_fit_predict <- function(training, assessment, seed, fit_dir, plan = beta_sa
   result$diagnostics <- fit$diagnostics
   stage_write(result, completed, rds = TRUE)
   beta_message("Saved holdout predictions to ", completed)
-  if (all(fit$diagnostics$passed)) {
-    unlink(file.path(fit_dir, sprintf("stage_%d.rds", seq_len(nrow(fit$diagnostics)))))
-  } else {
-    beta_message("Retained all three fit checkpoints in ", fit_dir, " for diagnostic review.")
-  }
   result
 }

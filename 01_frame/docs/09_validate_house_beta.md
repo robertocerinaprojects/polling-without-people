@@ -146,6 +146,16 @@ The presidential baseline gives every district in a state the state's 2024 presi
 
 The lineup shifts the predicted shares continuously. A party with no named nominee can receive a small positive prediction. In this holdout, 11 districts recorded **exactly zero** Other votes. A continuous beta model gives strictly interior central predictive intervals. The model's Other interval can therefore cover at most 19 of these 30 observations (63.3%), even if its point predictions for the zeros are very close. The CSV preserves those zeros so the plot and coverage score show this limitation.
 
+## Score the ballot-adjusted holdout
+
+Run `Rscript 01_frame/scripts/09_score_adjusted_house_holdout.R` after
+validation. It reuses the published holdout's stage checkpoints and
+verifies that they reproduce the original point predictions. It then
+applies the redrawn-district ballot rule using the held-out districts'
+known 2024 slates. Observed write-ins and the presidential baseline are
+scored as recorded. The adjusted predictions, scores and figure are in
+the published run's `ballot_adjusted/` subdirectory.
+
 ## Inspect the district-by-party data
 
 Step 09 preparation writes **`01_frame/data/intermediate/09_house_party_inputs.csv`**. Each district has four rows per map, one for each of `D`, `R`, `Other` and `DidNotVote`. The response column, `observed_share_2024`, is the choice’s share of district CVAP. The same row contains the district’s 29 demographic shares, the matching state presidential share and the ballot lineup. The three candidate choices also have party-specific nominee counts and incumbency. The 434 tabulated districts on the 2024 map (CD119) have observed shares. FL-20, OK-03 and all 2026-map rows (CD120) have missing outcomes in this input.

@@ -1,0 +1,4 @@
+"stage","districts","omitted_empty_pool","zero_share","adjusted_zeros","adjusted_ones","attempt","iterations","warmup","sampling_per_chain","workers","threads_per_chain","status","chains","postwarmup_draws","parameters","max_rhat","min_bulk_ess","min_tail_ess","divergences","max_depth_hits","passed"
+"none",434,0,2.92629095837249e-06,0,0,2,1500,1000,500,4,1,"passed",4,2000,85,1.00761592162395,565.303399157437,922.079536066106,0,0,TRUE
+"rep",434,0,2.92629095837249e-06,16,7,1,1500,1000,500,4,1,"passed",4,2000,90,1.01926408379006,311.592076567458,862.413446485209,0,0,TRUE
+"dem",427,7,2.92629095837249e-06,12,179,1,1500,1000,500,4,1,"passed",4,2000,90,1.01034511594262,598.623820515718,688.683795733965,0,0,TRUE

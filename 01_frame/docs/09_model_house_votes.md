@@ -24,13 +24,66 @@ The tables carry all 29 district demographic shares across age, recorded sex, ra
 
 Every CD120 target uses its own district demographics. The block comparison and availability of 2024 returns establish which lineup accompanies it.
 
+For modeled redrawn districts, we assume that if the 2026 district boundaries had been in place for the 2024 election, the nominees would have been the same people who ran in those districts in 2026. Evaluate incumbency for each of those nominees immediately before the 2024 general election. A nominee serving in the U.S. House at that point counts as an incumbent even if they represented a different district. A nominee who first entered the House after that election receives no incumbency credit for this scenario. Set each party's district-level incumbency flag if any of its nominees qualifies.
+
+Step 08 builds the scenario roster from the November 4, 2024 House membership reference. The nominee audit records each match and the seat the person held. [Membership source and preparation](08_house_slates.md#which-years-lineup-enters-the-model)
+
 | Target districts | Prepared lineup and source flag |
 |---|---|
 | 290 exact matches with a tabulated 2024 contest | Use the matched CD119 district’s 2024 nominees. `observed_same_footprint` identifies where the 2024 counts are available. |
-| 144 redrawn districts outside the special cases below | Use the reviewed 2026 nominees. `model_redrawn` identifies a target requiring an estimate. |
+| 144 redrawn districts outside the special cases below | Use the reviewed 2026 nominees with 2024 incumbency. `model_redrawn` identifies a target requiring an estimate. |
 | FL-20 and OK-03 | Use the declared 2024 winner as the sole named nominee for the hypothetical election. `model_unopposed_2024` identifies these two targets. |
 
 The FL-20 scenario uses Democrat Sheila Cherfilus-McCormick with the population of the redrawn Florida district. OK-03 retains its footprint and uses Republican Frank D. Lucas. Both were sitting members of Congress. The script checks both names, parties and incumbency flags against the 2024 nominee audit. The target table carries scenario identifiers and predictors for future estimation. [Reviewed unpolled winners and official sources](09_unpolled_house_winners_2024.csv)
+
+## Structural zeros in redrawn districts
+
+After composing the four shares, set each party group's share to zero
+where its target slate has no eligible nominee. Add the removed share to
+the share with no counted House candidate vote. Apply this to each
+prediction draw before summarizing means and intervals. The rule applies
+to Democratic, Republican and Other in any redrawn district, including
+the FL-20 scenario. OK-03 has the same footprint and keeps the model's
+unadjusted shares. The separate adjusted holdout uses the same transfer
+on predictions for the frozen 2024 districts and leaves their observed
+returns as counted.
+
+## Build and inspect the final CD120 shares
+
+After preparing the model inputs, run from the repository root.
+
+```sh
+Rscript 01_frame/scripts/09_predict_house_cd120.R
+```
+
+The production fit uses all 434 tabulated 2024 contests and keeps its
+checkpoints in `data/intermediate/09_house_cd120_fit/`. The 30-district
+holdout is a separate validation run on the 2024 map.
+Production defaults to a target acceptance of 0.995 and uses 0.999 for
+any retry triggered by the existing diagnostics. The first production
+no-vote fit had one divergence at 0.99. Its retry at 0.995 passed with
+zero divergences.
+
+| File under `data/output/` | Contents |
+|---|---|
+| `09_house_raw_shares_cd120.csv` | Observed shares and unadjusted model means. |
+| `09_house_final_shares_cd120.csv` | Same observed shares and model means after the redrawn-district adjustment. |
+| `09_house_cd120_sampler_diagnostics.csv` | Convergence status and effective sample sizes by stage. |
+
+The November 20 production run used checkpoint `69f5516a193c187ae6cf`
+and passed all three diagnostic checks. It used 1,000 warmup and 500
+retained iterations in each of four chains per stage. The no-vote stage
+passed at 0.995 on retry. The other two stages passed at 0.99 under that
+run's original sampler plan.
+
+Both share files have one row per district. Read `STATEFP` and `CDFP` as
+text. The four share columns are proportions that sum to one. On
+identical footprints with tabulated results, the script carries the
+official 2024 candidate counts forward and divides by the CD120
+citizen-adult population. The no-vote share is the remaining proportion.
+Use `prediction_source` to identify those observations, the redrawn
+predictions, and the two unopposed scenarios. A `provisional` fit status
+indicates that a stage failed its diagnostic thresholds.
 
 ## Reading the district-by-party covariates
 
@@ -47,7 +100,7 @@ Paths are relative to `01_frame/data/`.
 | `intermediate/07_house_votes_cd119.csv` | Counts and tabulation status for the original district outcomes. |
 | `intermediate/07_state_presidential_covariates_2024.csv` | State CVAP totals for reconciliation and four statewide presidential shares. |
 | `intermediate/08_district_demographics.csv` | Unrounded population denominator and demographic margins for every district on each map. |
-| `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026.csv` | Nominee counts, party groups and incumbency flags for each election. |
+| `intermediate/08_house_slates_2024.csv`, `intermediate/08_house_slates_2026_incumbency_2024.csv` | Actual 2024 ballot and counterfactual ballot with 2026 nominees. Both use November 2024 incumbency. |
 | `output/08_house_slate_nominees.csv`, [reviewed winner file](09_unpolled_house_winners_2024.csv) | Verify the sole nominees and their incumbency in FL-20 and OK-03. |
 | `output/08_district_overlap.csv` | Establish which 2026 districts have an exact 2024 block-footprint match. |
 

@@ -3,6 +3,16 @@
 Replication pipeline under development. We review, refine and run each
 analysis step before treating its outputs as validated.
 
+## Principal deliverables
+
+| Deliverable | Status |
+|---|---|
+| 2024 House choice shares on the 2026 congressional map | Built and checked. Step 09 writes `01_frame/data/output/09_house_final_shares_cd120.csv`. |
+| ACS mother frame on the 2026 congressional map | Built and checked. Step 06 writes `01_frame/data/intermediate/pums_cd_cells.rds`. |
+
+See the [frame guide](01_frame/README.md#principal-deliverables) for the
+files to inspect, the scenario assumption and the build steps.
+
 ## Components
 
 | Component | Purpose |
