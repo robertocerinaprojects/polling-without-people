@@ -5,7 +5,7 @@ Download the three published files below or find them in a clone under
 
 | Download | Contents |
 | --- | --- |
-| [district_election_inputs_cd120.csv](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/district_election_inputs_cd120.csv) | 1,744 rows, with four vote choices per 2026 congressional district, including DC. Each row carries the district House share and the statewide presidential share for that choice. |
+| [district_election_inputs_cd120.csv](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/district_election_inputs_cd120.csv) | 1,744 rows, with four vote choices per 2026 congressional district, including DC. Each row carries the 2024 district House share and statewide presidential share for that choice, plus the House lineup, incumbency, and ballot presence. |
 | [pums_cd_cells.rds](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/pums_cd_cells.rds) | 497,550 positive-population cells from the 2020–2024 ACS PUMS on the 2026 district map. `N` is the sum of allocated citizen-adult weights. |
 | [ces_2024_harmonized.rds](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/ces_2024_harmonized.rds) | 58,627 eligible 2024 CES respondents with the seven mother-frame cell keys and the outcomes `vote_house_2024` and `vote_pres_2024`. Missing values and factor levels are preserved. |
 
@@ -23,17 +23,9 @@ The harmonized survey file is derived from Schaffner, Shih, Ansolabehere, and
 Pope (2025), *Cooperative Election Study Common Content, 2024*, Harvard Dataverse,
 V9, released under CC0 1.0. [Source dataset](https://doi.org/10.7910/DVN/X11EP6)
 
-## SHA-256 checksums
-
-```text
-e29d5b82786dd1331526dd473ec906f175f63229086824b365fcaeb0c426ad6f  ces_2024_harmonized.rds
-24eedb7512adbb7ae13f7e3156400f7807da9ae40925e13c1a38cfa13ada74d9  district_election_inputs_cd120.csv
-495a43f97c0e2f9ec45a6e61462fbd6861f32eb9fd857dcf993d762f9c2613c0  pums_cd_cells.rds
-```
-
 ## Election results
 
-The CSV follows the Denmark reference’s one-row-per-choice-and-area layout. The area is the 2026 House district. `vote_choice` contains Democratic, Republican, Other, or No Vote, matching the response labels in the CES. Both result columns are fractions from 0 to 1 of estimated citizen adults. [Denmark reference](https://github.com/AI-Pop-Up-Lab/voteframe/blob/35c133913cc818ae1c24495aa2edd467ef1b884c/data/input/denmark%202026/election_results.csv)
+`vote_choice` contains Democratic, Republican, Other, or No Vote, matching the response labels in the CES. Both result columns are fractions from 0 to 1 of estimated citizen adults.
 
 - `vote_house_2024` is the final district share from `09_house_final_shares_cd120.csv`. `lineup` records the party groups on the House ballot. For example, `DR` means Democratic and Republican nominees. The lineup repeats across the four choices.
 - `vote_pres_2024` is the statewide share for the same choice, repeated across districts in the state. [Step 07 returns](01_frame/docs/07_prepare_area_returns.md)
