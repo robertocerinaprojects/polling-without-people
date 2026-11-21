@@ -5,6 +5,13 @@
 !**/data/**/README.md
 !**/data/**/.gitkeep
 
+# Published 2024 xframe handoff.
+!/01_frame/data/output/10_handoff/
+/01_frame/data/output/10_handoff/*
+!/01_frame/data/output/10_handoff/district_election_inputs_cd120.csv
+!/01_frame/data/output/10_handoff/pums_cd_cells.rds
+!/01_frame/data/output/10_handoff/ces_2024_harmonized.rds
+
 # Published House validation (the run directory has a 20-digit hexadecimal key).
 !/01_frame/data/output/09_beta_holdout/
 /01_frame/data/output/09_beta_holdout/**

@@ -5,7 +5,7 @@ analysis step before treating its outputs as validated.
 
 ## Principal deliverables
 
-Step 10 assembles the final handoff in `01_frame/data/output/10_handoff/`.
+The 2024 xframe data are available in [the handoff directory](01_frame/data/output/10_handoff/).
 
 | File | Contents |
 |---|---|
@@ -13,8 +13,8 @@ Step 10 assembles the final handoff in `01_frame/data/output/10_handoff/`.
 | `pums_cd_cells.rds` | ACS mother frame on the 2026 map with state names |
 | `ces_2024_harmonized.rds` | Harmonized CES cell keys and both 2024 vote outcomes |
 
-See the [data handoff](get_us_2024_xframe_data.md) for exact transfer paths, the build
-command, and the lineup rules. See the [frame guide](01_frame/README.md)
+See the [data handoff](get_us_2024_xframe_data.md) for direct downloads, checksums,
+the build command, and the lineup rules. See the [frame guide](01_frame/README.md)
 for the upstream pipeline.
 
 ## Components

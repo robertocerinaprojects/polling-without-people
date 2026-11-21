@@ -1,18 +1,35 @@
 # Data handoff
 
-From the repository root, run script 10 using the saved outputs from Steps 05–07 and 09.
+Download the three published files below or find them in a clone under
+`01_frame/data/output/10_handoff/`. You can use them without running the pipeline.
+
+| Download | Contents |
+| --- | --- |
+| [district_election_inputs_cd120.csv](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/district_election_inputs_cd120.csv) | 1,744 rows, with four vote choices per 2026 congressional district, including DC. Each row carries the district House share and the statewide presidential share for that choice. |
+| [pums_cd_cells.rds](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/pums_cd_cells.rds) | 497,550 positive-population cells from the 2020–2024 ACS PUMS on the 2026 district map. `N` is the sum of allocated citizen-adult weights. |
+| [ces_2024_harmonized.rds](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/ces_2024_harmonized.rds) | 58,627 eligible 2024 CES respondents with the seven mother-frame cell keys and the outcomes `vote_house_2024` and `vote_pres_2024`. Missing values and factor levels are preserved. |
+
+Keep the filenames when copying the files to the receiving repository’s data
+import location. Use `data/input/` if it has none.
+
+To rebuild the files from the saved outputs of Steps 05–07 and 09, run this
+command from the repository root.
 
 ```sh
 Rscript 01_frame/scripts/10_prepare_handoff.R
 ```
 
-Copy these three generated files from `01_frame/data/output/10_handoff/` into the receiving repository.
+The harmonized survey file is derived from Schaffner, Shih, Ansolabehere, and
+Pope (2025), *Cooperative Election Study Common Content, 2024*, Harvard Dataverse,
+V9, released under CC0 1.0. [Source dataset](https://doi.org/10.7910/DVN/X11EP6)
 
-| File | Contents |
-| --- | --- |
-| `01_frame/data/output/10_handoff/district_election_inputs_cd120.csv` | 1,744 rows, with four vote choices per 2026 congressional district, including DC. Each row carries the district House share and the statewide presidential share for that choice. |
-| `01_frame/data/output/10_handoff/pums_cd_cells.rds` | One row per positive-population cell in the 2020–2024 ACS PUMS on the 2026 district map. `N` is the sum of allocated citizen-adult weights. Step 10 reads the Step 06 frame from `01_frame/data/intermediate/pums_cd_cells.rds` and renames its geography keys for export, and adds the full state name from the Census state manifest. |
-| `01_frame/data/output/10_handoff/ces_2024_harmonized.rds` | One row per eligible 2024 CES respondent, with the seven mother-frame cell keys and the outcomes `vote_house_2024` and `vote_pres_2024`. Missing values and factor levels are preserved. |
+## SHA-256 checksums
+
+```text
+e29d5b82786dd1331526dd473ec906f175f63229086824b365fcaeb0c426ad6f  ces_2024_harmonized.rds
+d47e75d2b0d6f3c913ed3aa919ba29aa07b81b56bbe9900de3707c45335bce9c  district_election_inputs_cd120.csv
+495a43f97c0e2f9ec45a6e61462fbd6861f32eb9fd857dcf993d762f9c2613c0  pums_cd_cells.rds
+```
 
 ## Election results
 
@@ -42,8 +59,6 @@ Read `state_fips`, `district_fips`, and `matching_cd119` as text to preserve lea
 ## Population and survey data
 
 The seven shared cell keys are `state_fips`, `district_fips`, `age_cat`, `gender_cat`, `race_cat`, `hispanic_cat`, and `educ_cat`. Step 10 renames `STATEFP` and `CDFP120` in both exports to match the CSV. The mother frame also carries `state_name`, a display label determined by `state_fips`. The two FIPS keys identify the district. The CES outcomes refer to respondents’ original 2024 ballots, and their district keys use the 2026 map. Use both FIPS keys to link a district’s result rows to its population cells or respondents. The CES outcome columns store choice labels, and the CSV outcome columns store shares indexed by `vote_choice`. [Mother-frame construction](01_frame/docs/06_build_pums_cells.md) · [CES vote definitions](01_frame/docs/05_vote_rules.md)
-
-Use the receiving repository’s data import location, or `data/input/` if it has none. Keep the filenames and compare SHA-256 checksums after copying. The bundle is generated locally and ignored by Git.
 
 ## Sample rows
 
