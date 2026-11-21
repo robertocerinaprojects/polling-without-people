@@ -3,7 +3,7 @@
 source("01_frame/scripts/helpers/09_ballot_groups.R")
 
 prepare_house_inputs <- function() {
-  baseline <- read.csv("01_frame/data/output/10_handoff/district_election_inputs_cd120.csv",
+  baseline <- read.csv("01_frame/data/intermediate/10_district_election_predictors_cd120.csv",
                        colClasses = c(state_fips = "character", district_fips = "character",
                                       matching_cd119 = "character"), na.strings = "")
   roster <- read.csv("01_frame/data/intermediate/08_house_slates_2026.csv",

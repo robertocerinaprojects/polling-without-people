@@ -136,19 +136,28 @@ prepare_handoff <- function(frame_dir = "01_frame") {
       all(abs(rowSums(state_returns[pres_shares]) - 1) < 1e-8)
   )
 
-  # Stage all three files before replacing any existing exports.
+  handoff_columns <- c(geo_names, "state_name", "vote_choice", vote_names,
+                       "lineup", "incumbent", "on_ballot")
+
+  # Stage the public handoff and the full predictor table used by MrP.
   dir.create(bundle, recursive = TRUE, showWarnings = FALSE)
   filenames <- c("district_election_inputs_cd120.csv", "pums_cd_cells.rds", "ces_2024_harmonized.rds")
   staged <- tempfile(".10-handoff-", tmpdir = bundle)
   dir.create(staged)
   on.exit(unlink(staged, recursive = TRUE), add = TRUE)
-  write.csv(results, file.path(staged, filenames[1]), row.names = FALSE, na = "")
+  write.csv(results[handoff_columns], file.path(staged, filenames[1]), row.names = FALSE, na = "")
+  predictor_name <- "10_district_election_predictors_cd120.csv"
+  write.csv(results, file.path(staged, predictor_name), row.names = FALSE, na = "")
   saveRDS(mother, file.path(staged, filenames[2]))
   saveRDS(ces, file.path(staged, filenames[3]))
 
   paths <- file.path(bundle, filenames)
   for (i in seq_along(paths)) {
     if (!file.rename(file.path(staged, filenames[i]), paths[i])) stop("Could not save ", paths[i])
+  }
+  predictor_path <- file.path(intermediate, predictor_name)
+  if (!file.rename(file.path(staged, predictor_name), predictor_path)) {
+    stop("Could not save ", predictor_path)
   }
   cat(paste(c(nrow(results), nrow(mother), nrow(ces)), "rows:", paths), sep = "\n")
   invisible(paths)

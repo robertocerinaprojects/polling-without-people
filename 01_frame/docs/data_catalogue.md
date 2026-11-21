@@ -675,11 +675,12 @@ and election status.
 ## Step 10 handoff bundle
 
 Run `Rscript 01_frame/scripts/10_prepare_handoff.R` from the repository root.
-The script writes the three transfer files to `data/output/10_handoff/`.
+The script writes the three transfer files to `data/output/10_handoff/` and
+the full MrP predictor table to `data/intermediate/10_district_election_predictors_cd120.csv`.
 
 | File | Inputs and contents |
 |---|---|
-| `district_election_inputs_cd120.csv` | Step 09 final House shares and scenario predictors, Step 07 presidential covariates, and the Census state manifest. One row per district and choice, with the statewide presidential share repeated across districts. |
+| `district_election_inputs_cd120.csv` | Step 09 final House shares and ballot fields, Step 07 statewide presidential shares, and state names from the Census manifest. One row per district and choice. |
 | `pums_cd_cells.rds` | The Step 06 population cells with handoff FIPS field names and full state names from the manifest. |
 | `ces_2024_harmonized.rds` | The seven shared cell keys and two renamed outcomes from the Step 05 analysis export. |
 

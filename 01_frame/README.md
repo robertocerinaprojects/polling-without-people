@@ -7,7 +7,7 @@ in `data/output/10_handoff/`. [Data handoff](../get_us_2024_xframe_data.md)
 
 | Handoff file | Contents |
 |---|---|
-| `data/output/10_handoff/district_election_inputs_cd120.csv` | 1,744 district-by-choice rows with the 2024 House and presidential shares and district covariates. |
+| `data/output/10_handoff/district_election_inputs_cd120.csv` | 1,744 district-by-choice rows with the 2024 House and presidential shares, lineup, incumbency, and ballot presence. |
 | `data/output/10_handoff/pums_cd_cells.rds` | 497,550 positive population cells across 435 voting districts and DC, with full state names. Estimated citizen-adult counts `N` sum to 240,960,972. |
 | `data/output/10_handoff/ces_2024_harmonized.rds` | 58,627 eligible CES respondents with the shared cell keys and two 2024 vote outcomes. |
 

@@ -6,9 +6,8 @@ Run from the repository root.
 Rscript 03_mrp/scripts/01_prepare_house_inputs.R
 ```
 
-This step assumes the CD120 mother frame and its Step 10 election handoff
-already exist. It uses the district election CSV from that handoff and
-does not read a survey. See the [data inventory](data_catalogue.md) for
+This step reads the full district election predictor table written to
+`01_frame/data/intermediate/` by Step 10. See the [data inventory](data_catalogue.md) for
 exact paths and the [2024 handoff](../../get_us_2024_xframe_data.md) for its build
 command. To regenerate the annual roster from the pinned Clerk PDFs and
 reviewed corrections, run the following command. The roster script

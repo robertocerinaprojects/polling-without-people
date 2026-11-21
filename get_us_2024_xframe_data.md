@@ -27,7 +27,7 @@ V9, released under CC0 1.0. [Source dataset](https://doi.org/10.7910/DVN/X11EP6)
 
 ```text
 e29d5b82786dd1331526dd473ec906f175f63229086824b365fcaeb0c426ad6f  ces_2024_harmonized.rds
-d47e75d2b0d6f3c913ed3aa919ba29aa07b81b56bbe9900de3707c45335bce9c  district_election_inputs_cd120.csv
+24eedb7512adbb7ae13f7e3156400f7807da9ae40925e13c1a38cfa13ada74d9  district_election_inputs_cd120.csv
 495a43f97c0e2f9ec45a6e61462fbd6861f32eb9fd857dcf993d762f9c2613c0  pums_cd_cells.rds
 ```
 
@@ -35,8 +35,8 @@ d47e75d2b0d6f3c913ed3aa919ba29aa07b81b56bbe9900de3707c45335bce9c  district_elect
 
 The CSV follows the Denmark reference’s one-row-per-choice-and-area layout. The area is the 2026 House district. `vote_choice` contains Democratic, Republican, Other, or No Vote, matching the response labels in the CES. Both result columns are fractions from 0 to 1 of estimated citizen adults. [Denmark reference](https://github.com/AI-Pop-Up-Lab/voteframe/blob/35c133913cc818ae1c24495aa2edd467ef1b884c/data/input/denmark%202026/election_results.csv)
 
-- `vote_house_2024` is the final district share from `09_house_final_shares_cd120.csv`. `lineup` records the party groups on the House ballot. For example, `DR` means Democratic and Republican nominees. The lineup, district demographics, and scenario fields repeat across the four choices.
-- `vote_pres_2024` is the statewide share for the same choice, repeated across districts in the state. `pres_vote_count` gives statewide candidate votes or, for No Vote, the estimated number of citizen adults without a counted presidential vote. Statewide counts and population fields repeat across districts. [Step 07 returns](01_frame/docs/07_prepare_area_returns.md)
+- `vote_house_2024` is the final district share from `09_house_final_shares_cd120.csv`. `lineup` records the party groups on the House ballot. For example, `DR` means Democratic and Republican nominees. The lineup repeats across the four choices.
+- `vote_pres_2024` is the statewide share for the same choice, repeated across districts in the state. [Step 07 returns](01_frame/docs/07_prepare_area_returns.md)
 
 ### House lineups and incumbency
 
@@ -49,12 +49,11 @@ The CSV follows the Denmark reference’s one-row-per-choice-and-area layout. Th
 | Field | Meaning on a district and choice row |
 | --- | --- |
 | `on_ballot` | `1` if the scenario lineup includes at least one eligible nominee in that party group, otherwise `0`. |
-| `nominee_count` | The number of eligible nominees in that party group. |
 | `incumbent` | `1` if at least one eligible nominee in that group was serving in Congress on November 4, 2024, including members who served in a different district. Otherwise `0`. The same 2024 date applies to every lineup. |
 
-These three fields are blank for No Vote. [Lineup and incumbency rules](01_frame/docs/08_house_slates.md#which-years-lineup-enters-the-model) · [Step 09 scenarios](01_frame/docs/09_model_house_votes.md#districts-on-the-2026-map)
+These two fields are blank for No Vote. [Lineup and incumbency rules](01_frame/docs/08_house_slates.md#which-years-lineup-enters-the-model) · [Step 09 scenarios](01_frame/docs/09_model_house_votes.md#districts-on-the-2026-map)
 
-Read `state_fips`, `district_fips`, and `matching_cd119` as text to preserve leading zeros. Use both FIPS keys and `vote_choice` to identify a result row. `district_name` is a display label for the district number, an at-large seat, or DC’s delegate district.
+Read `state_fips` and `district_fips` as text to preserve leading zeros. Use both FIPS keys and `vote_choice` to identify a result row.
 
 ## Population and survey data
 
@@ -64,14 +63,14 @@ The seven shared cell keys are `state_fips`, `district_fips`, `age_cat`, `gender
 
 ### District election inputs
 
-Selected columns from the handoff CSV. Shares are rounded for display.
+All nine columns from the handoff CSV, in file order. Shares are rounded for display.
 
 | State FIPS | District FIPS | State | Choice | `vote_house_2024` | `vote_pres_2024` | Lineup | Incumbent | On ballot |
 | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: |
 | `01` | `01` | Alabama | Democratic | 0.185604 | 0.200644 | DR | 0 | 1 |
 | `01` | `01` | Alabama | Republican | 0.367481 | 0.379933 | DR | 1 | 1 |
 | `01` | `01` | Alabama | Other | 0.000000 | 0.007809 | DR | 0 | 0 |
-| `01` | `01` | Alabama | No Vote | 0.446915 | 0.411615 | DR | | |
+| `01` | `01` | Alabama | No Vote | 0.446915 | 0.411614 | DR | | |
 | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ |
 
 ### Mother frame

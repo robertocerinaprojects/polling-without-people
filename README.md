@@ -9,7 +9,7 @@ The 2024 xframe data are available in [the handoff directory](01_frame/data/outp
 
 | File | Contents |
 |---|---|
-| `district_election_inputs_cd120.csv` | District-by-choice 2024 House and statewide presidential shares, lineup, incumbency, and covariates on the 2026 map |
+| `district_election_inputs_cd120.csv` | District-by-choice 2024 House and statewide presidential shares, lineup, incumbency, and ballot presence on the 2026 map |
 | `pums_cd_cells.rds` | ACS mother frame on the 2026 map with state names |
 | `ces_2024_harmonized.rds` | Harmonized CES cell keys and both 2024 vote outcomes |
 
