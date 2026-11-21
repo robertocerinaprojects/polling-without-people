@@ -37,9 +37,13 @@ prepare_house_inputs <- function() {
   predictors$unopposed_party <- ifelse(roster$unopposed[district_row] == 1L,
                                        roster$slate[district_row], NA_character_)
 
-  # Tabulate the separate November results snapshot. Each reported candidate
-  # count is used once. Keep unpolled contests missing, as in the Step 07 returns.
+  # Reconcile source totals before excluding disqualified or unresolved marks.
+  # Keep unpolled contests missing, as in the Step 07 returns.
   source_votes <- read.csv("03_mrp/docs/01_house_2026_source_votes.csv", na.strings = "")
+  dispositions <- c("counted", "disqualified", "unresolved")
+  stopifnot("Source vote lines require a reviewed disposition." =
+              "disposition" %in% names(source_votes) &&
+              all(source_votes$disposition %in% dispositions))
   race_id <- paste0(baseline$state_abbr, "-",
                     ifelse(baseline$district_fips == "00", "AL", baseline$district_fips))
   stopifnot(setequal(race_id, source_votes$race_id),
@@ -51,12 +55,14 @@ prepare_house_inputs <- function() {
     party <- match(race$party, c("D", "R"), nomatch = 3L)
     if (id == "FL-10") {
       stopifnot(nrow(race) == 1L, is.na(race$votes), is.na(reported) || reported == 0L)
-      return(rep(NA_real_, length(choices)))
+      return(rep(NA_real_, length(choices) + 1L))
     }
     stopifnot(length(reported) == 1L, !is.na(reported), reported > 0L,
               all(is.finite(race$votes) & race$votes >= 0 & race$votes == floor(race$votes)),
               !anyDuplicated(race[c("candidate", "party")]), sum(race$votes) == reported)
-    c(vapply(1:3, function(i) sum(race$votes[party == i]), numeric(1)), reported)
+    counted <- race$disposition == "counted"
+    counts <- vapply(1:3, function(i) sum(race$votes[counted & party == i]), numeric(1))
+    c(counts, sum(counts), sum(race$votes[race$disposition == "unresolved"]))
   })
   totals <- do.call(rbind, totals)
   race_row <- match(race_id, names(race_votes))
@@ -73,6 +79,7 @@ prepare_house_inputs <- function() {
   results$vote_house_2026 <- vote_count / results$cvap
   results$vote_count <- vote_count
   results$total_votes <- total_votes
+  results$unresolved_votes <- totals[race_row, 5L]
   results$source_race_id <- race_id
   results$result_status <- vapply(race_votes, function(race) {
     paste(sort(unique(race$status)), collapse = " / ")

@@ -10,7 +10,7 @@ The Office of the Clerk of the U.S. House of Representatives compiles an officia
 
 The October lists sometimes include candidates who withdrew or qualified only for write-in votes. During the source review we compared each voting district’s D, R and Other nominee counts with the regular-election listings from The Green Papers. We checked DC against its federal sample ballots. The review used candidate listings and excluded write-in-only and scattering entries. [2024 regular House contests](https://www.thegreenpapers.com/G24/House.phtml?v=a) · [2026 regular House contests](https://www.thegreenpapers.com/G26/House.phtml?v=a) · [2024 DC federal ballot](https://dcboe.org/getmedia/b9b39289-a2e4-4410-87d6-a0d5fb20ff58/General-24-Federal.pdf) · [2026 DC federal ballot](https://dcboe.org/getContentAsset/0918c479-a00c-4f4e-95d0-3b867ce33a21/5ebbd046-860b-4ee1-81c8-43d0e3bc446e/Federal.pdf?language=en)
 
-The script reapplies the tracked corrections on every run. Each row gives the year, state, district, candidate, party label, action, reason and source. There are 16 changes for 2024 and one for 2026. For example, Florida's Michael Gist withdrew from FL-06 after the 2026 ballots were printed. The election office ruled votes for him ineligible, so his row appears in the candidate audit with `included=0`. The script then verifies a fingerprint of the sorted district keys and the three nominee counts and the three party incumbency flags against the reviewed result for each year. [Reviewed corrections and their sources](08_house_slate_corrections.csv)
+The script reapplies the tracked corrections on every run. Each row gives the year, state, district, candidate, party label, action, reason and source. There are 16 changes for 2024 and two for 2026. For example, Florida's Michael Gist withdrew from FL-06 after the 2026 ballots were printed. The election office ruled votes for him ineligible, so his row appears in the candidate audit with `included=0`. DC’s David Solana qualified as a write-in and is excluded from the named ballot lineup. The script then verifies a fingerprint of the sorted district keys and the three nominee counts and the three party incumbency flags against the reviewed result for each year. [Reviewed corrections and their sources](08_house_slate_corrections.csv)
 
 An eligible candidate can receive votes under multiple ballot labels. Each such nominee contributes one to the lineup. Step 07 separately includes valid write-ins when it counts votes, so a district can report Other votes even with `n_other=0`.
 
@@ -59,7 +59,7 @@ Two 2024 seats had a declared winner and no tabulated general-election vote. On 
 | Other only | 0 | 0 |
 | **Total** | **436** | **436** |
 
-In 2024, 22 seats had a single nominee (9 D and 13 R). Another seven had several nominees all from one major party (4 D and 3 R). In 2026, five seats had a single nominee (all D). Nine had several nominees all from one major party (8 D and 1 R). There were 1,069 qualifying nominees in 2024 and 1,161 in 2026. These totals include the uncontested seats whose 2024 House vote outcomes are unavailable for fitting.
+In 2024, 22 seats had a single nominee (9 D and 13 R). Another seven had several nominees all from one major party (4 D and 3 R). In 2026, five seats had a single nominee (all D). Nine had several nominees all from one major party (8 D and 1 R). There were 1,069 qualifying nominees in 2024 and 1,160 in 2026. These totals include the uncontested seats whose 2024 House vote outcomes are unavailable for fitting.
 
 ## Running the script
 
