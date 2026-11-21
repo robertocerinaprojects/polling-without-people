@@ -5,13 +5,17 @@ analysis step before treating its outputs as validated.
 
 ## Principal deliverables
 
-| Deliverable | Status |
-|---|---|
-| 2024 House choice shares on the 2026 congressional map | Built and checked. Step 09 writes `01_frame/data/output/09_house_final_shares_cd120.csv`. |
-| ACS mother frame on the 2026 congressional map | Built and checked. Step 06 writes `01_frame/data/intermediate/pums_cd_cells.rds`. |
+Step 10 assembles the final handoff in `01_frame/data/output/10_handoff/`.
 
-See the [frame guide](01_frame/README.md#principal-deliverables) for the
-files to inspect, the scenario assumption and the build steps.
+| File | Contents |
+|---|---|
+| `district_election_inputs_cd120.csv` | District-by-choice 2024 House and statewide presidential shares, lineup, incumbency, and covariates on the 2026 map |
+| `pums_cd_cells.rds` | ACS mother frame on the 2026 map with state names |
+| `ces_2024_harmonized.rds` | Harmonized CES cell keys and both 2024 vote outcomes |
+
+See the [data handoff](get_us_2024_xframe_data.md) for exact transfer paths, the build
+command, and the lineup rules. See the [frame guide](01_frame/README.md)
+for the upstream pipeline.
 
 ## Components
 

@@ -2,10 +2,14 @@
 
 ## Principal deliverables
 
-| Deliverable | Status and where to look |
+Run Step 10 to assemble the long-format election results, mother frame, and harmonized CES
+in `data/output/10_handoff/`. [Data handoff](../get_us_2024_xframe_data.md)
+
+| Handoff file | Contents |
 |---|---|
-| **2024 House choice shares on the 2026 map** | Built and checked. `data/output/09_house_final_shares_cd120.csv` has four shares for each of 436 districts. Inspect `data/output/09_house_raw_shares_cd120.csv` for shares before the lineup adjustment. [Production export](docs/09_model_house_votes.md#build-and-inspect-the-final-cd120-shares) |
-| **ACS mother frame on the 2026 map** | Built and checked. `data/intermediate/pums_cd_cells.rds` has 497,550 positive cells across 435 voting districts and DC. Estimated citizen-adult counts `N` sum to 240,960,972. |
+| `data/output/10_handoff/district_election_inputs_cd120.csv` | 1,744 district-by-choice rows with the 2024 House and presidential shares and district covariates. |
+| `data/output/10_handoff/pums_cd_cells.rds` | 497,550 positive population cells across 435 voting districts and DC, with full state names. Estimated citizen-adult counts `N` sum to 240,960,972. |
+| `data/output/10_handoff/ces_2024_harmonized.rds` | 58,627 eligible CES respondents with the shared cell keys and two 2024 vote outcomes. |
 
 **House choices.** Democratic, Republican, Other and no counted House
 candidate vote, each as a share of estimated citizen adults. The target
@@ -18,10 +22,10 @@ service in a different district. [House inputs and scenario rules](docs/09_model
 
 **Mother frame.** Step 06 sums 2020–2024 ACS PUMS weights after allocating
 them to 2026 districts. Each row is a joint age, gender, race, Hispanic
-ethnicity and education profile within a district. Use `STATEFP` and
-`CDFP120` as text keys. [Build and saved-file check](docs/06_build_pums_cells.md)
+ethnicity and education profile within a district. In the handoff use `state_fips` and
+`district_fips` as text keys. [Build and saved-file check](docs/06_build_pums_cells.md)
 
-**Survey input.** `data/intermediate/ces_analysis.rds` has 58,627 eligible
+**Upstream survey input.** `data/intermediate/ces_analysis.rds` has 58,627 eligible
 2024 CES respondents and 11 columns. Join by `caseid` to
 `ces_demographics_harmonized.rds` to inspect the original 2024 contest or
 an imputed value. Step 06 uses CES profiles to check coverage. The
@@ -47,6 +51,7 @@ Run individual steps from the repository root, following their companion documen
 | 09 | `scripts/09_model_house_votes.R prepare` | Prepare observed CD119 outcomes and CD120 scenario inputs | [Source tables and outcomes](docs/09_model_house_votes.md) |
 | 09 | `scripts/09_validate_house_beta.R validate` | Fit the three beta stages and score the 2024 holdout | [Model equations, predictors and outputs](docs/09_validate_house_beta.md) |
 | 09 | `scripts/09_predict_house_cd120.R` | Fit all tabulated 2024 contests and export the raw and adjusted CD120 shares | [Production export](docs/09_model_house_votes.md#build-and-inspect-the-final-cd120-shares) |
+| 10 | `scripts/10_prepare_handoff.R` | Assemble the three handoff files from saved pipeline outputs | [Data handoff](../get_us_2024_xframe_data.md) |
 
 Open the [four-panel House validation figure](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_plots.pdf)
 or the [scores for both methods](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_scores.csv).
@@ -68,7 +73,7 @@ independently builds the district crosswalk. Step 03 applies it, Step 04
 harmonizes demographics, and Step 05 prepares CES. Step 06 builds the
 mother frame. For House modeling, Step 07 prepares the original returns,
 the two Step 08 scripts prepare maps and lineups, and Step 09 builds and
-validates the model inputs. See the [data catalogue](docs/data_catalogue.md)
+validates the model inputs. Step 10 assembles the handoff. See the [data catalogue](docs/data_catalogue.md)
 for prerequisites and generated files.
 
 ## Rebuild evidence

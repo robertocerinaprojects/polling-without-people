@@ -672,6 +672,20 @@ Step 09 also writes `data/output/09_training_slate_counts.csv` to show how
 many districts on the 2024 map had each ballot configuration, candidate structure
 and election status.
 
+## Step 10 handoff bundle
+
+Run `Rscript 01_frame/scripts/10_prepare_handoff.R` from the repository root.
+The script writes the three transfer files to `data/output/10_handoff/`.
+
+| File | Inputs and contents |
+|---|---|
+| `district_election_inputs_cd120.csv` | Step 09 final House shares and scenario predictors, Step 07 presidential covariates, and the Census state manifest. One row per district and choice, with the statewide presidential share repeated across districts. |
+| `pums_cd_cells.rds` | The Step 06 population cells with handoff FIPS field names and full state names from the manifest. |
+| `ces_2024_harmonized.rds` | The seven shared cell keys and two renamed outcomes from the Step 05 analysis export. |
+
+The [handoff document](../../get_us_2024_xframe_data.md) gives the exact transfer paths,
+field definitions and lineup rules.
+
 ## Validation, reruns and preservation
 
 The [November 10 frame rebuild](../../docs/validation/e393b7f2-frame-rebuild/README.md)
