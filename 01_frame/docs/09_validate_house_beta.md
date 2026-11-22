@@ -221,19 +221,33 @@ The [complete generated Stan program](stan/09_sequential_beta.stan) is available
 
 Validation ends with the 2024 holdout. A refit on all tabulated districts and projections onto a new map belong to a later step.
 
-## November 2026 holdout results
+## Latest verified holdout results
 
-The [four-panel figure](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_plots.pdf) uses 30 held-out districts. The 404 training districts contributed no observations to the scores. The [district-level predictions](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_predictions.csv) give both methods’ point predictions for each district. The model also supplies a 90% predictive interval for each choice.
+The November 22, 2026 rebuild scored 30 held-out districts. The model was
+fit on 404 different districts. The table reports scores before the
+ballot adjustment. The published files include the
+[figure](../data/output/09_beta_holdout/78015b45e1ff1376883b/09_beta_holdout_plots.pdf),
+[district predictions](../data/output/09_beta_holdout/78015b45e1ff1376883b/09_beta_holdout_predictions.csv),
+[scores](../data/output/09_beta_holdout/78015b45e1ff1376883b/09_beta_holdout_scores.csv) and
+[sampler diagnostics](../data/output/09_beta_holdout/78015b45e1ff1376883b/09_beta_sampler_diagnostics.csv).
+The ballot-adjusted results have their own
+[figure](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_plots.pdf),
+[predictions](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_predictions.csv) and
+[scores](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_scores.csv).
 
 | Choice | Model RMSE (pp) | State presidential RMSE (pp) | Districts inside model’s 90% interval |
 |---|---:|---:|---:|
-| Democratic | 4.60 | 8.24 | 27/30 |
-| Republican | 4.55 | 8.41 | 26/30 |
-| Other | 0.86 | 3.70 | 19/30 |
-| No counted House vote | 3.75 | 7.07 | 27/30 |
+| Democratic | 4.69 | 8.24 | 27/30 |
+| Republican | 4.59 | 8.41 | 25/30 |
+| Other | 0.98 | 3.70 | 19/30 |
+| No counted House vote | 3.74 | 7.07 | 27/30 |
 
-The [sampler audit](../data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_sampler_diagnostics.csv) records the result for each stage. The no-House-vote and Republican stages passed the prespecified checks. The Democratic-versus-Other stage recorded 1 divergent transition, 0 maximum-depth hits, a maximum R-hat of 1.038 and minimum bulk/tail effective sample sizes of 123/193. The predictions and scores CSVs record the sampler status for each outcome.
+The no-House-vote and Republican stages passed. The Democratic-versus-Other
+stage recorded two divergent transitions, zero maximum-depth hits, a
+maximum R-hat of 1.032 and minimum bulk and tail effective sample sizes of
+101 and 196. The predictions and scores record the affected outcomes as
+provisional. The rebuild continued through the adjusted holdout, the
+production fit and the final handoff.
 
-Run `3bf72b3e358bdf062b84` used R 4.3.3, mgcv 1.9-1 and brms 2.23.0. Each stage ran four chains with two threads apiece with 1,000 warmup and 125 retained iterations per chain. The training CSV’s SHA-256 matches the [independent preparation rebuild](../../docs/validation/e393b7f2-frame-rebuild/README.md).
-
-A separate reproducibility check used R 4.5.3 and mgcv 1.9-3 from the project lockfile, with four single-threaded chains and the same data, seeds, draw budget and diagnostic rules (run `994cfc56d8ed1c587c1f`). The first stage had a minimum tail ESS of 92.6 on its initial fit. On its automatic retry, maximum R-hat was 1.068 and minimum bulk ESS was 83.1. This run stopped before scoring. The published figure and table above come from the completed R 4.3.3 run.
+The run used four single-threaded chains per stage, each with 1,000 warmup
+and 125 retained iterations. See the [frame rebuild summary](../README.md#latest-verified-rebuild).

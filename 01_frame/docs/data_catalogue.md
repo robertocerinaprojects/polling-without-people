@@ -62,7 +62,7 @@ All paths in backticks are relative to `01_frame/` unless stated otherwise.
 Scripts 00 and 01 passed the complete download-to-preparation run, including
 source checks and saving the cleaned RDS. Script 00 also passed offline reuse.
 Script 02 passed its documented crosswalk checks. Script 03 passed its
-national coverage and person-level allocation checks on 2026-11-07. Steps
+national coverage and person-level allocation checks. Steps
 04–06 completed demographic harmonization, CES vote coding and the national
 cell build. See the [survey-to-frame coverage totals](06_build_pums_cells.md#production-results).
 See the [component status](../README.md#script-status).
@@ -541,7 +541,7 @@ In the coverage audit, `person_records` counts retained microdata records
 and `weighted_population` sums their `PERWT`. `district_rows` counts all
 crosswalk intersections and `positive_districts` counts those with positive
 weight. `coverage_status` takes values `matched`, `pums_only` or
-`crosswalk_only`. The reviewed 2026-11-07 run matched all 2,462 PUMAs and
+`crosswalk_only`. The latest verified rebuild matched all 2,462 PUMAs and
 all 12,263,785 retained people, with total survey weight 240,960,972.
 
 In the state allocation audit, `expected_rows` counts the person–district
@@ -550,7 +550,7 @@ rows implied by PUMA membership and positive district probabilities.
 compare the original weighted population with its district contributions.
 `max_person_weight_error` is the largest absolute difference between a
 person's `PERWT` and the sum of that person's allocated district weights.
-The 2026-11-07 run saved the state audit and 20,333,303 person–district rows.
+The latest verified rebuild saved the state audit and 20,333,303 person–district rows.
 Expected and observed row counts agreed. The input and allocated weights
 each totaled 240,960,972 at the precision reported. The largest absolute
 person-weight difference across states was `1.136868e-13`.
@@ -684,9 +684,8 @@ field definitions and lineup rules.
 
 ## Validation, reruns and preservation
 
-The [November 10 frame rebuild](../../docs/validation/e393b7f2-frame-rebuild/README.md)
-records input and product fingerprints, including the 2024 House district
-training table.
+The [latest verified frame rebuild](../README.md#latest-verified-rebuild)
+ran Steps 00–10 and reproduced all three handoff files on an offline rerun.
 
 The [saved-file check](06_build_pums_cells.md#check-the-saved-analysis-files)
 reads both CES files, the population frame and the Step 03 and 06 audit tables.
@@ -711,8 +710,10 @@ It prints a cross-file validation summary and writes no data products.
 - Downloaded inputs, working datasets and model fits stay local. Git records
   the source manifests, population manifest and generated Markdown notes in
   `docs/`. For the House validation, `data/output/09_beta_holdout/latest_complete.txt`
-  identifies the published run. Its directory holds the PDF, district split,
-  sampler diagnostics, predictions and scores included in Git.
+  identifies the completed run in the current checkout. Publish that run's
+  report directory, its adjusted reports and the pointer together. Remove
+  the superseded report directory and update the links and scores in the
+  [holdout guide](09_validate_house_beta.md#latest-verified-holdout-results).
 - Numbered scripts recreate current products after their prerequisites
   are available. Script 00 acquires and verifies IPUMS snapshots; Script 01
   separately enforces the tracked source approval. Script 05 acquires and

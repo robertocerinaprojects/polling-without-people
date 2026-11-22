@@ -70,11 +70,11 @@ zero divergences.
 | `09_house_final_shares_cd120.csv` | Same observed shares and model means after the redrawn-district adjustment. |
 | `09_house_cd120_sampler_diagnostics.csv` | Convergence status and effective sample sizes by stage. |
 
-The November 20 production run used checkpoint `69f5516a193c187ae6cf`
-and passed all three diagnostic checks. It used 1,000 warmup and 500
-retained iterations in each of four chains per stage. The no-vote stage
-passed at 0.995 on retry. The other two stages passed at 0.99 under that
-run's original sampler plan.
+In the November 22, 2026 rebuild, all three production stages passed the
+project’s diagnostic checks on their first attempt at a target acceptance
+of 0.995. Each stage used four chains with 1,000 warmup and 500 retained
+iterations per chain. The offline rerun reused those fits and reproduced
+the same handoff files. [Rebuild summary](../README.md#latest-verified-rebuild)
 
 Both share files have one row per district. Read `STATEFP` and `CDFP` as
 text. The four share columns are proportions that sum to one. On

@@ -89,11 +89,10 @@ repository root.
 | 09 | `scripts/09_predict_house_cd120.R` | Fit all tabulated 2024 contests and export the raw and adjusted CD120 shares | [Production export](docs/09_model_house_votes.md#build-and-inspect-the-final-cd120-shares) |
 | 10 | `scripts/10_prepare_handoff.R` | Assemble the three handoff files from saved pipeline outputs | [Data handoff](../get_us_2024_xframe_data.md) |
 
-Open the [four-panel House validation figure](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_plots.pdf)
-or the [scores for both methods](data/output/09_beta_holdout/3bf72b3e358bdf062b84/09_beta_holdout_scores.csv).
-The same directory contains the held-out district predictions, the district split and
-the sampler diagnostics. Each completed validation publishes its directory name in
-`data/output/09_beta_holdout/latest_complete.txt`.
+The [latest House holdout results](docs/09_validate_house_beta.md#latest-verified-holdout-results)
+include the published figures, scores, district predictions and sampler
+diagnostics. After a local validation run, read
+`data/output/09_beta_holdout/latest_complete.txt` for that run's directory.
 
 The [adjusted holdout command](docs/09_validate_house_beta.md#score-the-ballot-adjusted-holdout)
 applies the production ballot rule to the held-out 2024 lineups using
@@ -107,29 +106,21 @@ the two Step 08 scripts prepare maps and lineups, and Step 09 builds and
 validates the model inputs. Step 10 assembles the handoff. See the [data catalogue](docs/data_catalogue.md)
 for prerequisites and generated files.
 
-## Rebuild evidence
+## Latest verified rebuild
 
-The [November 10 rebuild receipt](../docs/validation/e393b7f2-frame-rebuild/README.md)
-records hashes for a historical preparation run. The saved inputs are
-needed for an exact rebuild. See [reproducibility limits](docs/data_catalogue.md#validation-reruns-and-preservation).
+On November 22, 2026, Steps 00–10 ran in an isolated checkout starting
+with a fresh IPUMS extract and the two verified MIT returns files staged
+locally. A second run used the rebuild command with those source files
+and the saved model fits. It made no source downloads and reproduced all
+three handoff files byte for byte.
 
-### November 8 checkpoint
-
-The population and survey totals above come from the completed Codespace run.
-The review used [checkpoint `eaad716`](https://github.com/robertocerinaprojects/polling-without-people/commit/eaad716f25b4bb9ec55d021fa41df3030fc32911).
-It independently reproduced the six block-group allocation case counts from
-the pinned public inputs and checked all 436 congressional geographies.
-The pinned CES release reproduced the 2024 vote outcome counts. The
-[election benchmark](docs/05_vote_rules.md#comparison-with-2024-election-returns)
-compares weighted shares with official returns in the original ballot geography.
-
-The review exercised the PUMS transformations with test records covering
-all documented demographic codes and age boundaries, split districts,
-missing inputs and donor fallback. The tests also covered overlapping IPUMS
-download attempts and a failed audit write. The national PUMS cell counts
-and production race assignments remain those of the recorded Codespace run.
-Run the [saved-file check](docs/06_build_pums_cells.md#check-the-saved-analysis-files)
-to verify the two analysis datasets in the current workspace.
+The population frame covers 436 districts with 497,550 positive cells
+and a total weight of 240,960,972 citizen adults. The survey export
+contains 58,627 respondents. All three production House regressions
+passed the project’s sampler checks. The third holdout regression had
+two divergences, so the rebuild warned and retained its provisional
+results. See the [population and survey checks](docs/06_build_pums_cells.md#production-results)
+and the [House holdout results](docs/09_validate_house_beta.md#latest-verified-holdout-results).
 
 ## Data and documentation
 

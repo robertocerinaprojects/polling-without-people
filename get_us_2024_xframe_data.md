@@ -2,6 +2,7 @@
 
 Download the three published files below or find them in a clone under
 `01_frame/data/output/10_handoff/`. You can use them without running the pipeline.
+These files match the [November 22, 2026 verified rebuild](01_frame/README.md#latest-verified-rebuild).
 
 | Download | Contents |
 | --- | --- |
@@ -59,10 +60,10 @@ All nine columns from the handoff CSV, in file order. Shares are rounded for dis
 
 | State FIPS | District FIPS | State | Choice | `vote_house_2024` | `vote_pres_2024` | Lineup | Incumbent | On ballot |
 | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: |
-| `01` | `01` | Alabama | Democratic | 0.185604 | 0.200644 | DR | 0 | 1 |
-| `01` | `01` | Alabama | Republican | 0.367481 | 0.379933 | DR | 1 | 1 |
+| `01` | `01` | Alabama | Democratic | 0.186204 | 0.200644 | DR | 0 | 1 |
+| `01` | `01` | Alabama | Republican | 0.367095 | 0.379933 | DR | 1 | 1 |
 | `01` | `01` | Alabama | Other | 0.000000 | 0.007809 | DR | 0 | 0 |
-| `01` | `01` | Alabama | No Vote | 0.446915 | 0.411614 | DR | | |
+| `01` | `01` | Alabama | No Vote | 0.446701 | 0.411614 | DR | | |
 | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ |
 
 ### Mother frame

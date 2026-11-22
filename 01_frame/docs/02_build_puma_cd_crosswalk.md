@@ -44,10 +44,9 @@ separately documented rules in
 [CVAP allocation decisions](02_cvap_allocation_decisions.md).
 Missing estimates are not silently treated as zero.
 
-**Implementation status, 2026-10-30:** Crosswalk construction and its
-implemented checks passed, including population matching, the reviewed
-geographic exceptions, CVAP accounting and within-PUMA weight sums.
-On 2026-11-07, [Step 03](03_apply_puma_cd_crosswalk.md) matched all 2,462
+The latest verified rebuild passed the crosswalk checks for population
+matching, geographic exceptions, CVAP accounting and within-PUMA weight sums.
+[Step 03](03_apply_puma_cd_crosswalk.md) matched all 2,462
 state/PUMA pairs and preserved the weighted total of 240,960,972 citizen adults.
 
 ## Finding the calculation in the code
@@ -140,11 +139,6 @@ documented allocation cases, including the PUMA containment rule.
 See [the allocation decision record](02_cvap_allocation_decisions.md)
 for the exact cases, rationale, sources and accounting identity.
 
-Section 9 execution validation passed on 2026-10-30, including the
-five structural-zero overrides and the CVAP accounting checks.
-Sections 10-11 construct the final crosswalk and passed their internal
-checks on 2026-10-30.
-
 ## Calculating block-group CVAP contributions
 
 Section 10 divides each block group's adjusted CVAP among its
@@ -185,7 +179,6 @@ The intersection table omits repeated block-group CVAP totals to reduce
 the risk of double counting. The conservation audit retains those totals
 once per block group.
 
-Section 10 execution validation passed on 2026-10-30.
 Contributions from observed adjusted estimates total 240,785,100.
 All 39 missing block-group estimates remain unknown.
 The largest absolute block-group conservation error was zero.
@@ -244,7 +237,7 @@ Outputs:
 The crosswalk columns are STATEFP, PUMA5CE, CDFP, allocation_weight and
 weight_method. The [Script 03 guide](03_apply_puma_cd_crosswalk.md) documents how these weights are applied to PUMS records.
 
-Section 11 execution passed on 2026-10-30.
+The latest verified crosswalk had these results.
 
 | Check or output | Result |
 |---|---:|

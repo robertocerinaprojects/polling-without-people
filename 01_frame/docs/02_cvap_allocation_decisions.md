@@ -18,14 +18,14 @@ recorded 2020 population. Each published estimate is counted once, and
 amounts excluded from district allocation remain visible in the audits.
 
 The reviewed treatments are implemented in Script 02. Crosswalk
-construction and its internal checks passed on 2026-10-30.
+construction and its internal checks passed in the latest verified rebuild.
 [Step 03](03_apply_puma_cd_crosswalk.md) subsequently matched the retained
 PUMS records and verified person, state and national weight conservation.
 New exceptions must be reviewed explicitly.
 
 ## New York suppression — decision recorded 2026-10-30
 
-Status: implemented in Section 11; execution checks passed on 2026-10-30.
+Section 11 implements and checks this decision.
 
 ### Decision
 
@@ -93,7 +93,7 @@ have been applied in the completed crosswalk construction.
 ## Connecticut: positive CVAP with zero 2020 population
 
 Decision recorded 2026-10-30.
-Status: treatments implemented; execution checks passed on 2026-10-30.
+Script 02 implements and checks these treatments.
 
 ### Land block group 091902114003
 
@@ -140,8 +140,7 @@ are caused by privacy noise. Published source values remain unchanged.
 The 160-square-metre overlap involving original block group 090093431011
 is addressed by the specific mapping convention recorded below.
 The reviewed identifier exception checks passed. Sections 9-11 apply
-the Connecticut mapping and allocation treatments; their internal
-checks passed on 2026-10-30.
+the Connecticut mapping and allocation treatments and verify their totals.
 
 The pipeline reproduces the containment checks, implements the selected
 treatments, and stops if new or unclassified exceptions appear.
@@ -164,7 +163,7 @@ historical location file is required.
 ## Connecticut: small boundary-overlap convention
 
 Decision recorded 2026-10-30.
-Status: mapping convention implemented; execution checks passed on 2026-10-30.
+Section 8 implements and checks the mapping convention.
 
 Map original block group `090093431011` to `091403431011`.
 Retain all original block records and their 2020 population totals.
@@ -196,8 +195,7 @@ exceptions require review rather than automatic acceptance.
 
 ## Reviewed structural zeros for allocation (2026-10-30)
 
-Status: implemented in Script 02, Sections 9-11.
-Execution validation passed on 2026-10-30.
+Script 02 implements and checks these overrides in Sections 9–11.
 
 The five reviewed overrides retain their published estimates and set their
 allocation inputs to zero. Their adjustment totals 24. The separate
@@ -208,9 +206,6 @@ The available published estimates reconcile as:
 240,785,129 = 240,785,100 for allocation + 24 structural-zero adjustment
 + 5 geographic exclusion. These totals exclude the unknown New York
 estimates; they are not a complete national CVAP estimate.
-
-Sections 10-11 construct the final crosswalk and passed their internal
-checks on 2026-10-30.
 
 ### Plain-language explanation
 

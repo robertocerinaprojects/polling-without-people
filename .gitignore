@@ -22,6 +22,10 @@
 !/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_predictions.csv
 !/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_scores.csv
 !/01_frame/data/output/09_beta_holdout/*/09_beta_holdout_plots.pdf
+!/01_frame/data/output/09_beta_holdout/*/ballot_adjusted/
+!/01_frame/data/output/09_beta_holdout/*/ballot_adjusted/09_beta_holdout_predictions.csv
+!/01_frame/data/output/09_beta_holdout/*/ballot_adjusted/09_beta_holdout_scores.csv
+!/01_frame/data/output/09_beta_holdout/*/ballot_adjusted/09_beta_holdout_plots.pdf
 
 # R session artifacts
 .Renviron

@@ -29,7 +29,7 @@ Run the script from the repository root.
 Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
 ```
 
-Status is **validated**. The 2026-11-07 national run passed coverage and
+The latest verified rebuild passed national coverage and
 allocation checks and saved the person–district table and both audits.
 
 ## Inputs and geographic compatibility
@@ -61,7 +61,7 @@ A PUMS-only geography stops allocation after the audit has been written.
 A crosswalk-only PUMA has no retained people to allocate, so the script reports
 it and continues.
 
-On 2026-11-07 all **2,462 state/PUMA pairs** appeared in both inputs. The
+In the latest verified rebuild, all **2,462 state/PUMA pairs** appeared in both inputs. The
 match covered **12,263,785 person records** across all 50 states and DC,
 with total weight **240,960,972**. Both unmatched categories had zero PUMAs.
 
@@ -95,7 +95,7 @@ The state loop keeps row numbers that point back to the person and district
 records, plus the allocated weight. This lets the script build the nine output
 columns once after finishing the state joins.
 
-### Observed allocation on 2026-11-07
+### Allocation in the latest verified rebuild
 
 The 12,263,785 people produced **20,333,303 person–district rows**, exactly
 the count predicted from the positive district probabilities in their PUMAs.
