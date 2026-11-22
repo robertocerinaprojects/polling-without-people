@@ -1,7 +1,8 @@
 # Script 05 draws a CD120 district for every eligible CES respondent. For those
-# who gave Hispanic/Latino as their primary race, it then draws a harmonized
-# race from Hispanic citizen-adult donors in the selected district or a broader
-# area with the same demographic profile. See 05_citizenship_district_decisions.md.
+# who gave Hispanic/Latino as their primary race and supplied no usable
+# follow-up race, it draws a race from Hispanic citizen-adult donors in the
+# selected district or a broader area with the same demographic profile.
+# See 05_citizenship_district_decisions.md.
 
 assign_district_race <- function(ces, lookup, donor_tables) {
   ces <- as.data.frame(ces)
@@ -15,7 +16,7 @@ assign_district_race <- function(ces, lookup, donor_tables) {
   stopifnot(
     all(required %in% names(ces)), nrow(ces) > 0L, all(ces$cit1 == 1L),
     !anyNA(ces$caseid), !anyDuplicated(ces$caseid),
-    identical(ces$race_imputed, ces$race %in% 3L),
+    all(ces$race[ces$race_imputed] %in% 3L),
     identical(levels(ces$race_cat), races),
     all(is.na(ces$race_cat) == ces$race_imputed)
   )
@@ -43,7 +44,10 @@ assign_district_race <- function(ces, lookup, donor_tables) {
   recipient_rows <- target$id[selected]  # Sorted by character case ID in draw_ces_districts().
   stopifnot(length(recipient_rows) == sum(ces$race_imputed), !anyDuplicated(recipient_rows))
   set.seed(2024L, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
-  race_draw <- runif(length(recipient_rows))
+  # Keep each primary-Hispanic respondent's original position in the seeded
+  # sequence so a newly observed race does not change someone else's draw.
+  primary_hispanic_rows <- unique(candidates$id[ces$race[candidates$id] %in% 3L])
+  race_draw <- runif(length(primary_hispanic_rows))[match(recipient_rows, primary_hispanic_rows)]
   cumulative <- probabilities[selected, , drop = FALSE]
   for (j in 2:ncol(cumulative)) {
     cumulative[, j] <- cumulative[, j] + cumulative[, j - 1L]

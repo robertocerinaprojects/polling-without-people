@@ -50,10 +50,10 @@ clean_vote <- list(President = as.character(clean$pres_vote_2024),
                    House = as.character(clean$house_vote_2024))
 # Count checks also identify an earlier or incompatible preparation version.
 expected_counts <- list(
-  President = c(Democratic = 28846L, Republican = 22062L, Other = 1860L,
-                "No Vote" = 4836L, Missing = 1023L),
-  House = c(Democratic = 26906L, Republican = 20551L, Other = 1079L,
-            "No Vote" = 7286L, Missing = 2805L)
+  President = c(Democratic = 28846L, Republican = 22062L, Other = 1757L,
+                "No Vote" = 4670L, Missing = 1292L),
+  House = c(Democratic = 26822L, Republican = 20497L, Other = 995L,
+            "No Vote" = 6390L, Missing = 3923L)
 )
 for (office in names(clean_vote)) {
   actual <- table(factor(clean_vote[[office]][eligible], levels = c(parties, "No Vote")),
@@ -61,20 +61,10 @@ for (office in names(clean_vote)) {
   stopifnot(identical(as.integer(actual), unname(expected_counts[[office]])))
 }
 # Direct post-election observations, without substitution from another item or wave.
-post_pres <- unname(c(`1`="Democratic", `2`="Republican", `3`="Other",
-                       `4`="Other", `5`="Other", `6`="Other", `8`="Other", `9`="No Vote"
-                      )[as.character(raw$CC24_410)])
-post_house <- rep(NA_character_, nrow(raw))
-choose_slot <- which(raw$CC24_412 %in% 1:5)
-roster <- as.matrix(raw[paste0("HouseCand", 1:5, "Party_post")])
-selected_party <- trimws(roster[cbind(choose_slot, raw$CC24_412[choose_slot])])
-selected_party[selected_party %in% c("", "-1", "__NA__", "NA")] <- NA_character_
-post_house[choose_slot] <- ifelse(
-  is.na(selected_party) | selected_party %in% parties[1:2], selected_party, "Other"
-)
-post_house[raw$CC24_412 %in% 10] <- "Other"
-post_house[raw$CC24_412 %in% c(11,12)] <- "No Vote"
-post_vote <- list(President = post_pres, House = post_house)
+post_vote <- lapply(decode_post_votes(raw), function(choice) {
+  choice[choice %in% "unresolved"] <- NA_character_
+  choice
+})
 for (office in names(clean_vote)) {
   source_col <- if (office == "President") "pres_vote_2024_source" else "house_vote_2024_source"
   direct <- eligible & !is.na(post_vote[[office]])

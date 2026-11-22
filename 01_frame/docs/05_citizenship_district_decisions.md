@@ -72,7 +72,7 @@ destination is a statement about this overlay and the CES geography, rather
 than independent address validation. The CD120 archive is the same snapshot
 used in Step 02. The national file includes the October 2026 Missouri update.
 
-| Audit of the original geography | All retained citizens | Race-draw recipients |
+| Audit of the original geography | All retained citizens | Primary Hispanic/Latino respondents |
 |---|---:|---:|
 | One destination from old district alone | 41,553 | 2,347 |
 | One destination after adding county | 6,090 | 512 |
@@ -85,7 +85,7 @@ pair absent from the lookup and one lacked a county code.
 
 In the overlay, 295 of the 436 old districts (including DC) have one
 destination and 141 split. A split can still have just one *positive*
-population share. For the race-draw group, 2,010 people have more than one
+population share. Among primary Hispanic/Latino respondents, 2,010 people have more than one
 geographic possibility and 1,999 have more than one positive working
 probability.
 
@@ -101,7 +101,7 @@ obtained by putting all five in either admissible old district. These
 bounds cover this specific uncertainty. They are separate from ACS sampling
 uncertainty. A single geographic destination still receives probability 1.
 
-For example, the 11 race-draw recipients in Tarrant County and old TX-12
+For example, the 11 primary Hispanic/Latino respondents in Tarrant County and old TX-12
 have three working probabilities: approximately 78.9% for new TX-12, 6.2%
 for TX-24 and 14.9% for TX-25. Varying the old-district placement of the
 five changes any probability for those 11 by less than 0.001 percentage
@@ -109,6 +109,12 @@ points. Reviewed exceptions within the original Step 02 allocations keep
 their documented treatment.
 
 ## Draw race in the same district
+
+For respondents who selected Hispanic/Latino as their primary race, preserve
+Hispanic ethnicity and read the follow-up checkboxes. Use a single specific
+race when available, mapping Middle Eastern to Other/Multi. Use Other/Multi
+when several specific races are checked. Only respondents without a usable
+follow-up race enter the donor draw.
 
 Join Step 04's categories to Step 03's person–district rows using the full
 person key, `SAMPLE + SERIAL + PERNUM`. Restrict donors to Hispanic citizens
@@ -119,8 +125,10 @@ PUMA-to-district probability. State and national totals recombine each
 person's contributions before counting donors and measuring effective donor
 size. The helper reconciles race totals with the national Step 04 table.
 
-For each of the 4,869 recipients, draw the race conditional on the **same**
-120th district drawn for that respondent, using a separate seed of 2024.
+For each recipient, draw the race conditional on the **same** 120th district
+drawn for that respondent, using a separate seed of 2024. The seeded sequence
+reserves each primary Hispanic/Latino respondent's original case-ID position,
+so using a reported race does not alter someone else's donor draw.
 The draw assumes those CES respondents would have the same distribution
 of harmonized race categories as Hispanic PUMS citizens with the matched
 profile. Choosing Hispanic/Latino as primary race may distinguish recipients

@@ -4,14 +4,15 @@
 
 We keep one outcome for each office and a companion field that says which
 answer supplied it. We use what the person reported after the election
-whenever available. If they did not supply a usable post-election answer, we
+whenever available. If they skipped the post-election question, we
 can still have a pre-election report from someone who had already voted, or a
 pre-election preference. The source field lets an analysis distinguish a vote
 report from a preference. Neither is an independently verified ballot.
 
 `house_vote_2024` and `pres_vote_2024` each have four categories:
 Democratic, Republican, Other and No Vote. A missing value means that no
-step below supplied an outcome. A person may have an outcome for one office
+step supplied an outcome or that an answer explicitly refused or expressed
+uncertainty. A person may have an outcome for one office
 and a missing value for the other. All eligible people remain in the CES
 table with their original `commonweight`. Additional weights are available
 by `caseid` in the raw CES release.
@@ -20,10 +21,10 @@ by `caseid` in the raw CES release.
 
 | Source recorded | House rule | Presidential rule |
 |---|---|---|
-| `post_choice` | `CC24_412` slots 1–5 select candidates from the post-election roster. Code 10 gives Other. Code 11 (did not vote in this race) or 12 (did not vote) gives No Vote. Code 13 (not sure) falls through. | `CC24_410` codes 1 Harris and 2 Trump give Democratic and Republican. Codes 3 Kennedy, 4 Stein, 5 West, 6 Oliver and 8 Other give Other. Code 9 gives No Vote. |
+| `post_choice` | `CC24_412` slots 1–5 select candidates from the post-election roster. Code 10 uses the Other text rule below. Code 11 (did not vote in this race) or 12 (did not vote) gives No Vote. Code 13 (not sure) leaves the result missing. | `CC24_410` codes 1 Harris and 2 Trump give Democratic and Republican. Codes 3 Kennedy, 4 Stein, 5 West and 6 Oliver give Other. Code 8 uses the Other text rule. Code 9 gives No Vote. |
 | `post_nonvoter` | `CC24_401` codes 1–4 report general-election nonparticipation, including attempting to vote without succeeding. Assign No Vote. Code 5 alone supplies no office-specific choice. | Same general-election rule. |
-| `pre_reported` | `CC24_367_voted` records an already-cast vote. Slots 1–5 select the pre-election roster, 10 gives Other and 99 gives No Vote. Code 98 (unsure) falls through. | `CC24_364a` codes 1 Harris, 2 Trump and 3 someone else give Democratic, Republican and Other. Code 5 gives No Vote. Code 4 (unsure) falls through. |
-| `pre_preference` | `CC24_367` slots 1–5 select the pre-election roster, 10 gives Other and 99 (no one) gives No Vote. Code 98 (unsure) falls through. | `CC24_364b` codes 1 Harris, 2 Trump and 3 Other give Democratic, Republican and Other. Code 4 (will not vote) gives No Vote. Code 5 (unsure) falls through. |
+| `pre_reported` | `CC24_367_voted` records an already-cast vote. Slots 1–5 select the pre-election roster, 10 uses the Other text rule and 99 gives No Vote. Code 98 (unsure) leaves the result missing. | `CC24_364a` codes 1 Harris, 2 Trump and 3 someone else give Democratic, Republican and Other. Code 5 gives No Vote. Code 4 (unsure) leaves the result missing. |
+| `pre_preference` | `CC24_367` slots 1–5 select the pre-election roster, 10 uses the Other text rule and 99 (no one) gives No Vote. Code 98 (unsure) leaves the result missing. | `CC24_364b` codes 1 Harris, 2 Trump and 3 Other give Democratic, Republican and Other. Code 4 (will not vote) gives No Vote. Code 5 (unsure) leaves the result missing. |
 | `pre_nonvoter` | `CC24_363 == 5` means the respondent intended not to vote. Assign No Vote. | Same general-election rule. |
 | `unresolved` | Leave the outcome missing. | Leave the outcome missing. |
 
@@ -34,6 +35,16 @@ and Republican labels retain their party. Other valid party labels, including
 Independent and No Party Preference, give Other. A missing slot label
 (including empty, `-1` and `__NA__`) cannot establish a party. In that case
 the search continues. Skipped and not-asked answers also fall through.
+
+For a selected Other option, check the companion text where available
+(`CC24_410_t`, `CC24_412_t`, `CC24_367_voted_t` and `CC24_367_t`).
+The decoder normalizes case, whitespace and apostrophes. A refusal such
+as “prefer not to say” or “private,” or uncertainty such as “don’t know”
+or “undecided,” leaves the outcome missing. An explicit report of abstaining
+gives No Vote. Candidate names and other vote choices retain Other. A refusal
+or uncertain answer at a higher-priority stage prevents a lower-priority
+answer from filling it, so a pre-election preference cannot override a
+post-election refusal.
 
 The questionnaires define the response codes. The project uses the same
 order of sources for both offices. In the V9 release, eight House outcomes
@@ -74,20 +85,24 @@ citizens in the harmonized sample.
 
 | Outcome | House | President |
 |---|---:|---:|
-| Democratic | 26,906 | 28,846 |
-| Republican | 20,551 | 22,062 |
-| Other | 1,079 | 1,860 |
-| No Vote | 7,286 | 4,836 |
-| Missing | 2,805 | 1,023 |
+| Democratic | 26,822 | 28,846 |
+| Republican | 20,497 | 22,062 |
+| Other | 995 | 1,757 |
+| No Vote | 6,390 | 4,670 |
+| Missing | 3,923 | 1,292 |
 
 | Source | House | President |
 |---|---:|---:|
-| Post-election choice or office-specific nonvote | 42,856 | 43,500 |
-| Post-election general nonvote | 3,143 | 3,142 |
-| Pre-election report of an already-cast vote | 1,104 | 1,106 |
-| Pre-election preference | 7,881 | 9,682 |
-| Pre-election general nonvoting intention | 838 | 174 |
-| Unresolved | 2,805 | 1,023 |
+| Post-election choice or office-specific nonvote | 42,805 | 43,400 |
+| Post-election general nonvote | 3,142 | 3,142 |
+| Pre-election report of an already-cast vote | 1,063 | 1,106 |
+| Pre-election preference | 7,684 | 9,682 |
+| Pre-election general nonvoting intention | 10 | 5 |
+| Unresolved | 3,923 | 1,292 |
+
+Compared with the previous preparation, 80 House and 100 presidential
+answers moved from Other to missing. Four House and three presidential
+answers moved from Other to No Vote.
 
 The source questionnaires, data guide and pinned CSV are published together in
 [CES 2024 Common Content, V9](https://doi.org/10.7910/DVN/X11EP6).
@@ -100,8 +115,8 @@ the election counts. The [national and state comparison](../scripts/helpers/05_b
 and the [House district comparison](../scripts/helpers/05_benchmark_house_districts.R)
 use the cleaned survey outcomes.
 
-An independent calculation from the pinned CES V9 release reproduced the
-ten unweighted outcome counts above. For a simple national comparison, use
+The benchmark checks the ten unweighted outcome counts above against the
+pinned CES V9 release. For a simple national comparison, use
 the eligible respondents' `commonweight`, count each respondent once per
 office and use their cleaned candidate choice. The Democratic two-party
 share is the sum of weights for Democratic choices divided by the sum of
@@ -111,7 +126,7 @@ responses are outside this denominator.
 | Office | Respondents with a major-party choice | Weighted CES Democratic two-party share | Official Democratic two-party share | CES minus official (percentage points) |
 |---|---:|---:|---:|---:|
 | President, 50 states and DC | 50,908 | 48.52% | 49.25% | −0.73 |
-| House, voting-member contests | 47,331 | 48.74% | 48.61% | +0.13 |
+| House, voting-member contests | 47,193 | 48.76% | 48.61% | +0.15 |
 
 For House, use the 2024 contest in the wave that supplied the answer and
 exclude DC delegate choices. The official count combines ballot lines for

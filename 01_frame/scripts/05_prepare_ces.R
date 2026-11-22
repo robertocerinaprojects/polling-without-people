@@ -70,9 +70,8 @@ age_labels <- c(paste(age_band_ends - 4L, age_band_ends, sep = "-"), "83+")
 educ_levels <- c("No HS", "HS grad", "Some college", "2-year", "4-year", "Post-grad")
 race_levels <- c("White", "Black", "Native American", "Asian", "Other/Multi")
 
-# In the CES primary race question, 3 means Hispanic or Latino. Leave that
-# race open for the draw. Keep the separate Hispanic-origin response as given,
-# including a missing answer.
+# In the CES primary race question, 3 means Hispanic or Latino.
+# Use the follow-up race checkboxes for these respondents before drawing race.
 # Codes 6–8 are Two or more races, Other and Middle Eastern, respectively.
 harmonize_primary_race <- function(answer) {
   label <- case_when(
@@ -85,22 +84,36 @@ harmonize_primary_race <- function(answer) {
   )
   factor(label, levels = race_levels)
 }
+primary_hispanic <- ces$race %in% 3L
+followup_races <- c(multrace_1 = "White", multrace_2 = "Black",
+                    multrace_4 = "Asian", multrace_5 = "Native American",
+                    multrace_8 = "Other/Multi")
+checked <- as.matrix(ces[names(followup_races)]) == 1L
+checked[is.na(checked)] <- FALSE
+n_checked <- rowSums(checked)
+reported_race <- harmonize_primary_race(ces$race)
+reported_race[primary_hispanic & n_checked > 1L] <- "Other/Multi"
+for (field in names(followup_races)) {
+  reported_race[primary_hispanic & n_checked == 1L & checked[, field]] <- followup_races[[field]]
+}
+
 ces <- ces |>
   mutate(
     age = 2024L - birthyr,
     age_cat = cut(age, breaks = c(17, age_band_ends, Inf), labels = age_labels, right = TRUE),
     gender_cat = factor(gender4, levels = 1:2, labels = c("Male", "Female")),
     educ_cat = factor(educ, levels = 1:6, labels = educ_levels),
-    hispanic_cat = factor(hispanic, levels = 1:2, labels = c("Hispanic", "Not Hispanic")),
-    race_cat = harmonize_primary_race(race),
-    race_imputed = race %in% 3L
+    hispanic_cat = factor(if_else(primary_hispanic, 1L, hispanic),
+                          levels = 1:2, labels = c("Hispanic", "Not Hispanic")),
+    race_cat = reported_race,
+    race_imputed = primary_hispanic & is.na(race_cat)
   )
 
 profile_and_location <- c("inputstate", "cdid119", "age_cat", "gender_cat", "educ_cat")
 stopifnot(
   all(ces$age >= 18L),
   !anyNA(ces[profile_and_location]),
-  all(ces$hispanic[ces$race_imputed] %in% 1L),
+  all(ces$hispanic_cat[primary_hispanic] == "Hispanic"),
   all(is.na(ces$race_cat) == ces$race_imputed)
 )
 

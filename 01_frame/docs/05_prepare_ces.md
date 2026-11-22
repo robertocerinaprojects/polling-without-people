@@ -12,24 +12,28 @@ new district exactly under the Census block map. Where the old district is
 split, we draw a new district using the estimated share of citizen adults
 in each overlap and keep the probabilities for later inspection.
 
-For citizens whose primary race answer is Hispanic/Latino, we draw a
-harmonized race from Hispanic PUMS citizen adults of the same sex/gender
-category, age group and education within the assigned 2026 district. Someone
-who selected Black as primary race and reported Hispanic origin keeps both.
+For citizens whose primary race answer is Hispanic/Latino, we keep Hispanic
+ethnicity and use the race they selected in the follow-up checkboxes.
+Multiple specific races map to Other/Multi. When the follow-up supplies
+no usable race, we draw from Hispanic PUMS citizen adults of the same
+sex/gender category, age group and education within the assigned 2026 district.
 The [decision record](05_citizenship_district_decisions.md) documents district
 overlaps, empty donor groups, random seeds and the Texas exception.
 
 For each respondent we also derive the party of their 2024 House and
 presidential choice. We prefer a usable post-election report and flag each
-use of an early vote, a preference or a turnout answer. See the
+use of an early vote, a preference or a turnout answer. An explicit refusal
+or uncertain answer leaves the office missing. See the
 [vote questions, priorities and release checks](05_vote_rules.md).
 
 ## Follow one respondent through the code
 
 Suppose a citizen answered Hispanic or Latino on the primary race question
 and Yes on Hispanic origin. Their 2024 residence could fall in two districts
-on the 2026 map. First draw one residence district. Then draw race from the
-Hispanic PUMS donors for their age, gender and education in that district.
+on the 2026 map. Draw one residence district. If they checked Black in the
+follow-up, record Black race and Hispanic ethnicity. If they left the
+follow-up race unanswered, draw from Hispanic PUMS donors for their age,
+gender and education in the selected district.
 If that profile has no positive donor weight there, try the same profile in
 the state, then nationally. The respondent keeps their Hispanic origin.
 
@@ -80,8 +84,9 @@ See the [PUMS categories and donor counts](04_harmonize_pums.md).
 | `gender4` | Retain 1 (Man) and 2 (Woman), using Male/Female as the shared analysis labels. PUMS records sex. |
 | `birthyr` | Approximate age is 2024 minus birth year. Age bands run from 18–22 through 78–82, followed by 83+. |
 | `educ` | Codes 1–6 give No HS, HS grad, Some college, 2-year, 4-year and Post-grad. |
-| `race` | Codes 1, 2, 4 and 5 give White, Black, Asian and Native American respectively. Codes 6–8 give Other/Multi. Code 3 receives a conditional draw across all five categories. |
-| `hispanic` | Codes 1 and 2 give Hispanic and Not Hispanic. Unresolved origin stays missing. |
+| `race` | Codes 1, 2, 4 and 5 give White, Black, Asian and Native American respectively. Codes 6–8 give Other/Multi. Code 3 uses the follow-up and receives a conditional draw only when it yields no usable race. |
+| `multrace_1`, `_2`, `_4`, `_5`, `_8` | Checked boxes (code 1) identify White, Black, Asian, Native American and Middle Eastern. Middle Eastern and combinations of specific races map to Other/Multi. A Hispanic-only checkbox or a nonanswer supplies no race. |
+| `hispanic` | Codes 1 and 2 give Hispanic and Not Hispanic, and unresolved origin stays missing unless the primary race answer was Hispanic/Latino. That answer always gives Hispanic ethnicity. |
 | `inputstate`, `cdid119`, `countyfips` | Original CES pre-election geography, used to find the 120th-district distribution. Preserve source values. |
 | `commonweight`, `caseid` | Preserve the survey weight and unique identifier for linking back to original survey answers. |
 
@@ -101,7 +106,7 @@ record per retained `caseid`. The new district is `STATEFP + CDFP120`.
 | `05_ces_unknown_origin_cvap.csv` | A separate geographic ledger of positive source CVAP with unknown old district. |
 | `../intermediate/hispanic_race_by_district_profile.rds` | Five racial groups for each district, state and national sex/gender–education–age profile. Stores weights, counts, effective donor size and probabilities. |
 | `05_ces_district_probabilities.csv` | One row per retained citizen and positive candidate new district, with a flag for the selected district. |
-| `05_ces_race_donor_support.csv` | One row per primary-Hispanic citizen × positive candidate district. Gives all five conditional probabilities and the donor support. |
+| `05_ces_race_donor_support.csv` | One row per race-draw recipient × positive candidate district. Gives all five conditional probabilities and the donor support. |
 | `05_ces_race_imputation.csv` | National expected and realized assignment counts across the five categories for the retained draw recipients. |
 | `05_ces_demographic_coverage.csv` | Missing values by harmonized variable in the citizen sample. |
 
@@ -147,32 +152,37 @@ Rscript 01_frame/scripts/helpers/05_export_ces_analysis.R
 The run saved 58,627 adult, gender-eligible CES citizens. All had a harmonized
 race. One had unresolved Hispanic origin. The table gives unweighted respondent
 counts. The rows are the original answers to the CES primary race question.
-The columns are the harmonized race after the draw.
+The columns are the final harmonized race after using reported races and
+filling in the remaining gaps.
 
 | Original CES race | White | Black | Native American | Asian | Other/Multi | Before |
 |---|---:|---:|---:|---:|---:|---:|
 | White | 40,869 | 0 | 0 | 0 | 0 | 40,869 |
 | Black or African-American | 0 | 7,555 | 0 | 0 | 0 | 7,555 |
-| Hispanic or Latino | 984 | 79 | 99 | 37 | 3,670 | 4,869 |
+| Hispanic or Latino | 1,281 | 83 | 111 | 37 | 3,357 | 4,869 |
 | Asian or Asian-American | 0 | 0 | 0 | 1,745 | 0 | 1,745 |
 | Native American | 0 | 0 | 574 | 0 | 0 | 574 |
 | Two or more races | 0 | 0 | 0 | 0 | 1,871 | 1,871 |
 | Other | 0 | 0 | 0 | 0 | 991 | 991 |
 | Middle Eastern | 0 | 0 | 0 | 0 | 153 | 153 |
-| After | 41,853 | 7,634 | 673 | 1,782 | 6,685 | 58,627 |
+| After | 42,150 | 7,638 | 685 | 1,782 | 6,372 | 58,627 |
 
 All 4,869 respondents in the Hispanic or Latino row also reported Hispanic
 origin. A further 2,417 Hispanic-origin respondents selected another primary
-race and kept its mapped category. Each person keeps one survey weight.
+race and kept its mapped category. All 428 respondents who checked exactly
+one of White, Black, Asian or Native American in the follow-up were assigned
+the category they selected. Another 31 checked multiple specific races, and
+three checked Middle Eastern alone. Using the follow-up changed 353 race
+assignments compared with the earlier draw; 4,407 still needed a draw.
 
 The run used 1,401,620 Hispanic PUMS donors with a combined person weight
-of 33,794,882 across 436 district codes including DC. Of the 4,869 recipients,
-2,870 had one positive district probability and 1,999 had several. In their
-selected districts, 4,858 recipients had a matching district donor group,
-11 used their state group and none used the national group.
+of 33,794,882 across 436 district codes including DC. Of the 4,407 recipients,
+2,575 had one positive district probability and 1,832 had several. In their
+selected districts, 4,397 recipients had a matching district donor group,
+10 used their state group and none used the national group.
 
-The conditional model expected 3,638.48 Other/Multi assignments (74.73%),
-averaging over all candidate districts. This draw produced 3,670 (75.37%).
+The conditional model expected 3,293.45 Other/Multi assignments (74.73%),
+averaging over all candidate districts. This draw produced 3,323 (75.40%).
 For the effective size of each donor group used in the realized draw, filter
 `05_ces_race_donor_support.csv` to `selected == TRUE` and inspect
 `used_effective_donors` by `donor_level`.

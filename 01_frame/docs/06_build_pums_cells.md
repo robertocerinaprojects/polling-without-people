@@ -49,7 +49,7 @@ The CES and PUMS cell keys use the same labels. Their source measures differ.
 | Age | The same 14 bands from 18–22 to 83+. PUMS records age at interview across 2020–2024. CES approximates age as 2024 minus birth year, which can put someone in the adjacent band near a cutoff. |
 | Sex/gender | The two frame labels are Male and Female. PUMS measures recorded sex. CES uses the Man/Woman answers to its gender identity question. |
 | Education | Both use No HS, HS grad, Some college, 2-year, 4-year and Post-grad. Step 04 groups detailed IPUMS attainment codes. Step 05 maps CES's six responses. |
-| Race | Both use White, Black, Native American, Asian and Other/Multi. PUMS Asian includes the source group Other Asian or Pacific Islander. CES combines Two or more races, Other and Middle Eastern into Other/Multi. Primary Hispanic/Latino CES responses receive a conditional race draw. |
+| Race | Both use White, Black, Native American, Asian and Other/Multi. PUMS Asian includes the source group Other Asian or Pacific Islander. CES combines Two or more races, Other and Middle Eastern into Other/Multi. For primary Hispanic/Latino respondents, CES uses the follow-up race and draws a race only when the follow-up supplies none. |
 | Hispanic origin | Both use Hispanic and Not Hispanic. PUMS uses its origin flag. CES uses its separate origin answer and preserves its one unresolved response as missing. |
 
 The population universe is US citizen adults, including group quarters and DC.
@@ -84,13 +84,13 @@ person's fractional contributions when person-level analysis is needed.
 
 | Result for the CES respondent's seven matching fields | Respondents | Distinct CES profiles |
 |---|---:|---:|
-| All seven fields match a frame cell with positive `N` | 58,162 | 42,289 |
-| All seven fields are present, with no positive `N` in the frame | 464 | 459 |
+| All seven fields match a frame cell with positive `N` | 58,119 | 42,266 |
+| All seven fields are present, with no positive `N` in the frame | 507 | 502 |
 | Hispanic origin is missing, so the exact cell is unknown | 1 | 1 |
-| Total | 58,627 | 42,749 |
+| Total | 58,627 | 42,769 |
 
-The first row covers 99.21% of respondents. The other 465 remain in the
-CES with their recorded answers. The frame also has 455,261 positive cells
+The first row covers 99.13% of respondents. The other 508 remain in the
+CES with their recorded answers. The frame also has 455,284 positive cells
 with no exact CES respondent. Poststratification uses the full population
 table, including those cells. An inner join of the two files would discard
 both people and population cells.
