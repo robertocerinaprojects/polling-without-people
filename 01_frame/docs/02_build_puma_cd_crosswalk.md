@@ -50,12 +50,6 @@ geographic exceptions, CVAP accounting and within-PUMA weight sums.
 On 2026-11-07, [Step 03](03_apply_puma_cd_crosswalk.md) matched all 2,462
 state/PUMA pairs and preserved the weighted total of 240,960,972 citizen adults.
 
-The [illustrated allocation guide](figures/02_district_probability_guide.pdf)
-shows the geographic units, input columns, allocation rules and reviewed
-exceptions. Each worked example identifies its actual or illustrative values.
-To regenerate the PDF, run `python3 01_frame/docs/figures/02_district_probability_guide.py`
-from the repository root in a Python environment with Matplotlib installed.
-
 ## Finding the calculation in the code
 
 Start with the [Step 02 script](../scripts/02_build_puma_cd_crosswalk.R).
