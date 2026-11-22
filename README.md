@@ -1,11 +1,11 @@
 # Polling Without People
 
-Replication pipeline under development. We review, refine and run each
-analysis step before treating its outputs as validated.
+Replication pipeline under development.
 
 ## Principal deliverables
 
-The 2024 xframe data are available in [the handoff directory](01_frame/data/output/10_handoff/).
+The 2024 data inputs for building the extended stratification frame are
+available in [the handoff directory](01_frame/data/output/10_handoff/).
 
 | File | Contents |
 |---|---|
