@@ -34,4 +34,4 @@ implementation status and script documentation.
 - Run individual steps from the repository root using their documented commands.
 - The shared R environment lives at the root: `.Rprofile`, `renv.lock` and `renv/`.
 - Codespaces configuration lives in `.devcontainer/`.
-- The complete pipeline and a new end-to-end runner are not yet implemented.
+- The [frame rebuild command](01_frame/README.md#rebuild-the-frame) runs Steps 00–10. Persona generation and MrP have separate workflows.

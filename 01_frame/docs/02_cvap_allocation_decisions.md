@@ -186,9 +186,9 @@ population record. Preserve the raw relationship in the audit.
 
 ### Source snapshot
 
-- File: `../data/input/ct_bg_2024_identifier_check.json`.
-- SHA-256: `a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87`.
-- Exact query: https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json
+- File: `../data/input/tl_2024_09_bg.zip`.
+- SHA-256: `f1bb32d2f1fb94a0adfde42ed6c8bbe8510a64ee90d7bde25c15694967d3ce8c`.
+- Source: [Census 2024 TIGER/Line block groups for Connecticut](https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_09_bg.zip).
 
 The script checks the reviewed absent candidate, the known water-group
 collision, and the complete set of multi-region relationships. New

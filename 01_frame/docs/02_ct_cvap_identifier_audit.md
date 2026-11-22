@@ -40,8 +40,8 @@ The raw absent-candidate and collision counts are retained above.
 The script verified that their identities match the documented cases,
 and that no additional multi-region relationships were introduced.
 
-2024 catalogue response SHA-256: `a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87`.
-Exact source query: https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json
+2024 Connecticut TIGER/Line archive SHA-256: `f1bb32d2f1fb94a0adfde42ed6c8bbe8510a64ee90d7bde25c15694967d3ce8c`.
+Source: [Census block-group archive](https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_09_bg.zip).
 
 Known candidate exceptions are classified under documented rules.
 This note records identifier checks; Sections 9-11 prepare and validate the final allocation.

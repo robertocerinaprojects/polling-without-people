@@ -116,8 +116,9 @@ from adjusted allocation inputs.
 Script 00 acquires the PUMS pair from IPUMS USA. Script 01 resolves it through
 the local snapshot pointer and receipt, then applies the tracked source
 approval checks. Script 05 acquires the 119th Congress Census block archive and
-the CES survey file. The acquisition instructions below cover the other Census
-inputs. Keep source archives compressed; scripts read their required members.
+the CES survey file. Script 02 downloads its Census inputs when absent and
+checks every file against its recorded fingerprint before reading it. Keep
+source archives compressed so the scripts can read the required members.
 
 The PUMS data and variable-metadata fingerprints are maintained in
 [docs/00_pums_source.json](00_pums_source.json). Script 02 contains the six
@@ -220,7 +221,8 @@ and account-specific extract numbers are resolved from the local receipt.
   1,311,562,849.
 - **Source/download:** Exact per-state URLs in the [manifest](02_pl_2020_sources.csv),
   under [Census 2020 PL redistricting files](https://www2.census.gov/programs-surveys/decennial/2020/data/01-Redistricting_File--PL_94-171/).
-  Download each `url` to its `path`; verify its `bytes` and `sha256`.
+  Step 02 downloads each missing archive to its listed path after verifying
+  its byte count and SHA-256.
 - Script 02 Sections 4–5 read the manifest and verify each local archive.
   The [PL reader](../scripts/helpers/02_census_inputs.R) reads two members,
   `<abbr>geo2020.pl` and `<abbr>000022020.pl`. Script 05 reads the manifest
@@ -289,26 +291,19 @@ constructs estimates for the pinned BEF's district geography from block groups.
 - **Contributes to:** CT identifier audit and note, identifier links,
   geographic intersections and subsequent allocation products.
 
-### CT feature query: saved check of two candidate identifiers
+### Connecticut block-group archive
 
-- **File:** `data/input/ct_bg_2024_identifier_check.json`.
-- **Source:** Census TIGERweb's `tigerWMS_ACS2024` Block Groups feature layer
-  (MapServer layer 10). It is a geographic feature table queried through a
-  web service; the file is the saved JSON response, not a CVAP table.
-- **Exact request:** [Saved-query URL](https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json).
-- **Acquisition:** Save the HTTP response body from the exact query directly
-  at the path above. Parsing and reserializing JSON can change the checksum.
-  Downloading that query on 2026-11-08 reproduced the 951-byte snapshot with
-  SHA-256 `a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87`.
-- **Reader:** Script 02 Section 8; reads local JSON and performs no live query.
-- **Relevant content:** Error/transfer-limit indicators and returned feature
-  attributes `GEOID, AREALAND, AREAWATER`.
-- **Evidence:** The response contains `091403431011`, with land area
-  3,606,413 square metres and no water. Candidate `091703431011` is absent.
-  The reviewed decision adopts the sole supported candidate while retaining
-  every original block; it does not claim the boundaries are identical.
-- **Contributes to:** Validation of the CT mapping convention and the generated
-  CT note. All later allocation stages require this check to pass.
+- **File:** `data/input/tl_2024_09_bg.zip`.
+- **Source:** [Census 2024 TIGER/Line block groups for Connecticut](https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_09_bg.zip).
+- **Acquisition:** Step 02 downloads the archive if needed and verifies SHA-256
+  `f1bb32d2f1fb94a0adfde42ed6c8bbe8510a64ee90d7bde25c15694967d3ce8c` before saving or reading it.
+- **Reader:** Step 02 Section 8 reads `GEOID`, `ALAND`, and `AWATER` from
+  `tl_2024_09_bg.dbf` using R's recommended `foreign` package.
+- **Evidence:** The table contains `091403431011` with 3,606,413 square
+  metres of land and no water. Candidate `091703431011` is absent.
+  The reviewed decision uses the sole supported candidate while retaining
+  every original block.
+- **Contributes to:** The Connecticut mapping check and its generated audit note.
 
 ### 119th Congress block assignments for CES residence geography
 
@@ -589,7 +584,7 @@ interpretation of estimated individual districts.
 | File | Producer or reader | Upstream inputs / purpose |
 |---|---|---|
 | `docs/02_cvap_suppression_audit.md` | Script 02 Section 6 writes the identifier checks and Section 7 adds the affected PUMA and district results | BEF/CVAP/NY suppression comparison, followed by BEF/PUMA/PL geographic impact. Links to the maintained decision record. |
-| `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes the identifier checks and adds the reviewed exceptions | CT relationships, CVAP identifiers, mapped 2020 population and saved CT feature query. |
+| `docs/02_ct_cvap_identifier_audit.md` | Script 02 Section 8 writes the identifier checks and adds the reviewed exceptions | CT relationships, CVAP identifiers, mapped 2020 population and the 2024 Connecticut TIGER/Line block-group archive. |
 | `docs/00_pums_source.json` | Maintained after source review; Script 01 reads it | Approved compressed CSV size/SHA-256, required columns, parsed-variable-metadata fingerprint and its serialization method, source provenance and codebook snapshot details. Filenames are resolved from the local receipt. |
 | `docs/02_pl_2020_sources.csv` | Manually maintained tracked input; read by Scripts 02, 05 and 07 | State keys, source URLs, local paths, sizes and fingerprints for all 51 population archives. |
 | `docs/02_cvap_allocation_decisions.md` | Maintained by project review, not generated or parsed by the pipeline | Rationale and evidence for implemented exception rules. The executable rules are in Script 02. |
@@ -721,12 +716,14 @@ It prints a cross-file validation summary and writes no data products.
 - Numbered scripts recreate current products after their prerequisites
   are available. Script 00 acquires and verifies IPUMS snapshots; Script 01
   separately enforces the tracked source approval. Script 05 acquires and
-  verifies the CES file and the 119th Congress block archive. The Script 02
-  Census inputs follow their separate acquisition instructions. Ignored inputs
-  are not distributed by cloning this repository. Mutable download URLs,
-  especially the saved feature-query response, do not guarantee recovery
-  of the pinned bytes. Exact reconstruction requires access to the reviewed
-  snapshots.
+  verifies the CES file and the 119th Congress block archive. Script 02
+  downloads and checks its Census inputs. Step 07 requires the
+  [manual MIT downloads](07_prepare_area_returns.md#source-snapshots-and-running-the-script).
+  The [offline rebuild command](../README.md#rebuild-the-frame) checks for
+  all local source files before starting. A Git clone supplies the scripts
+  and source manifests. Exact reconstruction
+  requires access to the reviewed snapshots because providers may replace
+  files at their download URLs.
 
 Update this catalogue whenever a script gains or changes an input, output,
 schema or consumer. Add catalogues for `02_personae` and `03_mrp` when their

@@ -32,9 +32,45 @@ an imputed value. Step 06 uses CES profiles to check coverage. The
 population counts come from PUMS. [Survey schema](docs/05_prepare_ces.md#analysis-file) ·
 [Population and survey overlap](docs/06_build_pums_cells.md#production-results)
 
+## Rebuild the frame
+
+From the repository root, run the following once the R environment and the
+source files under `01_frame/data/input/` are in place.
+
+```bash
+bash 01_frame/scripts/rebuild_frame.sh
+```
+
+The command starts at Step 00, runs the survey and population checks, fits and
+checks the House models, and builds the three handoff files in Step 10. It
+stops at the first failed command or a failed sampler check for either of
+the first two House regressions. A flagged Democratic-versus-Other fit
+produces a warning and its results are marked provisional. The rebuild uses
+the source files on disk and stops up front with a list of any missing files.
+It regenerates the intermediate datasets and audits and reuses matching saved
+model fits when available.
+
+For setup, restore the R packages with
+`Rscript -e 'renv::restore(prompt = FALSE)'`. Use Bash, `gzip`, Python 3 with
+`openpyxl`, Poppler's `pdftotext`, and the compiler needed by Stan. The
+repository's development container supplies the system tools.
+To populate a new checkout, use the individual scripts to download sources
+once. Set `IPUMS_API_KEY` before running Step 00 on a machine without the
+extract. Steps 02, 05, 07, and 08 download their public source files as needed.
+Manually download the two MIT returns files in **Original Format** from
+Harvard Dataverse. The
+[Step 07 input list](docs/07_prepare_area_returns.md#source-snapshots-and-running-the-script)
+gives the exact releases and paths.
+
+Keep `01_frame/data/input/` on disk between rebuilds. For a new checkout on
+the same machine, copy that directory into the same location before running
+the command. IPUMS USA requires permission to redistribute the full extract.
+[IPUMS USA terms of use](https://usa.ipums.org/usa/terms.shtml)
+
 ## Script status
 
-Run individual steps from the repository root, following their companion documents.
+To run individual steps, use their companion documents and run from the
+repository root.
 
 | Order | Script | Status | Documentation |
 |---|---|---|---|
@@ -62,11 +98,6 @@ the sampler diagnostics. Each completed validation publishes its directory name 
 The [adjusted holdout command](docs/09_validate_house_beta.md#score-the-ballot-adjusted-holdout)
 applies the production ballot rule to the held-out 2024 lineups using
 the saved stage fits.
-
-On a fresh checkout, restore the R packages at the repository root with
-`Rscript -e 'renv::restore(prompt = FALSE)'`. Step 02 also needs the Census
-snapshots listed in [external inputs and acquisition](docs/data_catalogue.md#external-inputs-and-acquisition).
-Step 05 uses Python 3 for its Census geography helper.
 
 **Build paths.** Steps 00–01 acquire and prepare the PUMS sample. Step 02
 independently builds the district crosswalk. Step 03 applies it, Step 04

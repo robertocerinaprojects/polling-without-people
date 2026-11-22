@@ -1272,6 +1272,11 @@
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
       "Repository": "CRAN"
     },
+    "foreign": {
+      "Package": "foreign",
+      "Version": "0.8-91",
+      "Source": "Repository"
+    },
     "future": {
       "Package": "future",
       "Version": "1.82.0",

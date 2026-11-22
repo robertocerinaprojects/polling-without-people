@@ -121,7 +121,7 @@ ct_identifier_note <- function(ct_lookup_sha256, counts) {
   )
 }
 
-ct_verified_exceptions_note <- function(ct_catalog_sha256, ct_catalog_query_url) {
+ct_verified_exceptions_note <- function(ct_catalog_sha256, ct_catalog_url) {
   c(
     "",
     "## Reviewed exception checks",
@@ -130,8 +130,8 @@ ct_verified_exceptions_note <- function(ct_catalog_sha256, ct_catalog_query_url)
     "The script verified that their identities match the documented cases,",
     "and that no additional multi-region relationships were introduced.",
     "",
-    paste0("2024 catalogue response SHA-256: `", ct_catalog_sha256, "`."),
-    paste0("Exact source query: ", ct_catalog_query_url),
+    paste0("2024 Connecticut TIGER/Line archive SHA-256: `", ct_catalog_sha256, "`."),
+    paste0("Source: [Census block-group archive](", ct_catalog_url, ")."),
     "",
     "Known candidate exceptions are classified under documented rules.",
     "This note records identifier checks; Sections 9-11 prepare and validate the final allocation."

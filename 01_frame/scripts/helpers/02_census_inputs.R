@@ -1,5 +1,28 @@
 # Input readers for Step 02. The main script loads dplyr and defines check().
 
+# Reuse a verified Census file or download it beside its destination.
+# A failed or changed download never replaces the reviewed source.
+get_census_input <- function(path, url, sha256, bytes = NULL) {
+  from <- path
+  if (!file.exists(path)) {
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    from <- tempfile("census-download-", tmpdir = dirname(path))
+    on.exit(unlink(from), add = TRUE)
+    old_options <- options(timeout = max(getOption("timeout"), 600))
+    on.exit(options(old_options), add = TRUE)
+    status <- utils::download.file(url, from, mode = "wb", quiet = TRUE)
+    check(status == 0L, paste("Census download failed:", url))
+  }
+  check(is.null(bytes) || isTRUE(file.info(from)$size == bytes),
+        paste("Census source has an unexpected size:", path))
+  check(digest::digest(file = from, algo = "sha256") == sha256,
+        paste("Census source differs from the reviewed file:", path))
+  if (from != path) {
+    check(file.rename(from, path), paste("Could not save verified Census source:", path))
+  }
+  invisible(path)
+}
+
 # Read the national Block Equivalency File (BEF) ----
 # Eager reading lets us delete the extracted file before returning its table.
 
@@ -140,13 +163,7 @@ read_pl_adults <- function(path, abbreviation) {
   adult
 }
 
-read_pl_population <- function(path, abbreviation, state_fips, sha256) {
-  check(file.exists(path), paste("Missing population archive:", path))
-  check(
-    digest::digest(path, algo = "sha256", file = TRUE,
-                   serialize = FALSE) == sha256,
-    paste("Population archive checksum mismatch:", abbreviation)
-  )
+read_pl_population <- function(path, abbreviation, state_fips) {
 
   member <- paste0(tolower(abbreviation), "geo2020.pl")
   check(

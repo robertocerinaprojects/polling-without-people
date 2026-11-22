@@ -12,12 +12,9 @@ read_block_districts <- function(target_states, allowed_states, output_dir) {
   zip_path <- here::here("01_frame", "data", "input", "cd120.zip")
   expected_sha256 <- "bc9a4fc543b8b279ce3663642a5cc4e19e32a8ef84f12371e26f754e5b8cc8a5"
 
-  check(file.exists(zip_path), "Missing input: 01_frame/data/input/cd120.zip")
-  check(
-    digest::digest(zip_path, algo = "sha256", file = TRUE,
-                   serialize = FALSE) == expected_sha256,
-    "Archive checksum differs from the pinned snapshot."
-  )
+  get_census_input(zip_path,
+    "https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2027/120-congressional-district-befs/cd120.zip",
+    expected_sha256)
 
   member <- "NationalCD120.txt"
   check(
@@ -226,12 +223,9 @@ attach_block_pumas <- function(block_cd, target_states, allowed_states, output_d
   )
   puma_sha256 <- "5262f460b2c8dbe86b00549e916317b1791fdc595c9af72ab18f6f6a67040531"
 
-  check(file.exists(puma_path), "Missing tract-to-PUMA input.")
-  check(
-    digest::digest(puma_path, algo = "sha256", file = TRUE,
-                   serialize = FALSE) == puma_sha256,
-    "Tract-to-PUMA checksum differs from the pinned snapshot."
-  )
+  get_census_input(puma_path,
+    "https://www2.census.gov/geo/docs/maps-data/data/rel2020/2020_Census_Tract_to_2020_PUMA.txt",
+    puma_sha256)
 
   tract_puma <- readr::read_csv(
     puma_path,
@@ -441,18 +435,8 @@ attach_block_population <- function(block_cd, target_states, output_dir) {
     cat(sprintf("\nReading population %d/%d: %s\n",
                 i, nrow(population_sources), abbreviation))
 
-    check(
-      file.exists(archive_path) &&
-        file.info(archive_path)$size == as.numeric(entry$bytes),
-      paste(abbreviation, "archive is missing or has an unexpected size.")
-    )
-
-    population <- read_pl_population(
-      path = archive_path,
-      abbreviation = abbreviation,
-      state_fips = st,
-      sha256 = entry$sha256
-    )
+    get_census_input(archive_path, entry$url, entry$sha256, as.numeric(entry$bytes))
+    population <- read_pl_population(archive_path, abbreviation, st)
 
     # Both inputs list exactly the same block IDs for this state. The two
     # files can order them differently, so align by GEOID before copying counts.

@@ -79,13 +79,16 @@ available on the command path. Paths in the table are relative to `01_frame/`.
 | `data/input/05_vote_benchmark/fec2024.xlsx` | Federal Election Commission, official 2024 presidential general election results, compiled from state election offices. [Workbook](https://www.fec.gov/documents/5645/2024presgeresults.xlsx) · [Report and notes](https://www.fec.gov/resources/cms-content/documents/2024presgeresults.pdf) | `68acdee2924d771b92a05cd950dec850b462c633c05563207ac7e206116e7366` |
 | `data/input/05_vote_benchmark/clerk2024.pdf` | U.S. House Clerk, statistics of the November 5, 2024 federal election. Official House returns and notes on unpolled and ranked-choice contests. [Report](https://clerk.house.gov/member_info/electionInfo/2024/statistics2024.pdf) | `d4ba800fc17135b616ae556c92861080ab962d95916ace34b546c5aac824aec4` |
 
-Step 07 verifies downloads and reuses cached files with matching fingerprints.
-If Harvard asks for a guestbook response, open the release, complete the
-guestbook, download the file in **Original Format**, and place the extracted
-original bytes at the listed path. Harvard lists the House file as
+For a fresh rebuild, download both MIT returns files manually from the
+release pages above before running Step 07. Harvard Dataverse can deny
+automated downloads with HTTP 403. Open each release, complete its guestbook
+if prompted, download **Original Format**, and save the original file at the
+listed path. If the download is a ZIP, extract the original file first.
+Harvard lists the House file as
 `1976-2024-house.tab`. Its original bytes are comma-separated, and the project
 stores those bytes as `1976-2024-house.csv`. Re-exporting the table or saving
-a converted tab-delimited version changes the fingerprint.
+a converted tab-delimited version changes the fingerprint. Step 07 checks
+both files against the recorded fingerprints.
 
 The [Census state manifest](02_pl_2020_sources.csv) maps postal abbreviations to
 state FIPS codes. For state CVAP, Step 07 reads `input_weight` from

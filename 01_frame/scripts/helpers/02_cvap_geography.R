@@ -19,16 +19,12 @@ read_cvap_and_ny_errata <- function() {
   cvap_sha256 <- "0c67665c62de843de7a3521a8110de05b4aa158cdc2db304015380615941056c"
   errata_sha256 <- "26975c7dbbcd738b4546416d8753ec0a59e4957b3959fbab29ab7d96f7024369"
 
-  check(file.exists(cvap_path), "Missing CVAP archive.")
-  check(file.exists(errata_path), "Missing Census suppression list.")
-  check(
-    digest::digest(file = cvap_path, algo = "sha256") == cvap_sha256,
-    "CVAP archive fingerprint differs."
-  )
-  check(
-    digest::digest(file = errata_path, algo = "sha256") == errata_sha256,
-    "Census suppression-list fingerprint differs."
-  )
+  get_census_input(cvap_path,
+    "https://www2.census.gov/programs-surveys/decennial/rdo/datasets/2024/2024-cvap/CVAP_2020-2024_ACS_csv_files.zip",
+    cvap_sha256)
+  get_census_input(errata_path,
+    "https://www.census.gov/content/dam/Census/programs-surveys/acs/tech-doc/errata/Errata148_Suppressed_Geographies_for_Wyandanch.xlsx",
+    errata_sha256)
 
   # Keep the national table for the Connecticut check and national allocation (Section 9).
   national_cvap_source <- readr::read_csv(
@@ -286,11 +282,9 @@ audit_ct_block_group_ids <- function(block_cd, national_cvap_source) {
   # SHA-256 recorded from our downloaded lookup.
   ct_lookup_sha256 <- "06957a5e777dc96da4c678a79d27dce6617cfbd510c9611dbf7720c3cd16c5bd"
 
-  check(file.exists(ct_lookup_path), "Missing Connecticut relationship file.")
-  check(
-    digest::digest(file = ct_lookup_path, algo = "sha256") == ct_lookup_sha256,
-    "Connecticut relationship-file fingerprint differs."
-  )
+  get_census_input(ct_lookup_path,
+    "https://www2.census.gov/geo/docs/maps-data/data/rel2022/acs22_cousub22_blkgrp20_st09.txt",
+    ct_lookup_sha256)
 
   ct_pairs <- read_ct_planning_region_overlaps(ct_lookup_path)
 
@@ -314,23 +308,18 @@ audit_ct_block_group_ids <- function(block_cd, national_cvap_source) {
 
 
   # Reviewed Connecticut exceptions; see docs/02_cvap_allocation_decisions.md.
-  # Fingerprint of the saved official 2024 catalogue response.
+  # Read the published block-group attributes from the 2024 Census archive.
   ct_catalog_path <- here::here(
-    "01_frame", "data", "input", "ct_bg_2024_identifier_check.json"
+    "01_frame", "data", "input", "tl_2024_09_bg.zip"
   )
-  ct_catalog_sha256 <- "a01ecdfb5bfe0fe4119a3aab71007408f458ebc5c0c580a04402fe102a51bb87"
-  ct_catalog_query_url <- "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/10/query?where=GEOID+IN+%28%27091403431011%27%2C%27091703431011%27%29&outFields=GEOID%2CNAME%2CSTATE%2CCOUNTY%2CTRACT%2CBLKGRP%2CAREALAND%2CAREAWATER&returnGeometry=false&orderByFields=GEOID&f=json"
-
-  check(file.exists(ct_catalog_path), "Missing 2024 Connecticut catalogue response.")
-  check(
-    digest::digest(file = ct_catalog_path, algo = "sha256") == ct_catalog_sha256,
-    "2024 Connecticut catalogue response fingerprint differs."
-  )
+  ct_catalog_sha256 <- "f1bb32d2f1fb94a0adfde42ed6c8bbe8510a64ee90d7bde25c15694967d3ce8c"
+  ct_catalog_url <- "https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_09_bg.zip"
+  ct_catalog <- read_ct_block_group_attributes(ct_catalog_path, ct_catalog_url, ct_catalog_sha256)
 
   # A 160-square-metre intersection has no corresponding published block-group ID.
   # Verify both that case and the water-only relationships before approving the links.
-  check_ct_identifier_exceptions(ct_catalog_path, comparison$candidates, comparison$review)
-  ct_verified_note <- ct_verified_exceptions_note(ct_catalog_sha256, ct_catalog_query_url)
+  check_ct_identifier_exceptions(ct_catalog, comparison$candidates, comparison$review)
+  ct_verified_note <- ct_verified_exceptions_note(ct_catalog_sha256, ct_catalog_url)
   writeLines(c(ct_source_note, ct_verified_note), ct_note_path)
 
   cat("\nReviewed Connecticut identifier exception checks passed.\n")
@@ -475,24 +464,24 @@ read_ct_planning_region_overlaps <- function(ct_lookup_path) {
     )
 }
 
-check_ct_identifier_exceptions <- function(ct_catalog_path, candidates, review) {
-  ct_catalog <- jsonlite::fromJSON(
-    ct_catalog_path, simplifyVector = FALSE
-  )
-  check(
-    is.null(ct_catalog$error) &&
-      !isTRUE(ct_catalog$exceededTransferLimit) &&
-      length(ct_catalog$features) == 1L,
-    "Invalid or incomplete 2024 catalogue response."
-  )
+read_ct_block_group_attributes <- function(path, url, sha256) {
+  # Read only the attribute table. This check needs identifiers and areas.
+  get_census_input(path, url, sha256)
+  extraction_dir <- tempfile("ct-block-groups-")
+  dir.create(extraction_dir)
+  on.exit(unlink(extraction_dir, recursive = TRUE), add = TRUE)
+  attributes <- unzip(path, files = "tl_2024_09_bg.dbf", exdir = extraction_dir)
+  foreign::read.dbf(attributes, as.is = TRUE)
+}
 
-  # Expected identifier and areas come from the reviewed catalogue response.
-  published <- ct_catalog$features[[1]]$attributes
+check_ct_identifier_exceptions <- function(ct_catalog, candidates, review) {
+  # Confirm that the archive contains exactly the supported candidate.
+  published <- ct_catalog[ct_catalog$GEOID %in% c("091403431011", "091703431011"), ]
   check(
     identical(published$GEOID, "091403431011") &&
-      isTRUE(published$AREALAND == 3606413) &&
-      isTRUE(published$AREAWATER == 0),
-    "2024 catalogue geography differs from the reviewed case."
+      isTRUE(published$ALAND == 3606413) &&
+      isTRUE(published$AWATER == 0),
+    "2024 Connecticut block-group attributes differ from the reviewed case."
   )
 
   check(
@@ -517,7 +506,7 @@ check_ct_identifier_exceptions <- function(ct_catalog_path, candidates, review) 
   check(
     nrow(published_candidate) == 1L &&
       isTRUE(published_candidate$present_in_cvap[[1]]) &&
-      published_candidate$land_m2[[1]] == published$AREALAND &&
+      published_candidate$land_m2[[1]] == published$ALAND &&
       review$absent$land_m2[[1]] == 160 &&
       review$absent$water_m2[[1]] == 0,
     "The reviewed small-overlap case has changed."
