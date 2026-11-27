@@ -44,6 +44,8 @@ and where Step 09 needs a prediction.
 
 All paths in backticks are relative to `01_frame/` unless stated otherwise.
 
+*Table 1. Script names and companion documents.*
+
 | Name used here | Script | Companion document |
 |---|---|---|
 | Script 00 | [00_download_pums.R](../scripts/00_download_pums.R) | [IPUMS download](00_download_pums.md) |
@@ -81,6 +83,8 @@ to check the MIT returns. Its counts, covariates and audits are listed under
 and two generated Markdown notes are additional tracked files in `docs/`.
 
 ## Geography, quantities and keys
+
+*Table 2. Geographic keys and population quantities used across files.*
 
 | Term or field | Meaning in these files |
 |---|---|
@@ -171,6 +175,8 @@ another snapshot does not update these expectations automatically.
 The approved CSV has 249,052,624 bytes and SHA-256
 `adb92df6553053b846773de170852e4d1b7b557d6d6aaf9827e9a37111f70a04`.
 It contains these 24 columns, in order:
+
+*Snippet 1. Ordered IPUMS extraction variables.*
 
 ```text
 YEAR, MULTYEAR, SAMPLE, SERIAL, CBSERIAL, HHWT, CLUSTER, STATEFIP,
@@ -334,6 +340,8 @@ district and county for the harmonized CES RDS and respondent-level audits. [Rel
 
 ## Working datasets and direct dependencies
 
+*Table 3. Working data files and direct dependencies.*
+
 | File | Producer and upstream inputs | Direct downstream use |
 |---|---|---|
 | `data/intermediate/pums_clean.rds` | Script 01 reads the approved IPUMS pair acquired by Script 00 and checks the local receipt and tracked source specification. | Script 03 reads person weights and geography. Script 04 reads the person key, demographics, citizenship and original person weights. Script 08 uses the person key, PUMA, state and original person weights to build the 2024 district predictors. |
@@ -368,6 +376,8 @@ source snapshot.
 
 `puma_cd_crosswalk.rds` and `data/output/02_puma_cd_weights.csv` contain:
 
+*Snippet 2. PUMA-to-district weight schema.*
+
 ```text
 STATEFP, PUMA5CE, CDFP, allocation_weight, weight_method
 ```
@@ -387,6 +397,8 @@ person weights to districts.
 
 `pums_cd_allocation.rds` stores one row per retained person and district with
 a positive allocation probability. It saves the columns in this order.
+
+*Snippet 3. Allocated person-weight schema.*
 
 ```text
 SAMPLE, SERIAL, PERNUM, STATEFIP, PUMA, CDFP, PERWT, allocation_weight, allocated_person_weight
@@ -412,6 +424,8 @@ Script 01 validates its local receipt and tracked approval before processing.
 Their schemas are unchanged. They are review tables; no active script reads
 these CSVs back as inputs.
 
+*Table 4. Person preparation audit outputs.*
+
 | File | One row represents / purpose | Columns, in file order |
 |---|---|---|
 | `01_pums_filtering.csv` | Filtering stage; record and weighted-population losses | `stage, rows, weighted_population, rows_removed, weighted_removed` |
@@ -420,6 +434,8 @@ these CSVs back as inputs.
 | `01_pums_income_by_gq.csv` | Group-quarters code; missing household income | `GQ, rows, missing_income, weighted_missing_income` |
 
 ### Script 02: geography and population audits
+
+*Table 5. Crosswalk geography and population audit outputs.*
 
 | File | Writer | Upstream inputs | One row represents / purpose |
 |---|---|---|---|
@@ -441,6 +457,8 @@ These products derive from reconciled BEF/PUMA geography, PL populations,
 CVAP estimates and CT relationships. The NY suppression workbook and saved
 CT query validate permitted exceptions. All seven raw input families and
 the PL manifest are required for a completed Script 02 run.
+
+*Table 6. Allocation inputs, block contributions, and district weights.*
 
 | File | Writer | Immediate in-memory inputs | One row represents / purpose |
 |---|---|---|---|
@@ -468,6 +486,8 @@ these products; later interfaces have not yet been implemented.
 
 ### Geography and population
 
+*Table 7. Columns in the geographic and population audits.*
+
 | File | Columns, in file order |
 |---|---|
 | `02_cd120_coverage.csv` and `02_cd120_excluded_jurisdictions.csv` | `STATEFP, blocks, assigned_districts, unassigned_blocks, in_target` |
@@ -482,6 +502,8 @@ these products; later interfaces have not yet been implemented.
 | `02_ct_cvap_identifier_audit.csv` | `bg_2020, planning_region, source_rows, land_m2, water_m2, bg_cvap, population_2020, cvap_est, present_in_cvap` |
 
 ### Allocation preparation and contributions
+
+*Table 8. Columns in the allocation and contribution audits.*
 
 | File | Columns, in file order |
 |---|---|
@@ -532,6 +554,8 @@ PUMAs. A successful run removes any earlier diagnostic.
 Both audits use `pums_clean.rds` from Script 01 and `puma_cd_crosswalk.rds`
 from Script 02. Script 03 uses its in-memory summaries for the calculations.
 
+*Table 9. Person-to-district allocation audits.*
+
 | File under `data/output/` | Writer and unit | Columns in saved order |
 |---|---|---|
 | `03_pums_crosswalk_coverage.csv` | Section 1, one row per state/PUMA across both inputs | `STATEFP, PUMA5CE, person_records, weighted_population, district_rows, positive_districts, weight_sum, coverage_status` |
@@ -561,6 +585,8 @@ The following tables are saved under `data/output/`. CES audit counts are
 unweighted counts of respondents. District probabilities refer to the 2020-block
 representation of residence on the 120th Congress map.
 
+*Table 10. PUMS demographic harmonization and race probability outputs.*
+
 | File | Producer and direct inputs | Contents and use |
 |---|---|---|
 | `04_pums_hispanic_race_probabilities.csv` | 04, cleaned PUMS | One row per `race_cat` with `donor_records, donor_weight, probability`. Script 05 reconciles the conditional donor tables to these national totals by race. |
@@ -580,6 +606,8 @@ citizen rule, geography exceptions, donor weighting, fallback and the
 interpretation of estimated individual districts.
 
 ## Generated documentation and other tracked metadata
+
+*Table 11. Generated documents and reference files.*
 
 | File | Producer or reader | Upstream inputs / purpose |
 |---|---|---|
@@ -606,6 +634,8 @@ candidate mapping, official-source reconciliation and residual definition.
 Step 07 writes the following counts and audits. The state covariate file
 additionally requires the Step 03 PUMS audit.
 
+*Table 12. Cached election return inputs.*
+
 | Input | Source | What it contributes |
 |---|---|---|
 | `data/input/07_area_returns/1976-2024-president.csv` | MIT Election Data and Science Lab, U.S. President 1976–2024, v10.1. | State presidential vote lines, pooled write-ins and ballot-accounting rows. |
@@ -614,6 +644,8 @@ additionally requires the Step 03 PUMS audit.
 | `data/input/05_vote_benchmark/clerk2024.pdf` | U.S. House Clerk, 2024 federal election statistics. | District House returns and tabulation notes for reconciliation. Also used by the optional CES benchmark. |
 | `docs/02_pl_2020_sources.csv` | Census state manifest tracked with Step 02. | Postal abbreviations and two-digit state FIPS codes for all tables. |
 | `data/output/03_pums_allocation_by_state.csv` | Step 03, cleaned PUMS and district allocation. | Weighted citizen adults by state, including DC, to calculate presidential shares. |
+
+*Table 13. Prepared state and district election outputs.*
 
 | Output built by Step 07 | Geographic unit and use |
 |---|---|
@@ -636,6 +668,8 @@ and records the roster year and outcome source in its district-by-party file.
 
 Step 08 has two independent entry points. One produces district population estimates from the 2020–2024 PUMS on each map. The other counts eligible named House nominees and records which parties fielded a sitting member in each election. Step 09 joins the district tables by state and district on the corresponding map. The detailed population inventory gives the Census archive names and the treatment of each geographic exception. [District population inputs and products](08_build_district_predictors.md#inputs-and-products) · [House roster sources](08_house_slates.md#sources-and-review)
 
+*Table 14. District population and candidate roster products.*
+
 | Product under `data/` | Producer and direct inputs | Use |
 |---|---|---|
 | `intermediate/08_puma_cd119_weights.csv` and `output/08_cd119_allocation_exceptions.csv` | The district predictors script compares the CD119 and CD120 block assignments. It reuses Step 02 weights in states with identical footprints and rebuilds weights elsewhere from Step 02 block-group tables and 2020 Census block adult counts. | The weights assign a fraction of each PUMA to each original district. The audit records exceptional block groups in the rebuilt states. |
@@ -648,6 +682,8 @@ Step 08 has two independent entry points. One produces district population estim
 ## District-by-party House shares
 
 Step 09 joins the Step 07 House returns and state presidential shares with the Step 08 two-map demographics, district overlap and candidate rosters. It checks the declared winners of the two unpolled contests against the nominee audit and their House membership records. [Unpolled winners and sources](09_unpolled_house_winners_2024.csv)
+
+*Table 15. District-by-party model inputs and projections.*
 
 | Product under `data/intermediate/` | What it contains |
 |---|---|
@@ -672,6 +708,8 @@ and election status.
 Run `Rscript 01_frame/scripts/10_prepare_handoff.R` from the repository root.
 The script writes the three transfer files to `data/output/10_handoff/` and
 the full MrP predictor table to `data/intermediate/10_district_election_predictors_cd120.csv`.
+
+*Table 16. Step 10 handoff files and their sources.*
 
 | File | Inputs and contents |
 |---|---|
@@ -729,3 +767,11 @@ It prints a cross-file validation summary and writes no data products.
 Update this catalogue whenever a script gains or changes an input, output,
 schema or consumer. Add catalogues for `02_personae` and `03_mrp` when their
 actual interfaces are defined; neither has implemented data products yet.
+
+## Step 11 extension outputs
+
+Step 11 uses the Step 10 population cells, CES responses, and election
+shares plus the Step 09 House target provenance. It writes the calibrated
+state partitions, pre-rake frame, model fits, and validation and calibration
+diagnostics under `01_frame/data/output/11_frame_extension/`.
+[Step 11 inputs and outputs](11_extend_frame.md)

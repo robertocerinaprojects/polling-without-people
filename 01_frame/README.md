@@ -2,8 +2,14 @@
 
 ## Principal deliverables
 
+Step 11 extends the mother frame with 2024 House vote and saves calibrated
+state partitions, pre-rake counts, fitted models and diagnostics under
+`data/output/11_frame_extension/`. [Frame extension](docs/11_extend_frame.md)
+
 Run Step 10 to assemble the long-format election results, mother frame, and harmonized CES
 in `data/output/10_handoff/`. [Data handoff](../get_us_2024_xframe_data.md)
+
+*Table 1. Step 10 files for the frame extension.*
 
 | Handoff file | Contents |
 |---|---|
@@ -37,6 +43,8 @@ population counts come from PUMS. [Survey schema](docs/05_prepare_ces.md#analysi
 From the repository root, run the following once the R environment and the
 source files under `01_frame/data/input/` are in place.
 
+*Snippet 1. Rebuild the frame from the repository root.*
+
 ```bash
 bash 01_frame/scripts/rebuild_frame.sh
 ```
@@ -49,6 +57,9 @@ produces a warning and its results are marked provisional. The rebuild uses
 the source files on disk and stops up front with a list of any missing files.
 It regenerates the intermediate datasets and audits and reuses matching saved
 model fits when available.
+
+Run [Step 11](docs/11_extend_frame.md) after the offline rebuild to fit and
+calibrate the extension. It consumes the saved handoff and requires SynthFrame.
 
 For setup, restore the R packages with
 `Rscript -e 'renv::restore(prompt = FALSE)'`. Use Bash, `gzip`, Python 3 with
@@ -72,6 +83,8 @@ the command. IPUMS USA requires permission to redistribute the full extract.
 To run individual steps, use their companion documents and run from the
 repository root.
 
+*Table 2. Frame scripts in execution order with their current status.*
+
 | Order | Script | Status | Documentation |
 |---|---|---|---|
 | 00 | `scripts/00_download_pums.R` | validated | [IPUMS download](docs/00_download_pums.md) |
@@ -88,6 +101,7 @@ repository root.
 | 09 | `scripts/09_validate_house_beta.R validate` | Fit the three beta stages and score the 2024 holdout | [Model equations, predictors and outputs](docs/09_validate_house_beta.md) |
 | 09 | `scripts/09_predict_house_cd120.R` | Fit all tabulated 2024 contests and export the raw and adjusted CD120 shares | [Production export](docs/09_model_house_votes.md#build-and-inspect-the-final-cd120-shares) |
 | 10 | `scripts/10_prepare_handoff.R` | Assemble the three handoff files from saved pipeline outputs | [Data handoff](../get_us_2024_xframe_data.md) |
+| 11 | `scripts/11_extend_frame.R` | Fit, extend, and rake 2024 House vote with SynthFrame | [Frame extension](docs/11_extend_frame.md) |
 
 The [latest House holdout results](docs/09_validate_house_beta.md#latest-verified-holdout-results)
 include the published figures, scores, district predictions and sampler

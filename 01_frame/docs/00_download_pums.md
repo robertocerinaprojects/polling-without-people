@@ -30,11 +30,15 @@ person file and preparation audits.
 
 Run from the repository root:
 
+*Snippet 1. Download or resume the approved IPUMS extract.*
+
 ```bash
 Rscript 01_frame/scripts/00_download_pums.R
 ```
 
 To request a separate snapshot:
+
+*Snippet 2. Refresh the IPUMS extract.*
 
 ```bash
 Rscript 01_frame/scripts/00_download_pums.R --refresh
@@ -52,6 +56,8 @@ available for the compressed-file integrity check.
 
 ## Extraction specification
 
+*Table 1. Fields and settings for the IPUMS extract.*
+
 | Setting | Value |
 |---|---|
 | Provider | IPUMS USA, which harmonizes Census ACS microdata |
@@ -62,6 +68,8 @@ available for the compressed-file integrity check.
 | Population selection | All persons; no age, citizenship or state case selection |
 | Additional transformations | No requested monetary adjustment, attached characteristics or data-quality flags |
 | Downloaded variables | The 24 columns below |
+
+*Snippet 3. Ordered variables in the IPUMS extraction request.*
 
 ```text
 YEAR, MULTYEAR, SAMPLE, SERIAL, CBSERIAL, HHWT, CLUSTER, STATEFIP,
@@ -77,6 +85,8 @@ Its API checks cover sample, fields, layout and selection settings.
 
 The API definition check requires 21 base variable names. Three of those
 base names also supply detailed columns in the downloaded data:
+
+*Table 2. IPUMS API selections and the columns required after download.*
 
 | API base name | Required downloaded columns |
 |---|---|
@@ -98,6 +108,8 @@ IPUMS describes general/detailed versions in its
 Paths below are relative to `01_frame/data/input/ipums_pums/`. A snapshot
 directory uses UTC creation time and process number. Returned source
 filenames are preserved.
+
+*Table 3. Saved snapshot files and their downstream uses.*
 
 | File | Producer and use |
 |---|---|
@@ -157,17 +169,23 @@ and the codebook used in the validated run.
 
 The approved compressed CSV has **249,052,624 bytes** and SHA-256:
 
+*Snippet 4. SHA-256 of the approved compressed microdata CSV.*
+
 ```text
 adb92df6553053b846773de170852e4d1b7b557d6d6aaf9827e9a37111f70a04
 ```
 
 The approved variable-metadata SHA-256 is:
 
+*Snippet 5. SHA-256 of the approved parsed variable metadata.*
+
 ```text
 c5216653fec547730c0edd2a5381cb10b1bbda82cbe0371a2b594c806223d65a
 ```
 
 Its named method, `ipums_var_info_json_v1`, hashes the UTF-8 string produced by:
+
+*Snippet 6. Serialize the parsed IPUMS variable metadata before hashing.*
 
 ```r
 jsonlite::toJSON(
@@ -183,6 +201,8 @@ XML content outside the variable table is verified through each snapshot's
 own receipt.
 
 The codebook used in the validated run has **121,139 bytes** and SHA-256:
+
+*Snippet 7. SHA-256 of the validated IPUMS codebook file.*
 
 ```text
 b2fc88a18873bf3ab85d7930cde8f3d9d452b56e3d62743c1e9019592cc75c2c

@@ -24,6 +24,8 @@ The 2024 list describes the 118th Congress before November 5. The 2026 list desc
 
 Membership in either chamber qualifies. Neither election included a sitting U.S. senator among the eligible House nominees. The check used the Senate calendars for both election eves. [November 4, 2024 Senate roll](https://www.govinfo.gov/content/pkg/CCAL-118scal-2024-11-04/html/CCAL-118scal-2024-11-04-pt1.htm) · [November 2, 2026 Senate roll](https://www.govinfo.gov/content/pkg/CCAL-119scal-2026-11-02/html/CCAL-119scal-2026-11-02-pt1.htm)
 
+*Table 1. Candidate examples illustrating party-specific incumbency.*
+
 | Election and district | Eligible nominees illustrating the rule | Dem | Rep | Other |
 |---|---|---:|---:|---:|
 | 2024 AL-01 | Sitting Republican Barry Moore moved from AL-02 to face Democrat Tom Holmes. | 0 | 1 | 0 |
@@ -48,6 +50,8 @@ Two 2024 seats had a declared winner and no tabulated general-election vote. On 
 
 ## District-level counts
 
+*Table 2. District counts by ballot lineup and election year.*
+
 | Eligible named party options | 2024 districts | 2026 districts |
 |---|---:|---:|
 | Democratic, Republican, Other | 127 | 171 |
@@ -66,6 +70,8 @@ In 2024, 22 seats had a single nominee (9 D and 13 R). Another seven had several
 From the repository root run `python3 01_frame/scripts/08_prepare_house_slates.py`. Python's standard library and the Poppler `pdftotext` executable suffice. The first run downloads `119-nominations.pdf` and `120-nominations.pdf` to `01_frame/data/input/`. Later runs verify and reuse those files. The state names and FIPS codes use the existing Census source manifest. [State identifiers](02_pl_2020_sources.csv)
 
 The annual tables `01_frame/data/intermediate/08_house_slates_2024.csv` and `08_house_slates_2026.csv` have one row per district. Read `STATEFP` and `CDFP` as text to preserve leading zeros. State at-large seats use `00` and DC uses `98`. The counts `n_dem`, `n_rep` and `n_other` give eligible nominees in each group. The `slate` column records the groups present, in D/R/O order. For example, these two 2024 districts both had `slate=D`.
+
+*Table 3. Example district rows from the candidate roster export.*
 
 | District | n_dem | n_rep | n_other | unopposed | same_party_multiple |
 |---|---:|---:|---:|---:|---:|

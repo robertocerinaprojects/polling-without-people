@@ -55,6 +55,8 @@ Start with the [Step 02 script](../scripts/02_build_puma_cd_crosswalk.R).
 Sections 10 and 11 are where the two divisions above take place. To trace a
 value back to its source, follow the numbered sections and their helpers.
 
+*Table 1. Code locations for following the allocation calculations.*
+
 | What do you want to trace? | Where to look |
 |---|---|
 | Which PUMA and district contain a block, and how many residents and adults did the Census count there? | Sections 1–5 use the [Census file readers](../scripts/helpers/02_census_inputs.R) and [block geography and population joins](../scripts/helpers/02_block_geography.R). |
@@ -238,6 +240,8 @@ The crosswalk columns are STATEFP, PUMA5CE, CDFP, allocation_weight and
 weight_method. The [Script 03 guide](03_apply_puma_cd_crosswalk.md) documents how these weights are applied to PUMS records.
 
 The latest verified crosswalk had these results.
+
+*Table 2. Coverage and population checks for the verified crosswalk.*
 
 | Check or output | Result |
 |---|---:|

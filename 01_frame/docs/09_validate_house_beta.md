@@ -6,6 +6,8 @@ For each district on its 2024 boundaries we estimate four shares of its citizen 
 
 The input has one row per district. Its CVAP, $N_i$, is the unrounded sum of PUMS person weights allocated to that 2024 district. Electoral returns supply $R_i,D_i,O_i$, the **counts** of votes classified as Republican, Democratic and Other. Define $V_i=R_i+D_i+O_i$ and $H_i=N_i-V_i$. The informal label “stay home” means $H_i/N_i$. Someone who voted only for president also falls into this group. Uncertainty in the PUMS estimate of $N_i$ is not propagated through the model. [CVAP construction](08_build_district_predictors.md) · [Classification of votes](07_prepare_area_returns.md)
 
+*Table 1. Stage responses and state presidential predictors.*
+
 | Stage | Observed response $q_{ij}$ | Development districts used | State presidential share used |
 |---|---|---:|---|
 | H. No counted House candidate vote | $H_i/N_i$ | 404 | No counted presidential candidate vote |
@@ -18,20 +20,38 @@ Republicans received 74,844,655 counted House votes, Democrats 71,039,742 and Ot
 
 For $j\in\{H,R,D\}$ and each district with a defined stage response,
 
+*Equation 1. Beta likelihood and link for a district stage response.*
+
 $$
 q^*_{ij}\mid\mu_{ij},\phi_j
- \sim \operatorname{Beta}(\mu_{ij}\phi_j,(1-\mu_{ij})\phi_j),
+ \sim \mathrm{Beta}(\mu_{ij}\phi_j,(1-\mu_{ij})\phi_j),
 \qquad
-\operatorname{logit}(\mu_{ij})=\eta_{ij}.
+\mathrm{logit}(\mu_{ij})=\eta_{ij}.
 $$
 
 Each stage estimates a separate positive precision $\phi_j$, common to all districts within that stage. The conditional variance is $\mu_{ij}(1-\mu_{ij})/(1+\phi_j)$. Each eligible district supplies one likelihood term per stage. Its number of voters enters the fractions above and does not weight the regression. [brms beta parameterization](https://paulbuerkner.com/brms/articles/brms_families.html)
 
-Exact zeros and ones require special treatment for an ordinary beta likelihood. Let $\delta=1/\operatorname{mean}_{i\in\mathrm{development}}V_i$. Each fit replaces an observed zero with $\delta$ and an observed one with $1-\delta$, and uses interior observations as recorded. The 404 development districts averaged 341,144.16 counted House votes, so $\delta\simeq0.0000029313$ as a proportion. This is a one-vote adjustment at the average **training** district size. All holdout scores use the original four shares, including their exact zeros. [Hanretty's boundary adjustment, section 3.2](https://chrishanretty.co.uk/pubs/10.1016_j.ijforecast.2021.03.007/fulltext.pdf#page=7)
+Exact zeros and ones require special treatment for an ordinary beta likelihood.
+Let $\mathcal T$ be the development districts and define
+
+*Equation 2. Boundary adjustment based on training district vote counts.*
+
+$$
+\delta=\left(\frac{1}{|\mathcal T|}\sum_{i\in\mathcal T} V_i\right)^{-1}.
+$$
+
+Each fit replaces an observed zero with $\delta$ and an observed one with $1-\delta$,
+and uses interior observations as recorded. The 404 development districts
+averaged 341,144.16 counted House votes, so $\delta\simeq0.0000029313$ as a
+proportion. This is a one-vote adjustment at the average training district size.
+All holdout scores use the original four shares, including their exact zeros.
+[Hanretty's boundary adjustment, section 3.2](https://chrishanretty.co.uk/pubs/10.1016_j.ijforecast.2021.03.007/fulltext.pdf#page=7)
 
 ## The predictors in each equation
 
 Let $T_j$ be the development districts with a defined stage-$j$ response. For a numeric predictor $x$, let $z_j(x)=(x-\bar x_j)/s_{xj}$, where $\bar x_j$ and $s_{xj}$ are its mean and sample standard deviation across $T_j$. Districts get equal weight in these calculations. The held-out district is transformed with these same training values. The rule applies to every varying share, the presidential predictor, the party-lineup contrasts and the 0/1 incumbency indicator. A constant fixed-effect column cannot identify a slope and is omitted. Preparing a walk requires variation in each of its component shares. The presidential curve requires at least five distinct training values. A state code identifies a group.
+
+*Table 2. Predictors used in the district beta regressions.*
 
 | Term | Variables | Stages |
 |---|---|---|
@@ -47,6 +67,8 @@ Let $T_j$ be the development districts with a defined stage-$j$ response. For a 
 
 For district $i$ let $X_{ij}$ contain the six standardized sex, race and ethnicity shares in the first three rows. Let $Z^A_{ij}$ and $Z^E_{ij}$ be the standardized age and education vectors. Define the demographic contribution for each stage as
 
+*Equation 3. Demographic contribution to each stage predictor.*
+
 $$
 G_{ij}=X_{ij}^{\mathsf T}\beta_j+
        (Z^A_{ij})^{\mathsf T}\theta^A_j+
@@ -54,6 +76,8 @@ G_{ij}=X_{ij}^{\mathsf T}\beta_j+
 $$
 
 Let $s(i)$ be the district's state or DC, $P_{s,j}$ the corresponding state presidential share, $L_{ij}$ the standardized lineup contrasts and $I_{i,j}$ the focal party incumbent indicator. The complete linear predictors are
+
+*Equation 4. Linear predictors for No Vote and the two party stages.*
 
 $$
 \begin{aligned}
@@ -74,6 +98,8 @@ Each stage has its own coefficients, state effects, smooths and precision. All d
 
 Each row of the table gives four **raw** contrast values. The first three capture the structure of the contest. The last distinguishes which major party is on the ballot whenever only one appears. This lets, for example, a district with a Republican as its only nominee have a different expected Republican share from one with a Democrat as its only nominee.
 
+*Table 3. Fixed-effect lineup contrasts by House slate.*
+
 | 2024 nominees by party | D + R + Other | One major party alone | One major party + Other | Direction |
 |---|---:|---:|---:|---:|
 | D and R (reference) | 0 | 0 | 0 | 0 |
@@ -89,9 +115,11 @@ Nominees are grouped by party. Two Democrats running against each other are a D-
 
 Each district has residents in many age bands and education categories. It enters the model once with **all** its shares. For each stage and each ordered block $g$ (age with $K=14$, education with $K=6$), model the differences between neighboring effects:
 
+*Equation 5. Adjacent differences and centering for the demographic random walks.*
+
 $$
 d^g_{jh}=\theta^g_{j,h+1}-\theta^g_{jh},\qquad
-d^g_{jh}\mid\tau_{jg}\overset{\rm iid}{\sim}\mathcal N(0,\tau_{jg}^2),
+d^g_{jh}\mid\tau_{jg}\overset{\mathrm{iid}}{\sim}\mathcal N(0,\tau_{jg}^2),
 \qquad \sum_{b=1}^{K}\theta^g_{jb}=0.
 $$
 
@@ -101,11 +129,13 @@ The code represents the walk with $K-1$ independent increments. The centered cum
 
 ### State, presidential curve and priors
 
-State effects $u_{sj}\mid\sigma_j\overset{\rm iid}{\sim}\mathcal N(0,\sigma_j^2)$ pool states toward zero independently within stage. For a state present in training, prediction uses its posterior state effect. For a state absent from training, it draws a fresh effect from this fitted population distribution. All districts from the same new state share that draw in a given stage. The model uses the state identity alone to define this pooling.
+State effects $u_{sj}\mid\sigma_j\overset{\mathrm{iid}}{\sim}\mathcal N(0,\sigma_j^2)$ pool states toward zero independently within stage. For a state present in training, prediction uses its posterior state effect. For a state absent from training, it draws a fresh effect from this fitted population distribution. All districts from the same new state share that draw in a given stage. The model uses the state identity alone to define this pooling.
 
 Each $f_j$ is a centered natural cubic regression spline of the standardized stage-specific presidential share, `s(presidentialShare, bs = "cr", k = 5)`. The centering separates it from the intercept. A linear association is allowed, and a curvature penalty shrinks departures from a straight line. With five basis functions before centering, the usual full-rank design leaves one linear and three penalized components. The slope can vary over the range of statewide presidential shares. [mgcv cubic regression splines](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/smooth.construct.cr.smooth.spec.html) · [brms smooth terms](https://paulbuerkner.com/brms/reference/s.html)
 
 For each stage the independent priors are
+
+*Equation 6. Prior distributions for the stage parameters.*
 
 $$
 \begin{aligned}
@@ -124,6 +154,8 @@ Here $t_\nu(m,s)$ is a Student distribution with degrees of freedom $\nu$, locat
 
 For a draw $(a,b,c)$ from stages H, R and D in that order, compute
 
+*Equation 7. Reconstruct unconditional House shares from stage predictions.*
+
 $$
 p_H=a,\qquad p_R=(1-a)b,\qquad
 p_D=(1-a)(1-b)c,\qquad p_O=(1-a)(1-b)(1-c).
@@ -135,10 +167,12 @@ The frozen holdout includes Alaska, Delaware, North Dakota, South Dakota, Vermon
 
 For each of H, R, D and Other, let $e_i=\hat p_i-p_i$ for the 30 held-out districts. The report includes
 
+*Table 4. District holdout error definitions.*
+
 | Score | Calculation |
 |---|---|
-| Bias in percentage points | $100\,\operatorname{mean}(e_i)$. Positive bias means overprediction. |
-| RMSE in percentage points | $100\sqrt{\operatorname{mean}(e_i^2)}$. |
+| Bias in percentage points | $100\,\mathrm{mean}(e_i)$. Positive bias means overprediction. |
+| RMSE in percentage points | $100\sqrt{\mathrm{mean}(e_i^2)}$. |
 | Spearman correlation | Correlation of observed and predicted ranks, averaging ties. |
 | 90% predictive interval coverage (model only) | Fraction of observed shares inside the model's predictive interval, including its endpoints. |
 
@@ -162,6 +196,8 @@ Step 09 preparation writes **`01_frame/data/intermediate/09_house_party_inputs.c
 
 From the repository root, this shows the four choices for the first tabulated district and keeps the leading zeros in its geographic codes. Use `names(parties)` to see all demographic columns.
 
+*Snippet 1. Read and inspect the district-by-party inputs.*
+
 ```r
 parties <- read.csv("01_frame/data/intermediate/09_house_party_inputs.csv",
                     colClasses = c(STATEFP = "character", CDFP = "character"))
@@ -175,6 +211,8 @@ For fitting, the driver reads the companion file `01_frame/data/intermediate/09_
 
 ## Run from the repository root
 
+*Snippet 2. Prepare inputs and fit the House stage models.*
+
 ```bash
 Rscript 01_frame/scripts/09_model_house_votes.R prepare  # if the CD119 training CSV is absent
 Rscript 01_frame/scripts/09_validate_house_beta.R plan
@@ -184,6 +222,8 @@ Rscript 01_frame/scripts/09_validate_house_beta.R validate
 `plan` prints the CPU allocation and sampling budget on the machine running R, checks the district data and writes the split. `validate` runs the three regressions in order. The input is `01_frame/data/intermediate/09_house_training_cd119.csv`.
 
 To refresh the reports for the latest completed run from its saved predictions and open the four-panel PDF in Codespaces, run the following from the repository root. The report command reads the completed district predictions and requires no sampling.
+
+*Snippet 3. Regenerate the holdout reports.*
 
 ```bash
 Rscript 01_frame/scripts/09_validate_house_beta.R report
@@ -211,6 +251,8 @@ Each fitted stage writes two small files alongside its checkpoint, for example `
 
 The [complete generated Stan program](stan/09_sequential_beta.stan) is available for reading before a fit. We generated it with the stage formulas, priors and static threading from the driver, using brms 2.23.0 and example district inputs. All three stages produced identical Stan text. In the likelihood, `Y` holds the stage-specific response, `Xc` holds the centered fixed predictors, and `Xs` and `Zs_1_1` supply the linear and penalized parts of the presidential curve. The three groups of random effects implement the age walk, education walk and state intercepts. Each stage receives its own data and estimates its own coefficients and precision. Use the checkpoint’s exported program to inspect a particular run.
 
+*Table 5. Diagnostics and files written by the holdout run.*
+
 | Run output | What it contains |
 |---|---|
 | `09_beta_district_split.csv` | District identifiers and the training, holdout or excluded assignment. |
@@ -234,6 +276,8 @@ The ballot-adjusted results have their own
 [figure](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_plots.pdf),
 [predictions](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_predictions.csv) and
 [scores](../data/output/09_beta_holdout/78015b45e1ff1376883b/ballot_adjusted/09_beta_holdout_scores.csv).
+
+*Table 6. House model and state presidential benchmark on the verified holdout.*
 
 | Choice | Model RMSE (pp) | State presidential RMSE (pp) | Districts inside model’s 90% interval |
 |---|---:|---:|---:|

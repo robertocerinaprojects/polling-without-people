@@ -7,6 +7,8 @@ Replication pipeline under development.
 The 2024 data inputs for building the extended stratification frame are
 available in [the handoff directory](01_frame/data/output/10_handoff/).
 
+*Table 1. Principal frame handoff files.*
+
 | File | Contents |
 |---|---|
 | `district_election_inputs_cd120.csv` | District-by-choice 2024 House and statewide presidential shares, lineup, incumbency, and ballot presence on the 2026 map |
@@ -18,6 +20,8 @@ command, and the lineup rules. See the [frame guide](01_frame/README.md)
 for the upstream pipeline.
 
 ## Components
+
+*Table 2. Repository components and their purposes.*
 
 | Component | Purpose |
 |---|---|

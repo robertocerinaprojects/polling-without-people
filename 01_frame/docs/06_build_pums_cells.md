@@ -21,6 +21,8 @@ profiles and for complete profiles with no positive PUMS contribution.
 Run the [cell builder](../scripts/06_build_pums_cells.R) from the repository root
 with `Rscript 01_frame/scripts/06_build_pums_cells.R` after Steps 03, 04 and 05.
 
+*Table 1. Inputs and outputs for population cells and CES coverage.*
+
 | File under `01_frame/data/` | Role |
 |---|---|
 | `intermediate/pums_cd_allocation.rds` | Step 03 supplies each person's state, district and `allocated_person_weight`. This weight already includes the district allocation. |
@@ -32,8 +34,17 @@ with `Rscript 01_frame/scripts/06_build_pums_cells.R` after Steps 03, 04 and 05.
 
 Both products use the keys `STATEFP, CDFP120, age_cat, gender_cat, race_cat,
 hispanic_cat, educ_cat`. State/district pairs use two-character codes for each
-part. DC is `11/98`. The population cell table includes all 436 districts and
-all cells receiving positive weight, including cells with no CES respondent.
+part. DC is `11/98`. For person $i$, let $w_{ic}$ be the Step 03 weight
+allocated to cell $c$. The population cell count is
+
+*Equation 1. Population count for an original frame cell.*
+
+$$
+N_c=\sum_i w_{ic}.
+$$
+
+The table retains every cell with $N_c>0$ across the 436 districts, including
+cells with no CES respondent.
 The survey coverage table includes every retained CES respondent once in its
 `ces_respondents` count. Summing the survey coverage table's `N` omits
 population cells that have no survey respondent. Use the population table for
@@ -42,6 +53,8 @@ population totals.
 ## What a match means
 
 The CES and PUMS cell keys use the same labels. Their source measures differ.
+
+*Table 2. Definitions of the shared survey and population keys.*
 
 | Key | What the shared label represents |
 |---|---|
@@ -67,6 +80,8 @@ total for each cell.
   For the reviewed inputs, the national sum is 240,960,972 and the number of PUMS
   person records is 12,263,785.
 
+*Table 3. Coverage audit statuses and their population counts.*
+
 | What happens when we look up a CES profile? | `coverage_status` | `N` in the coverage audit |
 |---|---|---|
 | All seven fields match a population cell. | `matched_positive_N` | Sum of the PUMS district weights in that cell |
@@ -81,6 +96,8 @@ preserves the weighted total of **240,960,972 citizen adults** from
 period for the population is 2020–2024. The district boundaries are those
 used for the 2026 election. The upstream person–district file retains each
 person's fractional contributions when person-level analysis is needed.
+
+*Table 4. Verified CES respondent and profile coverage.*
 
 | Result for the CES respondent's seven matching fields | Respondents | Distinct CES profiles |
 |---|---:|---:|

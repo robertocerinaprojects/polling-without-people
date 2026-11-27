@@ -4,6 +4,8 @@ Download the three published files below or find them in a clone under
 `01_frame/data/output/10_handoff/`. You can use them without running the pipeline.
 These files match the [November 22, 2026 verified rebuild](01_frame/README.md#latest-verified-rebuild).
 
+*Table 1. Downloadable Step 10 handoff files.*
+
 | Download | Contents |
 | --- | --- |
 | [district_election_inputs_cd120.csv](https://raw.githubusercontent.com/robertocerinaprojects/polling-without-people/main/01_frame/data/output/10_handoff/district_election_inputs_cd120.csv) | 1,744 rows, with four vote choices per 2026 congressional district, including DC. Each row carries the 2024 district House share and statewide presidential share for that choice, plus the House lineup, incumbency, and ballot presence. |
@@ -15,6 +17,8 @@ import location. Use `data/input/` if it has none.
 
 To rebuild the files from the saved outputs of Steps 05–07 and 09, run this
 command from the repository root.
+
+*Snippet 1. Build the three Step 10 handoff files.*
 
 ```sh
 Rscript 01_frame/scripts/10_prepare_handoff.R
@@ -33,11 +37,15 @@ V9, released under CC0 1.0. [Source dataset](https://doi.org/10.7910/DVN/X11EP6)
 
 ### House lineups and incumbency
 
+*Table 2. House lineup years and district scenario counts.*
+
 | `prediction_source` | Districts | `lineup_year` | Lineup used |
 | --- | ---: | ---: | --- |
 | `observed_same_footprint` | 290 | 2024 | Actual 2024 nominees in unchanged districts with tabulated returns. |
 | `model_redrawn` | 144 | 2026 | The nominees on the 2026 ballot are used for the hypothetical 2024 contest on the 2026 map. |
 | `model_unopposed_2024` | 2 | 2024 | The sole declared 2024 winner is used in each hypothetical contest. Redrawn FL-20 uses Democrat Sheila Cherfilus-McCormick and OK-03 uses Republican Frank D. Lucas. Both were incumbents. |
+
+*Table 3. Ballot fields on a district-choice row.*
 
 | Field | Meaning on a district and choice row |
 | --- | --- |
@@ -58,6 +66,8 @@ The seven shared cell keys are `state_fips`, `district_fips`, `age_cat`, `gender
 
 All nine columns from the handoff CSV, in file order. Shares are rounded for display.
 
+*Table 4. Example district election input rows.*
+
 | State FIPS | District FIPS | State | Choice | `vote_house_2024` | `vote_pres_2024` | Lineup | Incumbent | On ballot |
 | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: |
 | `01` | `01` | Alabama | Democratic | 0.186204 | 0.200644 | DR | 0 | 1 |
@@ -68,6 +78,8 @@ All nine columns from the handoff CSV, in file order. Shares are rounded for dis
 
 ### Mother frame
 
+*Table 5. Example rows from the PUMS mother frame.*
+
 | State FIPS | District FIPS | State | Age | Gender | Race | Hispanic ethnicity | Education | `N` |
 | --- | --- | --- | --- | --- | --- | --- | --- | ---: |
 | `01` | `01` | Alabama | 18-22 | Male | White | Hispanic | No HS | 59.17 |
@@ -76,6 +88,8 @@ All nine columns from the handoff CSV, in file order. Shares are rounded for dis
 | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ | ⋮ |
 
 ### Harmonized CES
+
+*Table 6. Example rows from the harmonized CES.*
 
 | State FIPS | District FIPS | Age | Gender | Race | Hispanic ethnicity | Education | `vote_house_2024` | `vote_pres_2024` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

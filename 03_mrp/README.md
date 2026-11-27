@@ -2,6 +2,8 @@
 
 ## Script status
 
+*Table 1. MrP input preparation scripts and status.*
+
 | Order | Script | Status | Documentation |
 |---|---|---|---|
 | 01 | `scripts/01_prepare_house_inputs.R` | Input build checked against the 2024 handoff, reviewed 2026 roster, and pinned November returns snapshot | [2026 House inputs](docs/01_prepare_house_inputs.md) |

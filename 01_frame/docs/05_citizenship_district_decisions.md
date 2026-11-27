@@ -22,6 +22,8 @@ preserves the full downloaded survey. The sample includes adults who did not
 vote. The harmonized gender rule uses `gender4` codes 1 and 2. Survey
 respondent counts below are unweighted.
 
+*Table 1. Citizenship and Hispanic identification in the CES samples.*
+
 | Sample | Respondents | Citizen Yes | Citizen No | Missing | Primary Hispanic |
 |---|---:|---:|---:|---:|---:|
 | Full CES | 60,000 | 59,171 | 785 | 44 | 5,150 |
@@ -71,6 +73,8 @@ exception assigns one legally split block to CO-08 in both files. A unique
 destination is a statement about this overlay and the CES geography, rather
 than independent address validation. The CD120 archive is the same snapshot
 used in Step 02. The national file includes the October 2026 Missouri update.
+
+*Table 2. Results of the original-to-2026 district geography audit.*
 
 | Audit of the original geography | All retained citizens | Primary Hispanic/Latino respondents |
 |---|---:|---:|

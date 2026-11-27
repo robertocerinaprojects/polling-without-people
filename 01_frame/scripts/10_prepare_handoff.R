@@ -1,10 +1,17 @@
 # Run from the repository root: Rscript 01_frame/scripts/10_prepare_handoff.R
 # Inputs, outputs, and field definitions: get_us_2024_xframe_data.md
+#
+# Step 10 assembles three files for frame extension: population cells from
+# Step 06, individual CES responses from Step 05, and area election inputs
+# from Steps 07 and 09. All three use 120th Congress district keys. The wider
+# district predictor table goes to the intermediate directory for MrP.
 prepare_handoff <- function(frame_dir = "01_frame") {
   intermediate <- file.path(frame_dir, "data", "intermediate")
   output <- file.path(frame_dir, "data", "output")
   bundle <- file.path(output, "10_handoff")
 
+  # Preserve leading zeros in FIPS codes and old-district references. Read
+  # blank fields as missing and retain the source column names for checks.
   read_table <- function(path, text_fields = "STATEFP") {
     classes <- setNames(rep("character", length(text_fields)), text_fields)
     read.csv(path, colClasses = classes, na.strings = "", check.names = FALSE)
@@ -16,7 +23,10 @@ prepare_handoff <- function(frame_dir = "01_frame") {
   president <- read_table(file.path(intermediate, "07_state_presidential_covariates_2024.csv"))
   states <- read_table(file.path(frame_dir, "docs", "02_pl_2020_sources.csv"))
 
-  # Align by district first, then confirm the export matches the scenario inputs.
+  # The Step 09 target table describes each district scenario and its
+  # predictors. The final House export supplies four shares for each scenario.
+  # Match on the combined state and district FIPS codes before comparing any
+  # shared fields. Agreement guards against mixing outputs from different runs.
   district_id <- function(table) do.call(paste0, table[district_key])
   house_rows <- match(district_id(target), district_id(house))
   stopifnot(
@@ -34,6 +44,9 @@ prepare_handoff <- function(frame_dir = "01_frame") {
                 isTRUE(all.equal(target[[field]], house[[field]]))
               }, logical(1))))
 
+  # Attach the state lookup and repeat the Step 07 statewide presidential
+  # results across districts within each state. Check both state abbreviations
+  # and the shares copied into Step 09 before using the source values here.
   state_rows <- match(target$STATEFP, states$STATEFP)
   president_rows <- match(target$STATEFP, president$STATEFP)
   stopifnot(
@@ -51,6 +64,8 @@ prepare_handoff <- function(frame_dir = "01_frame") {
               isTRUE(all.equal(target$pres_other, state_returns$share_other)) &&
               isTRUE(all.equal(target$pres_none, state_returns$share_did_not_vote)))
 
+  # Display names distinguish the at-large code 00 and DC delegate code 98.
+  # The text FIPS codes remain the join keys.
   district_names <- data.frame(
     state_abbr = states$STUSAB[state_rows],
     state_name = states$state_name[state_rows],
@@ -58,6 +73,10 @@ prepare_handoff <- function(frame_dir = "01_frame") {
                            ifelse(target$STATEFP == "11" & target$CDFP == "98",
                                   "Delegate district", paste("District", as.integer(target$CDFP))))
   )
+  # These vectors map the wide source columns to the same choice order used
+  # below. Party-specific values will be attached as one column each in the
+  # long table. Keep district-wide scenario fields and House export metadata
+  # once per district before expanding, and expose the slate as lineup.
   house_shares <- c("share_dem", "share_rep", "share_other", "share_no_vote")
   pres_shares <- c("share_dem", "share_rep", "share_other", "share_did_not_vote")
   pres_counts <- c("votes_dem", "votes_rep", "votes_other", "did_not_vote_est")
@@ -72,7 +91,10 @@ prepare_handoff <- function(frame_dir = "01_frame") {
   names(districts)[match(district_key, names(districts))] <- c("state_fips", "district_fips")
   names(districts)[match("slate", names(districts))] <- "lineup"
 
-  # Step 06 already produced these cells. Harmonize the geography names for export.
+  # Every mother-frame column except N is part of the original cell joint.
+  # Check key completeness and uniqueness, positive population mass, and
+  # district coverage. CES must use the same classes and factor levels so
+  # a given demographic profile has the same meaning in both inputs.
   mother_path <- file.path(intermediate, "pums_cd_cells.rds")
   mother <- readRDS(mother_path)
   cell_key <- setdiff(names(mother), "N")
@@ -89,6 +111,9 @@ prepare_handoff <- function(frame_dir = "01_frame") {
           identical(levels(mother[[field]]), levels(ces[[field]]))
       }, logical(1)))
   )
+  # Export CES at the respondent level with the cell keys and both vote
+  # outcomes. Give the shared geographic fields consistent names across
+  # the population, survey and election files.
   vote_columns <- c("house_vote_2024", "pres_vote_2024")
   ces <- ces[c(cell_key, vote_columns)]
   vote_names <- c("vote_house_2024", "vote_pres_2024")
@@ -99,7 +124,11 @@ prepare_handoff <- function(frame_dir = "01_frame") {
   names(ces)[match(c("STATEFP", "CDFP120", vote_columns), names(ces))] <-
     c(geo_names, vote_names)
 
-  # Use the same outcome labels as the respondent file.
+  # Build one row per district and choice, including No Vote. The same
+  # vote_* column names refer to categorical choices in CES and area shares
+  # in the election table. Both election share sets use citizen adults as
+  # their denominator. Candidate fields are missing for No Vote because
+  # incumbency, nominee count and ballot presence apply to party choices.
   choices <- c("Democratic", "Republican", "Other", "No Vote")
   stopifnot(all(vapply(ces[vote_names], function(vote) {
     identical(levels(vote), choices)
@@ -127,6 +156,8 @@ prepare_handoff <- function(frame_dir = "01_frame") {
                      "lineup", "incumbent")
   results <- results[c(first_columns, setdiff(names(results), first_columns))]
   results <- results[order(results$state_fips, results$district_fips), ]
+  # The district-choice key must be unique, and the four outcome shares
+  # must exhaust the population in each district for House and state for president.
   stopifnot(
     "Expected four choices per district." =
       nrow(results) == 4L * nrow(target) &&
@@ -139,7 +170,11 @@ prepare_handoff <- function(frame_dir = "01_frame") {
   handoff_columns <- c(geo_names, "state_name", "vote_choice", vote_names,
                        "lineup", "incumbent", "on_ballot")
 
-  # Stage the public handoff and the full predictor table used by MrP.
+  # The handoff CSV contains the fields needed for frame extension. The wider
+  # intermediate CSV also retains scenario, candidate and presidential source
+  # details used by MrP. Write all four files to a temporary subdirectory
+  # before moving them into place. Each file is published by its own rename,
+  # and the temporary directory is cleaned up on exit.
   dir.create(bundle, recursive = TRUE, showWarnings = FALSE)
   filenames <- c("district_election_inputs_cd120.csv", "pums_cd_cells.rds", "ces_2024_harmonized.rds")
   staged <- tempfile(".10-handoff-", tmpdir = bundle)
@@ -163,4 +198,6 @@ prepare_handoff <- function(frame_dir = "01_frame") {
   invisible(paths)
 }
 
+# Run the handoff when invoked with Rscript. Sourcing the file exposes the
+# function for callers that supply their own frame directory.
 if (sys.nframe() == 0L) prepare_handoff()

@@ -36,6 +36,8 @@ seven reviewed differences in presidential Other.
 
 ## Ballot decisions for both offices
 
+*Table 1. Treatment of ballot and return fields for both offices.*
+
 | What the source reports for this office | Treatment |
 |---|---|
 | Vote for a Democratic or Republican candidate | Assign to that candidate's party, including named write-ins and votes credited on local or cross-endorsing party lines. |
@@ -61,6 +63,8 @@ separately describe respondents' answers and survey-wave fallbacks.
 
 From the repository root:
 
+*Snippet 1. Prepare state and district election returns.*
+
 ```bash
 /usr/bin/python3 01_frame/scripts/07_prepare_area_returns.py
 ```
@@ -71,6 +75,8 @@ already exists, this mode leaves it in place. A full run refreshes it.
 The command uses the Codespace's system Python. In another environment,
 use a Python 3 interpreter with `openpyxl` and make Poppler's `pdftotext`
 available on the command path. Paths in the table are relative to `01_frame/`.
+
+*Table 2. Election return inputs and approved checksums.*
 
 | Cached input | Release and use | SHA-256 of reviewed bytes |
 |---|---|---|
@@ -100,16 +106,18 @@ counts and this population estimate can differ in timing and coverage.
 
 ## Calculating presidential shares
 
-For each state and DC, let `total_votes = votes_dem + votes_rep + votes_other`.
-The three counts cover votes credited to candidates or to pools of candidates.
-Use the same full state `cvap` in every denominator.
+For each state and DC, let $N$ be citizen-adult population and $V_D$, $V_R$,
+and $V_O$ the counts credited to the Democratic, Republican, and Other
+candidate pools. Let $V=V_D+V_R+V_O$.
+
+*Table 3. Statewide presidential shares and residual counts.*
 
 | Result | Calculation |
 |---|---|
-| Democratic, Republican or Other share | Corresponding candidate count divided by `cvap` |
-| Presidential turnout share | `total_votes / cvap` |
-| Estimated citizens without a counted candidate vote for president | `did_not_vote_est = cvap - total_votes` |
-| Did not vote for president share | `did_not_vote_est / cvap` |
+| Democratic, Republican or Other share | $V_k/N$ for party pool $k$ |
+| Presidential turnout share | $V/N$ |
+| Estimated citizens without a counted candidate vote for president | $N-V$ |
+| Did not vote for president share | $(N-V)/N$ |
 
 The Did not vote estimate combines people who cast no ballot with people
 whose ballot yielded no credited candidate vote for this office. Individual
@@ -131,6 +139,8 @@ The House table represents 435 seats and DC's delegate on the original
 `00` is at large, and state/district `11/98` is DC's delegate. The
 DC delegate has 314,069 credited candidate and write-in votes. The
 source audit also records 561 overvotes and 13,774 undervotes for that contest. [DC certified results](https://electionresults.dcboe.org/election_results/2024-General-Election)
+
+*Table 4. Special cases in House tabulation.*
 
 | Contest | Treatment |
 |---|---|
@@ -172,6 +182,8 @@ the same rule to both files. In these states Step 07 uses the FEC's compiled
 state-office returns and records both sets of numbers. Elsewhere it uses the
 matching MIT figures. Source differences require review if a release changes.
 
+*Table 5. State differences between MIT and FEC Other presidential counts.*
+
 | State | MIT Other minus FEC Other |
 |---|---:|
 | Arizona | −842 |
@@ -191,6 +203,8 @@ The House D/R/Other totals agree with the Clerk for all 434 tabulated
 contests, including DC. The selected counts come from MIT there. The two
 unpolled contests have missing counts and are identified as such in both
 the House table and the comparison audit.
+
+*Table 6. Prepared election files and geographic units.*
 
 | Output, relative to `01_frame/data/` | What it provides |
 |---|---|

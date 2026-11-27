@@ -4,6 +4,8 @@ These conventions apply to `01_frame`, `02_personae` and `03_mrp`.
 
 ## Shared component layout
 
+*Table 1. Shared paths within a project component.*
+
 | Path within a component | Purpose |
 |---|---|
 | `README.md` | Authoritative execution-order and implementation-status index |
@@ -44,6 +46,8 @@ explanations belong in `docs/`; there is no additional README inside `scripts/`.
   recursively execute every script it finds.
 
 ## Implementation status
+
+*Table 2. Implementation status labels and meanings.*
 
 | Status | Meaning |
 |---|---|
@@ -121,6 +125,12 @@ It distinguishes supplied data from quantities we estimate.
 Technical details, source references, commands and validation results
 follow the summary. Intended behavior is clearly distinguished from
 implemented and validated behavior.
+
+Caption tables, figures, executable or illustrative snippets, and displayed
+equations. Number each category independently within each Markdown file,
+using labels such as *Table 1. Population counts by district.* Place table,
+snippet and equation captions above the item and figure captions below it.
+Use a blank line between the caption and its item.
 
 Supporting decision or audit documents should also briefly explain
 their purpose in plain language and link to the main script document.

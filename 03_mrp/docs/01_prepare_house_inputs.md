@@ -2,6 +2,8 @@
 
 Run from the repository root.
 
+*Snippet 1. Prepare the 2026 House inputs.*
+
 ```sh
 Rscript 03_mrp/scripts/01_prepare_house_inputs.R
 ```
@@ -13,6 +15,8 @@ command. To regenerate the annual roster from the pinned Clerk PDFs and
 reviewed corrections, run the following command. The roster script
 requires Python 3 and Poppler's `pdftotext`. [Step 08 roster build](../../01_frame/docs/08_house_slates.md)
 
+*Snippet 2. Refresh candidate slates before rebuilding House inputs.*
+
 ```sh
 python3 01_frame/scripts/08_prepare_house_slates.py
 ```
@@ -23,6 +27,8 @@ python3 01_frame/scripts/08_prepare_house_slates.py
 schema, and four choices per district. Join by `state_fips`,
 `district_fips`, and `vote_choice`. Read both FIPS keys and
 `matching_cd119` as text.
+
+*Table 1. Pre-election predictor fields and their provenance.*
 
 | Fields | Provenance |
 |---|---|
@@ -72,6 +78,8 @@ counts. The same manifest reproduces the benchmark after any of its
 live sources update. The
 [original snapshot](https://github.com/robertocerinaprojects/polling-without-people/blob/7f8d796604b48c54cf5a2efb4e2c38913e7807a8/03_mrp/docs/01_house_2026_source_votes.csv)
 remains available by commit.
+
+*Table 2. Official returns and treatment for the 2026 validation inputs.*
 
 | Area | Return and treatment |
 | --- | --- |

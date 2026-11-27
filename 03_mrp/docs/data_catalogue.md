@@ -4,6 +4,8 @@ The [Step 01 guide](01_prepare_house_inputs.md) records column provenance,
 date, transformations, and results coverage. The fitted MrP and survey
 interfaces remain pending.
 
+*Table 1. MrP files with their producers and downstream schemas.*
+
 | Repository path | Source or producer | Consumer and schema |
 |---|---|---|
 | `01_frame/data/intermediate/10_district_election_predictors_cd120.csv` | Frame Step 10. [Handoff](../../get_us_2024_xframe_data.md) | MrP Step 01. District-by-choice predictors, CD120 keys, ACS citizen-adult population, and 2024 House and presidential shares. |

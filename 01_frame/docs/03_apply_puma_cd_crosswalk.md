@@ -25,6 +25,8 @@ individual checks and how the allocation and its state audit are saved.
 
 Run the script from the repository root.
 
+*Snippet 1. Allocate PUMS person weights to congressional districts.*
+
 ```bash
 Rscript 01_frame/scripts/03_apply_puma_cd_crosswalk.R
 ```
@@ -33,6 +35,8 @@ The latest verified rebuild passed national coverage and
 allocation checks and saved the person–district table and both audits.
 
 ## Inputs and geographic compatibility
+
+*Table 1. Inputs to the person-level district allocation.*
 
 | Input under `data/intermediate/` | Producer | Role |
 |---|---|---|
@@ -71,6 +75,8 @@ Section 2 works one state at a time. Each person receives every positive
 `allocation_weight` for their PUMA. The crosswalk retains zero-probability
 intersections for geographic review. The allocation output contains the
 positive contributions, computed at full precision.
+
+*Snippet 2. Calculate the person weight contributed to a district.*
 
 ```
 allocated_person_weight = PERWT * allocation_weight
@@ -115,6 +121,8 @@ The run printed one person from Alabama PUMA `00100` with `PERWT = 2`.
 The table shows the rounded values printed by R. The allocation uses the
 full-precision probabilities.
 
+*Table 2. District contributions for the example PUMS respondent.*
+
 | District | Probability displayed | Person-weight contribution displayed |
 |---|---:|---:|
 | AL-04 | 0.904 | 1.81 |
@@ -123,6 +131,8 @@ full-precision probabilities.
 ## Outputs
 
 Paths are relative to `01_frame/`.
+
+*Table 3. Allocation outputs and their row definitions.*
 
 | File | Contents |
 |---|---|

@@ -43,6 +43,8 @@ Republican, we record a Republican House vote. Even if the respondent moved
 between waves, that vote belongs to their post-election **2024 ballot district**.
 The 2026 district drawn above remains their residence for matching to PUMS.
 
+*Table 1. Code locations for tracing a CES respondent through preparation.*
+
 | To follow this part | Open |
 |---|---|
 | Cache the reviewed survey, select citizens and map their demographic answers | [Main script](../scripts/05_prepare_ces.R) and [survey file reader](../scripts/helpers/05_ces_files.R) |
@@ -58,6 +60,8 @@ From the repository root, run `Rscript 01_frame/scripts/05_prepare_ces.R`.
 The top-level script handles the CES download, the geographic lookup, the
 donor estimates and the survey harmonization. The geographic helper uses
 Python 3's standard library. Run after Steps 02, 03 and 04.
+
+*Table 2. Inputs to the CES preparation script.*
 
 | Input | Used for |
 |---|---|
@@ -78,6 +82,8 @@ See the [PUMS categories and donor counts](04_harmonize_pums.md).
 
 ## Respondents and variables
 
+*Table 3. Treatment of source CES fields.*
+
 | CES field | Treatment |
 |---|---|
 | `cit1` | Retain an explicit 1 (Yes). Preserve the source answer and separately audit No and missing. |
@@ -97,6 +103,8 @@ record per retained `caseid`. The new district is `STATEFP + CDFP120`.
 `CD119` is the normalized old district. The source `cdid119` is also preserved.
 `district_probability` is the probability of the chosen district.
 `race_imputed` and `race_donor_level` identify a race draw and its donor pool.
+
+*Table 4. Prepared CES files and audit outputs.*
 
 | File under `data/output/` unless indicated | Unit and purpose |
 |---|---|
@@ -124,6 +132,8 @@ The reviewed sample has 58,627 respondents. Use `caseid` to look up raw survey
 answers, candidate rosters, race imputation flags or district probabilities
 in the detailed file and its audits.
 
+*Table 5. Columns in the CES analysis file.*
+
 | Columns | Use |
 |---|---|
 | `caseid`, `commonweight` | Unique respondent identifier and original CES adult survey weight. The citizenship and gender restrictions retain each person's published weight. |
@@ -143,6 +153,8 @@ raw CES. See the [vote rules and weight definitions](05_vote_rules.md).
 Step 05 writes this export after saving the detailed file. To make it from
 an existing run and print its first six rows, run from the repository root:
 
+*Snippet 1. Rebuild the slim CES analysis export.*
+
 ```sh
 Rscript 01_frame/scripts/helpers/05_export_ces_analysis.R
 ```
@@ -154,6 +166,8 @@ race. One had unresolved Hispanic origin. The table gives unweighted respondent
 counts. The rows are the original answers to the CES primary race question.
 The columns are the final harmonized race after using reported races and
 filling in the remaining gaps.
+
+*Table 6. Original CES race and the harmonized race assignment.*
 
 | Original CES race | White | Black | Native American | Asian | Other/Multi | Before |
 |---|---:|---:|---:|---:|---:|---:|

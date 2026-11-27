@@ -25,6 +25,8 @@ The denominator includes all retained PUMS people with `hispanic_flag = 1`,
 including group-quarters residents and DC. `donor_records` is the unweighted
 record count. [IPUMS person weights](https://usa.ipums.org/usa-action/variables/PERWT)
 
+*Table 1. Expected counts for the reviewed Step 01 input.*
+
 | Check on the reviewed Step 01 input | Expected total |
 |---|---:|
 | People receiving harmonized categories | 12,263,785 |
@@ -40,6 +42,8 @@ source codes. For example, someone with `EDUCD = 64`, `RACE = 8` and
 `hispanic_flag = 1` receives **HS grad**, **Other/Multi** and **Hispanic**.
 Their original person weight contributes once to the Other/Multi donor total.
 
+*Table 2. Harmonized demographic fields and category rules.*
+
 | PUMS field | Harmonized field | Coding |
 |---|---|---|
 | `AGE` at observation | `age_cat` | Five-year bands beginning 18–22, ending 78–82, followed by 83+. |
@@ -47,6 +51,8 @@ Their original person weight contributes once to the Other/Multi donor total.
 | `hispanic_flag` | `hispanic_cat` | 1 gives Hispanic, 0 gives Not Hispanic. Unknown origin stays missing. |
 | `RACE` | `race_cat` | 1 White, 2 Black, 3 Native American, 4–6 Asian, 7–9 Other/Multi. The Asian group includes the source category Other Asian or Pacific Islander. |
 | `EDUCD` | `educ_cat` | The six education groups below. |
+
+*Table 3. Detailed IPUMS education codes mapped to harmonized categories.*
 
 | Education | IPUMS detailed codes |
 |---|---|
@@ -80,6 +86,8 @@ the calculation so that the national shares account for all donors.
 The national run harmonized 12,263,785 citizen-adult records. All five fields
 were complete. The 1,401,620 Hispanic donor records had a combined person
 weight of 33,794,882.
+
+*Table 4. Race donor counts and weighted proportions.*
 
 | Harmonized race | Donor records | Weighted people | National share (rounded) |
 |---|---:|---:|---:|

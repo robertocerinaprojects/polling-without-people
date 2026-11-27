@@ -33,12 +33,16 @@ filtering, recoding and final dataset checks and saved the outputs below.
 
 Run from the repository root with the project's renv environment:
 
+*Snippet 1. Stage the approved IPUMS source snapshot.*
+
 ```bash
 Rscript 01_frame/scripts/00_download_pums.R
 Rscript 01_frame/scripts/01_prepare_pums.R
 ```
 
 On a fresh environment, restore the recorded packages first:
+
+*Snippet 2. Restore the R environment and run person preparation.*
 
 ```bash
 Rscript -e 'renv::restore(prompt = FALSE)'
@@ -51,6 +55,8 @@ A completed local snapshot can be checked and used offline.
 
 The source is the full IPUMS USA `us2024c` person extract, acquired by
 [Script 00](00_download_pums.md). Paths below are relative to `01_frame/`.
+
+*Table 1. Source files used to validate the microdata snapshot.*
 
 | File | Role |
 |---|---|
@@ -68,11 +74,15 @@ and labels.
 
 The approved compressed CSV has **249,052,624 bytes**. Its SHA-256 is:
 
+*Snippet 3. SHA-256 of the approved compressed microdata CSV.*
+
 ```text
 adb92df6553053b846773de170852e4d1b7b557d6d6aaf9827e9a37111f70a04
 ```
 
 The approved variable-metadata SHA-256 is:
+
+*Snippet 4. SHA-256 of the approved parsed variable metadata.*
 
 ```text
 c5216653fec547730c0edd2a5381cb10b1bbda82cbe0371a2b594c806223d65a
@@ -115,6 +125,8 @@ starts with that published area and inherits its geographic uncertainty.
 
 ## Outputs
 
+*Table 2. Prepared microdata and audit outputs.*
+
 | File | Purpose |
 |---|---|
 | `data/intermediate/pums_clean.rds` | Script 03 applies district probabilities to the person weights. [Script 04](04_harmonize_pums.md) harmonizes demographics. [Script 08](08_build_district_predictors.md) uses original weights and PUMA identifiers to reconstruct the population on the 2024 district boundaries. |
@@ -130,6 +142,8 @@ after a publication error. Downloaded and generated data are excluded from Git.
 ## Validated results
 
 The completed preparation run using the approved IPUMS source produced:
+
+*Table 3. Verified source and preparation totals.*
 
 | Measure | Result |
 |---|---:|

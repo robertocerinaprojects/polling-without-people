@@ -19,6 +19,8 @@ by `caseid` in the raw CES release.
 
 ## First usable answer wins, independently for each office
 
+*Table 1. Source hierarchy and coding rules by office.*
+
 | Source recorded | House rule | Presidential rule |
 |---|---|---|
 | `post_choice` | `CC24_412` slots 1–5 select candidates from the post-election roster. Code 10 uses the Other text rule below. Code 11 (did not vote in this race) or 12 (did not vote) gives No Vote. Code 13 (not sure) leaves the result missing. | `CC24_410` codes 1 Harris and 2 Trump give Democratic and Republican. Codes 3 Kennedy, 4 Stein, 5 West and 6 Oliver give Other. Code 8 uses the Other text rule. Code 9 gives No Vote. |
@@ -83,6 +85,8 @@ the post-election survey.
 All figures are unweighted respondent counts, using the 58,627 self-reported
 citizens in the harmonized sample.
 
+*Table 2. Final CES vote outcome counts by office.*
+
 | Outcome | House | President |
 |---|---:|---:|
 | Democratic | 26,822 | 28,846 |
@@ -90,6 +94,8 @@ citizens in the harmonized sample.
 | Other | 995 | 1,757 |
 | No Vote | 6,390 | 4,670 |
 | Missing | 3,923 | 1,292 |
+
+*Table 3. CES vote records by answer source and office.*
 
 | Source | House | President |
 |---|---:|---:|
@@ -122,6 +128,8 @@ office and use their cleaned candidate choice. The Democratic two-party
 share is the sum of weights for Democratic choices divided by the sum of
 weights for Democratic and Republican choices. Other, No Vote and unresolved
 responses are outside this denominator.
+
+*Table 4. Weighted CES and official Democratic two-party shares.*
 
 | Office | Respondents with a major-party choice | Weighted CES Democratic two-party share | Official Democratic two-party share | CES minus official (percentage points) |
 |---|---:|---:|---:|---:|
@@ -161,6 +169,8 @@ fingerprints, and reuses matching files in `01_frame/data/input/05_vote_benchmar
 The two R checks read the detailed harmonized CES. The first also checks its
 vote outcomes, source flags and ballot geography against the pinned raw CES
 one respondent at a time.
+
+*Snippet 1. Reproduce the official-return and CES vote benchmarks.*
 
 ```sh
 python3 01_frame/scripts/helpers/05_benchmark_official.py

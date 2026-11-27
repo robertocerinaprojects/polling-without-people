@@ -45,6 +45,8 @@ match the Census Errata 148 suppression list.
 All blocks of the two affected PUMAs belong to NY-02 under our pinned
 120th Congress block-equivalency file:
 
+*Table 1. Allocation evidence for the reviewed district overlaps.*
+
 | State/PUMA | District | All blocks | 2020 total population | Population in suppressed block groups |
 |---|---|---:|---:|---:|
 | 36/03310 | NY-02 | 1,369 | 130,712 | 62,387 |
@@ -224,6 +226,8 @@ allocation inputs as a separate adjustment. No geographic records or
 PUMS records are removed.
 
 ### Reviewed cases
+
+*Table 2. Final treatment of the reviewed block-group cases.*
 
 | Block group | Geographic description | State/PUMA | Districts | Published CVAP | Allocation CVAP |
 |---|---|---|---|---:|---:|

@@ -21,6 +21,8 @@ of all citizen adults in its district. Both maps include DC's delegate.
 
 From the repository root, after Steps 01–06:
 
+*Snippet 1. Build district predictors on both congressional maps.*
+
 ```sh
 Rscript 01_frame/scripts/08_build_district_predictors.R
 ```
@@ -34,6 +36,17 @@ The [separate roster script](08_house_slates.md) records how many candidates eac
 and whether any of them was already serving in Congress before that election. Either Step 08 entry point can run first.
 
 ## Follow one share from PUMS to a district
+
+Let $W_{pa}$ be the weighted population of demographic category $a$ in PUMA
+$p$, and let $\omega_{pd}$ be the fraction assigned to CD119 district $d$.
+For a complete set of categories, the district share is
+
+*Equation 1. Allocated category count and district demographic share.*
+
+$$
+N_{da}=\sum_p \omega_{pd}W_{pa},
+\qquad q_{da}=\frac{N_{da}}{\sum_b N_{db}} .
+$$
 
 Suppose the PUMS weights of people with a two-year degree in one PUMA add
 up to 100. If that PUMA's CD119 district weights are 0.70 and 0.30, these
@@ -115,6 +128,8 @@ PUMS people and their full original person weights remain in the frames.
 
 All paths below are relative to `01_frame/data/` unless noted.
 
+*Table 1. Source files for district demographics and election predictors.*
+
 | Input | Use |
 |---|---|
 | `input/cd119.zip` and `input/cd120.zip` | Congressional district ID for each Census block on each map. Step 05 verifies both archive fingerprints. |
@@ -124,6 +139,8 @@ All paths below are relative to `01_frame/data/` unless noted.
 | `intermediate/pums_clean.rds`, `intermediate/pums_demographics.rds` | Person survey weights and original geography, linked to the exact harmonized demographics via sample, serial and person number. |
 | `intermediate/pums_cd_cells.rds`, `output/03_pums_allocation_by_state.csv` | Step 06's CD120 frame and common state PUMS totals for reconciliation. |
 | `input/CVAP_2020-2024_ACS_csv_files.zip` | Published citizen-adult estimates and margins of error for CD119 (`CD.csv`, Total row). [Census source](https://www.census.gov/programs-surveys/decennial-census/about/voting-rights/cvap/2020-2024-CVAP.html) |
+
+*Table 2. District predictor products and their uses.*
 
 | Product | Grain and use |
 |---|---|
